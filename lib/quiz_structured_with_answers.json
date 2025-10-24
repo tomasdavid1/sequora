@@ -1,0 +1,918 @@
+{
+  "Food Reactions": [
+    {
+      "question": "Do you find that you must follow a very restrictive diet because you have multiple food allergies, sensitivities, and intolerances?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Have you been diagnosed with new onset food sensitivities and allergies in the past 12 months?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience hives or itchy red skin reactions?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience bloating and/or gas?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience constipation and/or diarrhea?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience abdominal pain with meals?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience brain fog?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you get headaches or migraines?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience chronic fatigue?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience chronic joint pain, aches, and swelling?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience persistent skin rashes?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you have dark circles under your eyes?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    }
+  ],
+  "Metabolic Dysfunction": [
+    {
+      "question": "Have you noticed unexplained weight gain, especially around the abdomen, even when mindful of diet and lifestyle factors?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Have you experienced significant, unintentional weight loss?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you get hangry or feel lightheaded when you skip meals or do not snack between meals?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you have insatiable hunger and food cravings?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you often feel thirsty, even after drinking plenty of fluids?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Have you been diagnosed with pre-diabetes or type 2 diabetes?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Have you or a close family member been diagnosed with Alzheimer's disease or another type of dementia?",
+      "answers": [
+        0,
+        2,
+        4,
+        8
+      ]
+    },
+    {
+      "question": "Have you been told by your healthcare provider that you are overweight or obese?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you find it difficult to handle and adjust to stressful situations?",
+      "answers": [
+        0,
+        2,
+        4,
+        8
+      ]
+    },
+    {
+      "question": "Do you crave sweet and starchy foods?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    }
+  ],
+  "Oral Health": [
+    {
+      "question": "Do you have 'silver' amalgam fillings from previous cavities?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do your gums easily bleed when you brush or floss your teeth?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Are you a smoker or do you chew tobacco regularly?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Have you received any root canals?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you have any dental implants?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Have you had dry sockets or infected tooth extractions?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you have persistent bad breath, even after brushing and rinsing regularly?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Have you been told you have deep pockets around your wisdom teeth or experienced post-surgical complications after wisdom teeth removal?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you often wake up with a sore jaw, headaches, or signs of teeth grinding?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    }
+  ],
+  "Gut Dysbiosis": [
+    {
+      "question": "Do you experience bloating and/or gas?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience chronic constipation and/or diarrhea?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience abdominal pain with meals?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience abdominal cramping and distension after taking certain probiotics?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you feel 'drunk' after eating high-carbohydrate foods, even without consuming alcohol?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience rectal itching and teeth grinding that worsens at night and occurs in cycles around the full moon?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you have dark circles under your eyes?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Are you hungry all the time, almost as if a bottomless pit?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you consistently crave sweet and starchy foods?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you travel internationally in developing nations?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you often find that your iron stores (ferritin) remain low, even when following a nutrient-dense diet or taking iron supplements?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you notice a thick white coating on your tongue that doesn't go away with brushing?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience abdominal pain, itchy flushed skin, watery eyes, headaches, and/or brain fog after consuming fermented foods, cured meats, or wine?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    }
+  ],
+  "Environmental Toxins": [
+    {
+      "question": "Do you currently live in, work at, or go to school in a building that has a damp or mildewy odor?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you notice that your symptoms decrease or disappear when you go on vacation or spend time in a different location for at least a few days?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you find it difficult to breathe through your nose, causing you to frequently breathe through your mouth?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you wake up routinely during the night with attacks of coughing?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you consider yourself particularly sensitive to electromagnetic frequencies (EMFs)?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience brain fog?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Have you been diagnosed with high blood pressure?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Have you or a close family member been diagnosed with Alzheimer's disease or another type of dementia?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Have you been told that you have hormone issues?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you tend to feel sensitive to chemicals such as perfumes, cleaning products, laundry detergents, or exhaust fumes, and experience symptoms like headaches, lightheadedness, or nausea when exposed?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you notice significant puffiness, swelling, or water retention in your face, arms, and/or legs?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you get a metallic taste in your mouth?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you eat tuna, shark, swordfish, or Atlantic salmon more than twice per week?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Are you an electrician, handle electronic devices, or do home renovations, including painting?",
+      "answers": [
+        0,
+        2,
+        4,
+        8
+      ]
+    },
+    {
+      "question": "Do you currently or have you previously lived in a mining community or are you involved in construction, soldering, or glass staining?",
+      "answers": [
+        0,
+        2,
+        4,
+        8
+      ]
+    }
+  ],
+  "Foreign Objects/Substances": [
+    {
+      "question": "Have you been diagnosed with an autoimmune disorder?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Have you been injured or received a life-altering diagnosis after receiving a vaccine?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you have any silicone implants?",
+      "answers": [
+        0,
+        2,
+        4,
+        8
+      ]
+    },
+    {
+      "question": "Do you have metal implants, dermal fillers, polypropylene mesh, or any other device/material implanted in your body?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Have you ever been diagnosed with chronic fatigue syndrome, lupus, multiple sclerosis, dysautonomia, scleroderma, or Guillain-Barr\u00e9 Syndrome?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience persistent skin rashes?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience tingling, numbness, burning, or stabbing sensations?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience heart palpitations, a racing heart while at rest, or occasional skipped beats?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you often feel ill, similar to having flu-like symptoms?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    }
+  ],
+  "Stealth Infections": [
+    {
+      "question": "Have you ever been bitten by a tick?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Have you ever had a bullseye rash on any part of your body?",
+      "answers": [
+        0,
+        2,
+        4,
+        8
+      ]
+    },
+    {
+      "question": "Do you experience unexplained fevers, sweats, and chills?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience tingling, numbness, burning, or stabbing sensations?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience heart palpitations, a racing heart while at rest, or occasional skipped beats?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you often experience a sore throat, enlarged tonsils, and/or swollen lymph nodes in your neck?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience vertigo?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience chronic ear buzzing, ringing, and/or pain?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience 'air hunger,' where you feel like you're suffocating and struggling to breathe?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience chronic pelvic or testicular pain?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you notice dark urine with or without blood?",
+      "answers": [
+        0,
+        2,
+        4,
+        8
+      ]
+    },
+    {
+      "question": "Do you experience tremors?",
+      "answers": [
+        0,
+        2,
+        4,
+        8
+      ]
+    },
+    {
+      "question": "Have you ever been diagnosed with a heart murmur, valve prolapse, endocarditis, or myocarditis?",
+      "answers": [
+        0,
+        2,
+        4,
+        8
+      ]
+    },
+    {
+      "question": "Do you experience pain along your shin bone or in the heels or soles of your feet?",
+      "answers": [
+        0,
+        2,
+        4,
+        8
+      ]
+    },
+    {
+      "question": "Have you noticed you have a stretch mark-like rash on your back, arms, legs, or abdomen, but not from being overweight?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience persistent, widespread aches and pains?",
+      "answers": [
+        0,
+        2,
+        4,
+        8
+      ]
+    },
+    {
+      "question": "Do you find yourself disoriented (getting lost, going to wrong places), confused, or forgetful (poor short-term memory)?",
+      "answers": [
+        0,
+        2,
+        4,
+        8
+      ]
+    },
+    {
+      "question": "Do you experience flushing, increased heart rate, and faintness with minimal exertion (such as going up a flight of stairs) or at rest?",
+      "answers": [
+        0,
+        2,
+        4,
+        8
+      ]
+    }
+  ],
+  "Nervous System Dysregulation": [
+    {
+      "question": "Do you often feel wired, like you can't shut off your mind, yet still feel exhausted?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you have trouble falling asleep (without medication)?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience tremors?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Have you been diagnosed with high blood pressure?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Have you been told that you have hormone issues?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you find yourself highly sensitive and reactive to your environment, where even minor events or interactions trigger anxiety or panic?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you find yourself overwhelmed, mentally exhausted, and highly emotionally reactive/snippy?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Did you grow up in a home where you were verbally, physically, or sexually abused?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Did you grow up with absent parents due to alcoholism, divorce, mental illness, or incarceration?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Does your drive for perfection or workaholism interfere with your happiness or impact your quality of life?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you have a hard time communicating your needs and/or boundaries?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Have you been diagnosed with a mood disorder such as anxiety, depression, or bipolar?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you experience heart palpitations, a racing heart while at rest, or occasional skipped beats?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "question": "Do you find it difficult to handle and adjust to stressful situations?",
+      "answers": [
+        0,
+        2,
+        4,
+        6
+      ]
+    }
+  ]
+}

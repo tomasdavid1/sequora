@@ -1,0 +1,10 @@
+{
+  "imports": {
+    "supabase": "https://esm.sh/@supabase/supabase-js",
+    "react": "https://esm.sh/react",
+    "react-dom": "https://esm.sh/react-dom",
+    "heroicons/react": "https://esm.sh/@heroicons/react",
+    "path/": "./supabase/functions/path/",
+    "_email-templates/": "./supabase/functions/_email-templates/"
+  }
+}
