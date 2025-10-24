@@ -33,11 +33,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, description, condition_specific, education_level, rules_dsl } = body;
+    const { rule_code, description, condition_code, severity, logic_spec, action_hint, education_level } = body;
 
-    if (!name || !description) {
+    if (!rule_code || !description || !condition_code || !severity) {
       return NextResponse.json(
-        { error: 'Name and description are required' },
+        { error: 'rule_code, description, condition_code, and severity are required' },
         { status: 400 }
       );
     }
@@ -47,13 +47,14 @@ export async function POST(request: NextRequest) {
     const { data: rule, error } = await supabase
       .from('RedFlagRule')
       .insert({
-        name,
+        rule_code,
         description,
-        condition_specific: condition_specific || false,
-        education_level: education_level || 'all',
-        rules_dsl: rules_dsl || { red_flags: [], closures: [] },
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        condition_code,
+        severity,
+        logic_spec: logic_spec || null,
+        action_hint: action_hint || null,
+        education_level: education_level || null,
+        active: true
       })
       .select()
       .single();

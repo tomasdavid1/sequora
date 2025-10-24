@@ -10,7 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { 
   Heart, 
-  Lungs, 
   Activity, 
   Stethoscope, 
   BookOpen, 
@@ -93,7 +92,7 @@ export default function PatientEducationPage() {
   const getConditionIcon = (condition: string) => {
     switch (condition) {
       case 'HF': return <Heart className="w-6 h-6 text-red-500" />;
-      case 'COPD': return <Lungs className="w-6 h-6 text-blue-500" />;
+      case 'COPD': return <Stethoscope className="w-6 h-6 text-blue-500" />;
       case 'AMI': return <Activity className="w-6 h-6 text-orange-500" />;
       case 'PNA': return <Stethoscope className="w-6 h-6 text-green-500" />;
       default: return <User className="w-6 h-6 text-gray-500" />;

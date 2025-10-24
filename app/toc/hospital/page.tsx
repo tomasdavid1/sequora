@@ -19,7 +19,6 @@ import {
   CheckCircle, 
   Clock,
   Heart,
-  Lungs,
   Activity,
   Stethoscope,
   Phone,
@@ -113,7 +112,7 @@ export default function HospitalDashboard() {
   const getConditionIcon = (condition: string) => {
     switch (condition) {
       case 'HF': return <Heart className="w-4 h-4 text-red-500" />;
-      case 'COPD': return <Lungs className="w-4 h-4 text-blue-500" />;
+      case 'COPD': return <Stethoscope className="w-4 h-4 text-blue-500" />;
       case 'AMI': return <Activity className="w-4 h-4 text-orange-500" />;
       case 'PNA': return <Stethoscope className="w-4 h-4 text-green-500" />;
       default: return <Users className="w-4 h-4 text-gray-500" />;
