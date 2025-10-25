@@ -1,6 +1,10 @@
+import { SupabaseClient } from '@supabase/supabase-js';
+import { Database } from '@/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { Episode, OutreachPlan, OutreachAttempt, EscalationTask } from '@/types';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
@@ -83,11 +87,12 @@ export async function GET(request: NextRequest) {
         const dischargeDate = new Date(episode.discharge_at);
         const thirtyDaysLater = new Date(dischargeDate.getTime() + 30 * 24 * 60 * 60 * 1000);
         
-        const hasReadmission = episode.Patient.Episode.some((otherEpisode: any) => 
-          otherEpisode.id !== episode.id &&
-          new Date(otherEpisode.discharge_at) > dischargeDate &&
-          new Date(otherEpisode.discharge_at) <= thirtyDaysLater
-        );
+        const hasReadmission = episode.Patient.Episode.some((otherEpisode: any) => {
+          const otherDischargeDate = new Date(otherEpisode.discharge_at as string);
+          return otherEpisode.id !== episode.id &&
+            otherDischargeDate > dischargeDate &&
+            otherDischargeDate <= thirtyDaysLater;
+        });
         
         if (hasReadmission) {
           readmissions++;
@@ -147,8 +152,9 @@ export async function GET(request: NextRequest) {
     let avgResponseTime = 0;
     if (!responseTimeError && responseTimeData && responseTimeData.length > 0) {
       const totalResponseTime = responseTimeData.reduce((sum, task) => {
-        const created = new Date(task.created_at);
-        const resolved = new Date(task.resolved_at);
+        // Both fields are guaranteed to be non-null due to the query filter
+        const created = new Date(task.created_at!);
+        const resolved = new Date(task.resolved_at!);
         return sum + (resolved.getTime() - created.getTime());
       }, 0);
       

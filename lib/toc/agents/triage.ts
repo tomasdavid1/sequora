@@ -1,7 +1,7 @@
 // Triage Agent
 // Applies red-flag rules, creates escalation tasks with severity and SLA
 
-import { supabaseServer, tocTable } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
 import { EscalationRepository } from '../repositories/escalation';
 import { RedFlagRule, OutreachResponse, EscalationTask, RedFlagSeverity, ConditionCode } from '@/types';
 
@@ -25,9 +25,9 @@ export class TriageAgent {
 
     // Fetch active red flag rules for this condition
     const { data: rules } = await supabaseServer
-      .from(tocTable('redflag_rule'))
+      .from('RedFlagRule')
       .select('*')
-      .eq('condition_code', context.conditionCode)
+      .eq('condition_code', context.conditionCode as any)
       .eq('active', true);
 
     if (!rules || rules.length === 0) {
@@ -40,7 +40,7 @@ export class TriageAgent {
     // Evaluate each response against applicable rules
     for (const response of context.responses) {
       const applicableRules = rules.filter(
-        rule => rule.logic_spec.question_code === response.question_code
+        rule => (rule.logic_spec as any)?.question_code === response.question_code
       );
 
       for (const rule of applicableRules) {
@@ -50,10 +50,10 @@ export class TriageAgent {
 
           // Update response with red flag info
           await supabaseServer
-            .from(tocTable('outreach_response'))
+            .from('OutreachResponse')
             .update({
-              redflag_severity: rule.severity,
-              redflag_code: rule.rule_code
+              red_flag_severity: rule.severity as any,
+              red_flag_code: rule.rule_code
             })
             .eq('outreach_attempt_id', context.attemptId)
             .eq('question_code', response.question_code);
@@ -70,28 +70,28 @@ export class TriageAgent {
         episode_id: context.episodeId,
         source_attempt_id: context.attemptId,
         reason_codes: reasonCodes,
-        severity: maxSeverity,
-        priority: this.severityToPriority(maxSeverity),
-        status: 'OPEN',
+        severity: maxSeverity as any,
+        priority: this.severityToPriority(maxSeverity) as any,
+        status: 'OPEN' as any,
         sla_due_at: this.calculateSLADue(maxSeverity)
-      });
+      } as any);
 
       console.log(`[Triage] Created ${maxSeverity} task: ${task.id}`);
 
       // Create agent interaction record for triage decision
-      await supabaseServer.from(tocTable('agent_interaction')).insert({
-        agent_id: this.agentId,
+      await supabaseServer.from('AgentInteraction').insert({
+        agent_config_id: this.agentId,
         episode_id: context.episodeId,
         patient_id: null, // Triage is system-level, not patient-facing
-        channel: 'SYSTEM',
-        direction: 'INBOUND',
+        interaction_type: 'TRIAGE_EVALUATION',
         status: 'COMPLETED',
-        primary_goal_achieved: true,
+        outreach_attempt_id: context.attemptId,
         metadata: {
           triggered_rules: triggeredRules.map(r => r.rule_code),
           max_severity: maxSeverity,
           escalation_task_id: task.id
         },
+        started_at: new Date().toISOString(),
         completed_at: new Date().toISOString()
       });
     } else {
@@ -101,7 +101,10 @@ export class TriageAgent {
 
   // Rule evaluation logic
   private evaluateRule(rule: any, response: any): boolean {
-    const { operator, threshold, value } = rule.logic_spec;
+    const logicSpec = rule.logic_spec as any;
+    if (!logicSpec) return false;
+    
+    const { operator, threshold, value } = logicSpec;
 
     // Handle numeric comparisons
     if (response.value_number !== null && response.value_number !== undefined) {

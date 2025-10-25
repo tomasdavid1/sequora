@@ -1,7 +1,7 @@
 // Condition Dialogue Agent
 // Runs scripted check-ins per condition, collects responses
 
-import { supabaseServer, tocTable } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
 import { OutreachRepository } from '../repositories/outreach';
 import { TriageAgent } from './triage';
 import { 
@@ -48,10 +48,10 @@ export class ConditionDialogueAgent {
 
     // Fetch condition-specific questions
     const { data: questions } = await supabaseServer
-      .from(tocTable('outreach_question'))
+      .from('OutreachQuestion')
       .select('*')
-      .eq('condition_code', context.conditionCode)
-      .eq('language_code', context.languageCode)
+      .eq('condition_code', context.conditionCode as any)
+      .eq('language_code', context.languageCode as any)
       .eq('active', true)
       .order('created_at');
 
@@ -62,10 +62,10 @@ export class ConditionDialogueAgent {
 
     // Get agent configuration
     const { data: agentConfig } = await supabaseServer
-      .from(tocTable('agent_config'))
+      .from('AgentConfig')
       .select('*')
-      .eq('type', 'OUTREACH_COORDINATOR')
-      .eq('status', 'ACTIVE')
+      .eq('agent_type', 'OUTREACH_COORDINATOR')
+      .eq('active', true)
       .single();
 
     const responses: any[] = [];
@@ -212,12 +212,26 @@ Return JSON with either value_choice (YES/NO), value_number, or value_text.`
 
   // Message helpers
   private async sendMessage(interactionId: string, role: string, content: string): Promise<void> {
-    await supabaseServer.from(tocTable('agent_message')).insert({
-      interaction_id: interactionId,
+    // Get the current message count for this interaction to set sequence_number
+    const { data: existingMessages } = await supabaseServer
+      .from('AgentMessage')
+      .select('sequence_number')
+      .eq('agent_interaction_id', interactionId)
+      .order('sequence_number', { ascending: false })
+      .limit(1);
+    
+    const nextSequence = existingMessages && existingMessages.length > 0 
+      ? existingMessages[0].sequence_number + 1 
+      : 1;
+
+    await supabaseServer.from('AgentMessage').insert({
+      agent_interaction_id: interactionId,
       role,
       content,
       contains_phi: role === 'PATIENT', // Patient messages may contain PHI
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      message_type: 'TEXT',
+      sequence_number: nextSequence
     });
   }
 

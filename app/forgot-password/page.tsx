@@ -82,21 +82,40 @@ export default function ForgotPasswordPage() {
       });
 
       const data = await response.json();
+      
+      console.log('Verify OTP response:', data);
 
       if (!response.ok || data.error) {
         setError(data.error || 'Invalid or expired code. Please try again.');
-      } else {
-        // Code verified! Set the session from the response
-        if (data.session) {
-          await supabase.auth.setSession({
-            access_token: data.session.access_token,
-            refresh_token: data.session.refresh_token
-          });
-        }
-        
-        // Redirect to reset password page
-        router.push(`/reset-password?email=${encodeURIComponent(email)}&verified=true`);
+        return;
       }
+      
+      // Code verified! Show success message
+      setSuccess('Code verified! Redirecting to password reset...');
+      setLoading(false); // Stop loading immediately
+      
+      // Set the session and redirect
+      if (data.session) {
+        console.log('Setting session with tokens');
+        
+        // Set session in background without waiting
+        supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token
+        }).then(({ error: sessionError }) => {
+          if (sessionError) {
+            console.error('Session error:', sessionError);
+          } else {
+            console.log('Session set successfully');
+          }
+        });
+      }
+      
+      // Redirect immediately - don't wait for session
+      setTimeout(() => {
+        console.log('Redirecting to reset-password page');
+        window.location.href = `/reset-password?email=${encodeURIComponent(email)}&verified=true`;
+      }, 800);
     } catch (err) {
       console.error('Error verifying OTP:', err);
       setError('Failed to verify code. Please try again.');

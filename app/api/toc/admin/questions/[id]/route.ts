@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer, tocTable } from '@/lib/supabase-server';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { Database } from '@/database.types';
 
 export async function PATCH(
   request: Request,
@@ -9,7 +11,7 @@ export async function PATCH(
     const body = await request.json();
     
     const { data: question, error } = await supabaseServer
-      .from(tocTable('outreach_question'))
+      .from('OutreachQuestion')
       .update({ ...body, updated_at: new Date().toISOString() })
       .eq('id', params.id)
       .select()

@@ -135,11 +135,11 @@ export async function POST(request: NextRequest) {
       // Add medications if provided
       if (patientData.medications && typeof patientData.medications === 'string' && patientData.medications.trim()) {
         // Split medications by newline and create records
-        const medicationList = patientData.medications.split('\n').filter(med => med.trim());
+        const medicationList = patientData.medications.split('\n').filter((med: string) => med.trim());
         const medicationInserts = medicationList.map((med: string) => ({
           episode_id: episode.id,
           name: med.trim(),
-          source: 'PATIENT_REPORTED',
+          source: 'PATIENT_REPORTED' as any,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }));

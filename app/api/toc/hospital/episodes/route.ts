@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { Episode, Patient, ConditionCode } from '@/types';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -111,7 +113,8 @@ export async function GET(request: NextRequest) {
 
       return {
         id: episode.id,
-        patientName: `${patient.first_name} ${patient.last_name}`,
+        // Patient is guaranteed to exist due to NOT NULL constraint
+        patientName: patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown Patient',
         condition: episode.condition_code,
         dischargeDate: episode.discharge_at,
         readmissionDate: readmissionDate,

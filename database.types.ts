@@ -625,7 +625,7 @@ export type Database = {
           education_level: string | null
           elixhauser_score: number | null
           id: string
-          patient_id: string | null
+          patient_id: string
           risk_scores: Json | null
           source_system: string | null
           updated_at: string | null
@@ -644,7 +644,7 @@ export type Database = {
           education_level?: string | null
           elixhauser_score?: number | null
           id?: string
-          patient_id?: string | null
+          patient_id: string
           risk_scores?: Json | null
           source_system?: string | null
           updated_at?: string | null
@@ -663,7 +663,7 @@ export type Database = {
           education_level?: string | null
           elixhauser_score?: number | null
           id?: string
-          patient_id?: string | null
+          patient_id?: string
           risk_scores?: Json | null
           source_system?: string | null
           updated_at?: string | null
@@ -745,6 +745,7 @@ export type Database = {
       }
       EscalationTask: {
         Row: {
+          agent_interaction_id: string | null
           assigned_to_user_id: string | null
           created_at: string | null
           episode_id: string | null
@@ -762,6 +763,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          agent_interaction_id?: string | null
           assigned_to_user_id?: string | null
           created_at?: string | null
           episode_id?: string | null
@@ -779,6 +781,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          agent_interaction_id?: string | null
           assigned_to_user_id?: string | null
           created_at?: string | null
           episode_id?: string | null
@@ -796,6 +799,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "EscalationTask_agent_interaction_id_fkey"
+            columns: ["agent_interaction_id"]
+            isOneToOne: false
+            referencedRelation: "AgentInteraction"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "EscalationTask_assigned_to_user_id_fkey"
             columns: ["assigned_to_user_id"]

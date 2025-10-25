@@ -39,7 +39,7 @@ export default function ProtocolManagement() {
   const [editingRule, setEditingRule] = useState<RedFlagRule | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newRule, setNewRule] = useState({
-    name: '',
+    rule_code: '',
     description: '',
     condition_specific: false,
     education_level: 'all',
@@ -84,7 +84,7 @@ export default function ProtocolManagement() {
       if (response.ok) {
         setShowCreateDialog(false);
         setNewRule({
-          name: '',
+          rule_code: '',
           description: '',
           condition_specific: false,
           education_level: 'all',
@@ -182,12 +182,12 @@ export default function ProtocolManagement() {
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="rule-name">Rule Name</Label>
+                <Label htmlFor="rule-code">Rule Code</Label>
                 <Input
-                  id="rule-name"
-                  value={newRule.name}
-                  onChange={(e) => setNewRule(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="e.g., Heart Failure - Low Education Level"
+                  id="rule-code"
+                  value={newRule.rule_code}
+                  onChange={(e) => setNewRule(prev => ({ ...prev, rule_code: e.target.value }))}
+                  placeholder="e.g., HF_SOB_HIGH"
                 />
               </div>
               <div>
@@ -256,13 +256,13 @@ export default function ProtocolManagement() {
                   <div className="flex items-center gap-3">
                     <Settings className="w-5 h-5 text-blue-600" />
                     <div>
-                      <CardTitle className="text-lg">{rule.name}</CardTitle>
+                      <CardTitle className="text-lg">{rule.rule_code}</CardTitle>
                       <p className="text-sm text-gray-600 mt-1">{rule.description}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge className={getEducationLevelColor(rule.education_level)}>
-                      {rule.education_level}
+                    <Badge className={getEducationLevelColor(rule.education_level || 'all')}>
+                      {rule.education_level || 'all'}
                     </Badge>
                     {rule.condition_specific && (
                       <Badge variant="outline">Condition Specific</Badge>
@@ -287,13 +287,13 @@ export default function ProtocolManagement() {
               <CardContent>
                 <div className="space-y-2">
                   <div className="text-sm text-gray-600">
-                    <strong>Red Flags:</strong> {rule.rules_dsl?.red_flags?.length || 0} rules
+                    <strong>Red Flags:</strong> {(rule.rules_dsl as any)?.red_flags?.length || 0} rules
                   </div>
                   <div className="text-sm text-gray-600">
-                    <strong>Closures:</strong> {rule.rules_dsl?.closures?.length || 0} rules
+                    <strong>Closures:</strong> {(rule.rules_dsl as any)?.closures?.length || 0} rules
                   </div>
                   <div className="text-xs text-gray-500">
-                    Created: {new Date(rule.created_at).toLocaleDateString()}
+                    Created: {rule.created_at ? new Date(rule.created_at).toLocaleDateString() : 'N/A'}
                   </div>
                 </div>
               </CardContent>
@@ -321,8 +321,8 @@ export default function ProtocolManagement() {
                     <Badge className={getConditionColor(assignment.condition_code)}>
                       {assignment.condition_code}
                     </Badge>
-                    <Badge className={getEducationLevelColor(assignment.education_level)}>
-                      {assignment.education_level}
+                    <Badge className={getEducationLevelColor(assignment.education_level || 'all')}>
+                      {assignment.education_level || 'all'}
                     </Badge>
                     <Badge variant={assignment.is_active ? "default" : "secondary"}>
                       {assignment.is_active ? "Active" : "Inactive"}
@@ -332,7 +332,7 @@ export default function ProtocolManagement() {
               </CardHeader>
               <CardContent>
                 <div className="text-sm text-gray-600">
-                  Assigned: {new Date(assignment.assigned_at).toLocaleDateString()}
+                  Assigned: {assignment.assigned_at ? new Date(assignment.assigned_at).toLocaleDateString() : 'N/A'}
                 </div>
               </CardContent>
             </Card>
@@ -349,11 +349,11 @@ export default function ProtocolManagement() {
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="edit-rule-name">Rule Name</Label>
+                <Label htmlFor="edit-rule-code">Rule Code</Label>
                 <Input
-                  id="edit-rule-name"
-                  value={editingRule.name}
-                  onChange={(e) => setEditingRule(prev => prev ? { ...prev, name: e.target.value } : null)}
+                  id="edit-rule-code"
+                  value={editingRule.rule_code}
+                  onChange={(e) => setEditingRule(prev => prev ? { ...prev, rule_code: e.target.value } : null)}
                 />
               </div>
               <div>
@@ -367,7 +367,7 @@ export default function ProtocolManagement() {
               <div className="flex items-center space-x-2">
                 <Switch
                   id="edit-condition-specific"
-                  checked={editingRule.condition_specific}
+                  checked={editingRule.condition_specific || false}
                   onCheckedChange={(checked) => setEditingRule(prev => prev ? { ...prev, condition_specific: checked } : null)}
                 />
                 <Label htmlFor="edit-condition-specific">Condition Specific</Label>
@@ -375,7 +375,7 @@ export default function ProtocolManagement() {
               <div>
                 <Label htmlFor="edit-education-level">Education Level</Label>
                 <Select 
-                  value={editingRule.education_level} 
+                  value={editingRule.education_level || 'all'} 
                   onValueChange={(value) => setEditingRule(prev => prev ? { ...prev, education_level: value } : null)}
                 >
                   <SelectTrigger>

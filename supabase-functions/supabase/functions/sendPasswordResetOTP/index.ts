@@ -1,8 +1,6 @@
-import React from "npm:react@18.3.1";
-import { renderAsync } from "npm:@react-email/components@0.0.22";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { PasswordResetOTPEmail } from "../_email-templates/passwordResetOTP.jsx";
+import { generatePasswordResetEmail } from "../_email-templates/passwordResetHTML.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -13,8 +11,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 const ALLOWED_ORIGINS = [
   "http://localhost:3000",
   "http://localhost:3001",
-  // Add your production domain when ready
-  // "https://yourdomain.com",
+  "https://sequora.vercel.app",
+  "https://www.sequora.vercel.app",
 ];
 
 // Following the instructions from https://supabase.com/docs/guides/functions/cors
@@ -106,19 +104,14 @@ const handler = async (request: Request): Promise<Response> => {
       throw updateError;
     }
 
-    // Render email component
-    const emailComponent = React.createElement(PasswordResetOTPEmail, {
-      otpCode,
-      recipientName,
-    });
-
-    const html = await renderAsync(emailComponent);
+    // Generate HTML email
+    const html = generatePasswordResetEmail(otpCode, recipientName);
 
     // Prepare the email data
     const emailData = {
-      from: "HealthX TOC <no-reply@healthx.app>",
+      from: "Sequora <onboarding@resend.dev>",
       to: [email],
-      subject: `Your HealthX password reset code`,
+      subject: `Your Sequora password reset code`,
       html,
     };
 

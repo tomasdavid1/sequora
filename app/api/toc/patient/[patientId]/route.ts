@@ -90,12 +90,12 @@ export async function GET(
     // Get next and last check-ins
     const outreachAttempts = episode.OutreachPlan?.[0]?.OutreachAttempt || [];
     const lastCheckIn = outreachAttempts
-      .filter(attempt => attempt.status === 'COMPLETED')
-      .sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime())[0];
+      .filter(attempt => attempt.status === 'COMPLETED' && attempt.completed_at)
+      .sort((a, b) => new Date(b.completed_at!).getTime() - new Date(a.completed_at!).getTime())[0];
 
     const nextCheckIn = outreachAttempts
-      .filter(attempt => attempt.status === 'PENDING' || attempt.status === 'SCHEDULED')
-      .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())[0];
+      .filter(attempt => (attempt.status === 'PENDING' || attempt.status === 'SCHEDULED') && attempt.scheduled_at)
+      .sort((a, b) => new Date(a.scheduled_at!).getTime() - new Date(b.scheduled_at!).getTime())[0];
 
     const patientData = {
       id: patient.id,

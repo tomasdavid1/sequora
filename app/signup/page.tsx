@@ -155,7 +155,7 @@ export default function SignupPage() {
                 <AlertDescription>
                   <strong>Patient Found:</strong> {patientInfo.first_name} {patientInfo.last_name}<br/>
                   <strong>Condition:</strong> {patientInfo.condition_code}<br/>
-                  <strong>Discharge Date:</strong> {new Date(patientInfo.discharge_at).toLocaleDateString()}
+                  <strong>Discharge Date:</strong> {patientInfo.discharge_at ? new Date(patientInfo.discharge_at).toLocaleDateString() : 'N/A'}
                 </AlertDescription>
               </Alert>
             )}

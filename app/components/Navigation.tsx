@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { useAuth } from '../../hooks/useAuth';
 import UserDropdown from './UserDropdown';
 import { Button } from '@/components/ui/button';
-import { UserRole } from '@prisma/client';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,9 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Moon, Sun, Menu, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { User } from '@/types';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export default function Navigation() {

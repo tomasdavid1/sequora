@@ -14,7 +14,8 @@ export async function POST(request: NextRequest) {
         discharge_at: today,
         updated_at: new Date().toISOString()
       })
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Update all records
+      .neq('id', '00000000-0000-0000-0000-000000000000')
+      .select(); // Need to select to get updated rows back
 
     if (error) {
       return NextResponse.json({

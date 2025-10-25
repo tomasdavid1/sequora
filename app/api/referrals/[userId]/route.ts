@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 function generateCode(length = 8) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -16,25 +21,18 @@ export async function GET(
     const userId = params.userId;
     if (!userId) return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
 
-    let user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    // Note: This endpoint is on backburner and may need schema updates
+    const { data: user, error } = await supabase.auth.admin.getUserById(userId);
+    if (error || !user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    // Generate a code if missing
-    if (!user.referralCode) {
-      for (let i = 0; i < 5; i++) {
-        const code = generateCode(8);
-        const existing = await prisma.user.findFirst({ where: { referralCode: code } });
-        if (!existing) {
-          user = await prisma.user.update({ where: { id: userId }, data: { referralCode: code } });
-          break;
-        }
-      }
-    }
+    // TODO: Implement referral code generation when needed
+    // This requires adding referralCode to user metadata or separate table
 
-    return NextResponse.json({
-      userId: user.id,
-      referralCode: user.referralCode,
-    });
+    // return NextResponse.json({
+    //   userId: user.id,
+    //   referralCode: user.user_metadata?.referralCode || null,
+    //   note: 'Referral system on backburner - needs implementation'
+    // });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Failed' }, { status: 500 });
   }

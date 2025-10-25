@@ -1,3 +1,5 @@
+// @deno-types="npm:@types/react@18.3.1"
+import React from "npm:react@18.3.1";
 import {
   Body,
   Container,
@@ -6,12 +8,10 @@ import {
   Link,
   Preview,
   Text,
-  Img,
   Section,
   Row,
   Column,
-} from "https://esm.sh/@react-email/components@0.0.22";
-import * as React from "https://esm.sh/react@18.3.1";
+} from "npm:@react-email/components@0.0.25";
 
 export const headerTextStyle = {
   fontSize: "20px",
@@ -48,7 +48,7 @@ export const buttonStyle = {
 
 export const buttonContainerStyle = {
   margin: "24px 0",
-  justifyContent: "center",
+  justifyContent: "center" as React.CSSProperties["textAlign"],
   display: "flex",
   alignItems: "center",
   width: "100%",
@@ -68,7 +68,6 @@ export const EmailBaseTemplate = ({
   return (
     <Html>
       <Head />
-
       <Preview>{previewText}</Preview>
       <Body
         style={{
@@ -123,7 +122,7 @@ export const EmailBaseTemplate = ({
                     color: "#059669",
                     margin: 0,
                   }}>
-                    HealthX
+                    Sequora
                   </Text>
                 </div>
               </Column>
@@ -159,9 +158,9 @@ export const EmailBaseTemplate = ({
                   textAlign: "center",
                 }}
               >
-                HealthX Transition of Care platform helps patients manage their
-                post-discharge care with AI-powered check-ins, medication tracking,
-                and personalized support for a smooth recovery.
+                Sequora helps patients manage their post-discharge care with 
+                AI-powered check-ins, medication tracking, and personalized 
+                support for a smooth recovery.
               </Text>
 
               <Text
@@ -176,10 +175,10 @@ export const EmailBaseTemplate = ({
               >
                 Questions? Contact{" "}
                 <Link
-                  href="mailto:support@healthx.app"
+                  href="mailto:onboarding@resend.dev"
                   style={{ color: "#059669" }}
                 >
-                  support@healthx.app
+                  onboarding@resend.dev
                 </Link>
               </Text>
             </Section>
@@ -194,7 +193,7 @@ export const EmailBaseTemplate = ({
                 margin: "16px 0 0 0",
               }}
             >
-              © {currentYear} HealthX. All rights reserved.
+              © {String(currentYear)} Sequora. All rights reserved.
             </Text>
           </Section>
         </Container>

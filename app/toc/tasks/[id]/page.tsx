@@ -338,7 +338,7 @@ export default function TaskDetailPage() {
                     "How many times have you used your rescue inhaler in the last 24 hours?"
                   </p>
                   <p className="text-xs text-gray-600 mt-1">
-                    ⚠️ Alert if >4 times per day
+                    ⚠️ Alert if {'>'}4 times per day
                   </p>
                 </div>
                 <div>

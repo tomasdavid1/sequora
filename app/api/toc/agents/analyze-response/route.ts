@@ -1,3 +1,5 @@
+import { SupabaseClient } from '@supabase/supabase-js';
+import { Database } from '@/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { OutreachResponse, RedFlagRule, ConditionCode } from '@/types';
@@ -77,7 +79,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Save outreach responses
-    const responseInserts = responses.map((response: any) => ({
+    const responseInserts = responses.map((response: Record<string, unknown>) => ({
       outreach_attempt_id: outreachAttemptId,
       question_code: response.questionCode,
       question_version: response.questionVersion || 1,
@@ -180,9 +182,9 @@ export async function POST(request: NextRequest) {
 }
 
 async function analyzeResponsesWithLLM(
-  responses: any[], 
+  responses:  unknown[], 
   condition: string, 
-  redFlagRules: any[]
+  redFlagRules:  unknown[]
 ): Promise<{
   severity: 'NONE' | 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
   redFlagCode: string;
@@ -198,14 +200,14 @@ CONDITION CONTEXT:
 ${getConditionContext(condition)}
 
 RED FLAG RULES:
-${redFlagRules.map(rule => `
+${redFlagRules.map((rule: any) => `
 - ${rule.rule_code}: ${rule.description}
   Severity: ${rule.severity}
   Action: ${rule.action_hint}
 `).join('\n')}
 
 PATIENT RESPONSES:
-${responses.map(r => `
+${responses.map((r: any) => `
 Question: ${r.questionText}
 Response: ${r.valueText || r.valueNumber || r.valueChoice || 'No response'}
 `).join('\n')}
@@ -268,9 +270,9 @@ Respond in JSON format:
 }
 
 function fallbackRuleBasedAnalysis(
-  responses: any[], 
+  responses:  unknown[], 
   condition: string, 
-  redFlagRules: any[]
+  redFlagRules:  unknown[]
 ): {
   severity: 'NONE' | 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
   redFlagCode: string;
@@ -278,7 +280,7 @@ function fallbackRuleBasedAnalysis(
 } {
   
   // Simple keyword-based analysis as fallback
-  const allResponses = responses.map(r => 
+  const allResponses = responses.map((r: any) => 
     (r.valueText || r.valueChoice || '').toLowerCase()
   ).join(' ');
 

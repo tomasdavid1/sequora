@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
@@ -36,7 +35,8 @@ import {
   Zap,
   Activity,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Trash2
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -50,6 +50,8 @@ interface ChatMessage {
     toolCalls?: any[];
     parsedResponse?: any;
     redFlags?: any[];
+    confidence_score?: number;
+    detected_intent?: string;
   };
 }
 
@@ -325,6 +327,35 @@ export default function AITesterPage() {
     setCurrentInteractionId(null);
   };
 
+  const handleDeleteInteraction = async () => {
+    if (!selectedInteraction || !window.confirm('Are you sure you want to permanently delete this chat and all its messages? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/toc/admin/interactions/${selectedInteraction.id}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        // Remove from local state
+        setInteractions(prev => prev.filter(i => i.id !== selectedInteraction.id));
+        // Clear the current view
+        setMessages([]);
+        setSelectedInteraction(null);
+        setCurrentInteractionId(null);
+        
+        alert('Chat deleted successfully');
+      } else {
+        const data = await response.json();
+        alert(`Failed to delete chat: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error deleting interaction:', error);
+      alert('Failed to delete chat. Please try again.');
+    }
+  };
+
   const createNewChat = () => {
     setMessages([]);
     setSelectedInteraction(null);
@@ -509,6 +540,17 @@ export default function AITesterPage() {
                         <Eye className="w-4 h-4 mr-2" />
                         {showMetadata ? 'Hide' : 'Show'} Metadata
                       </Button>
+                      {selectedInteraction && (
+                        <Button 
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeleteInteraction()}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete Chat
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
@@ -545,7 +587,7 @@ export default function AITesterPage() {
                               <div className="mt-3 pt-3 border-t border-gray-300">
                                 {/* Only show if there's actual data */}
                                 {(message.metadata.decisionHint || 
-                                  message.metadata.toolCalls?.length > 0 ||
+                                  (message.metadata.toolCalls && message.metadata.toolCalls.length > 0) ||
                                   message.metadata.parsedResponse ||
                                   message.metadata.confidence_score ||
                                   message.metadata.detected_intent) && (

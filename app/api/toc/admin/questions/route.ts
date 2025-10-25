@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer, tocTable } from '@/lib/supabase-server';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { Database } from '@/database.types';
 
 export async function GET(request: Request) {
   try {
     const { data: questions, error } = await supabaseServer
-      .from(tocTable('outreach_question'))
+      .from('OutreachQuestion')
       .select('*')
       .order('condition_code')
       .order('code');
@@ -26,7 +28,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     
     const { data: question, error } = await supabaseServer
-      .from(tocTable('outreach_question'))
+      .from('OutreachQuestion')
       .insert(body)
       .select()
       .single();

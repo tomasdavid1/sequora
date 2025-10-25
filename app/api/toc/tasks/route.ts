@@ -51,10 +51,17 @@ export async function POST(request: Request) {
     const task = await EscalationRepository.create({
       episode_id,
       reason_codes,
-      severity,
-      priority: priority || 'NORMAL',
-      status: 'OPEN',
-      sla_due_at: slaDueAt.toISOString()
+      severity: severity as any,
+      priority: (priority || 'NORMAL') as any,
+      status: 'OPEN' as any,
+      sla_due_at: slaDueAt.toISOString(),
+      agent_interaction_id: null,
+      assigned_to_user_id: null,
+      picked_up_at: null,
+      resolution_notes: null,
+      resolved_at: null,
+      resolution_outcome_code: null,
+      source_attempt_id: null
     });
 
     return NextResponse.json({ task }, { status: 201 });

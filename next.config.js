@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Exclude server-only packages from bundling
+  experimental: {
+    serverComponentsExternalPackages: ['twilio'],
+  },
   webpack: (config, { isServer }) => {
     // Handle optional WebSocket dependencies
     if (!isServer) {
@@ -10,11 +14,12 @@ const nextConfig = {
       };
     }
     
-    // Ignore WebSocket optional dependencies warnings and punycode deprecation
+    // Ignore WebSocket optional dependencies warnings, ESM externals, and punycode deprecation
     config.ignoreWarnings = [
       /Module not found: Can't resolve 'utf-8-validate'/,
       /Module not found: Can't resolve 'bufferutil'/,
       /Critical dependency: the request of a dependency is an expression/,
+      /Module not found: ESM packages \(supports-color\) need to be imported/,
     ];
     
     return config;

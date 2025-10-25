@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer, tocTable } from '@/lib/supabase-server';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { Database } from '@/database.types';
 
 export async function GET(request: Request) {
   try {
     const { data: agents, error } = await supabaseServer
-      .from(tocTable('agent_config'))
+      .from('AgentConfig')
       .select('*')
       .order('name');
 
@@ -25,7 +27,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     
     const { data: agent, error } = await supabaseServer
-      .from(tocTable('agent_config'))
+      .from('AgentConfig')
       .insert({
         ...body,
         created_by: 'current-user-id', // TODO: Get from session

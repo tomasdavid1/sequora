@@ -1,3 +1,5 @@
+import { SupabaseClient } from '@supabase/supabase-js';
+import { Database } from '@/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { Episode, Patient, OutreachResponse, OutreachAttempt, EscalationTask, ContactChannel, RedFlagRule, ConditionCode } from '@/types';
@@ -161,7 +163,7 @@ CONDITION CONTEXT:
 ${getConditionContext(condition)}
 
 RED FLAG RULES:
-${redFlagRules?.map((rule: any) => `
+${redFlagRules?.map((rule: Record<string, unknown>) => `
 - ${rule.rule_code}: ${rule.description}
   Severity: ${rule.severity}
   Action: ${rule.action_hint}
@@ -232,7 +234,7 @@ Respond in JSON format:
 
 async function createEscalationTask(
   patientId: string, 
-  analysis: any, 
+  analysis: Record<string, unknown>, 
   sessionId: string
 ): Promise<string> {
   const supabase = getSupabaseAdmin();
@@ -250,16 +252,16 @@ async function createEscalationTask(
     throw new Error('No episode found for patient');
   }
 
-  const { data: task, error: taskError } = await supabase
+  const { data: task, error: taskError} = await supabase
     .from('EscalationTask')
     .insert({
       episode_id: episode.id,
       source_attempt_id: sessionId,
-      reason_codes: [analysis.redFlagCode],
-      severity: analysis.severity,
-      priority: getPriorityFromSeverity(analysis.severity),
-      status: 'OPEN',
-      sla_due_at: getSLADueTime(analysis.severity),
+      reason_codes: [String(analysis.redFlagCode)],
+      severity: analysis.severity as any,
+      priority: getPriorityFromSeverity(String(analysis.severity)) as any,
+      status: 'OPEN' as any,
+      sla_due_at: getSLADueTime(String(analysis.severity)),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })
@@ -275,7 +277,7 @@ async function createEscalationTask(
 
 async function generatePatientResponse(
   condition: string, 
-  analysis: any, 
+  analysis: Record<string, unknown>, 
   channel: 'SMS' | 'VOICE' | 'WHATSAPP'
 ): Promise<string> {
   
@@ -303,7 +305,7 @@ async function generatePatientResponse(
     "Thank you for your responses. Continue following your care plan and contact us if you have any concerns.";
 }
 
-function determineNextActions(analysis: any, escalationTaskId?: string): string[] {
+function determineNextActions(analysis: Record<string, unknown>, escalationTaskId?: string): string[] {
   const actions = [];
   
   if (escalationTaskId) {

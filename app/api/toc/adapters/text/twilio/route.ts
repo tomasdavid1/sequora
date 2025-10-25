@@ -1,3 +1,5 @@
+import { SupabaseClient } from '@supabase/supabase-js';
+import { Database } from '@/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { Patient, Episode, OutreachAttempt, CommunicationMessage, ContactChannel, OutreachStatus } from '@/types';
@@ -189,7 +191,7 @@ async function sendErrorResponse(phoneNumber: string) {
   }
 }
 
-async function triggerNurseCallback(patientId: string, result: any) {
+async function triggerNurseCallback(patientId: string, result: Record<string, unknown>) {
   const supabase = getSupabaseAdmin();
   
   // Create a new outreach attempt for nurse callback

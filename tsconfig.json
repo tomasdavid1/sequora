@@ -43,6 +43,7 @@
   "exclude": [
     "node_modules",
     "prisma/seed.ts",
-    "app/prisma/seed.ts"
+    "app/prisma/seed.ts",
+    "supabase-functions/**/*"
   ]
 }

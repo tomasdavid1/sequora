@@ -26,13 +26,17 @@ export default function ResetPasswordPage() {
     const emailParam = searchParams.get('email');
     const verifiedParam = searchParams.get('verified');
     
+    console.log('Reset password page loaded with params:', { emailParam, verifiedParam });
+    
     if (emailParam) {
       setEmail(decodeURIComponent(emailParam));
     }
     
     if (verifiedParam === 'true') {
+      console.log('User is verified, showing password reset form');
       setVerified(true);
     } else {
+      console.log('User not verified, redirecting to forgot-password');
       // If not verified, redirect to forgot password
       router.push('/forgot-password');
     }

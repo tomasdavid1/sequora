@@ -52,7 +52,8 @@ export async function POST(request: Request) {
       timezone: timezone || 'America/New_York',
       language_code: language_code || 'EN',
       include_caregiver: false,
-      status: 'PENDING'
+      status: 'PENDING',
+      exclusion_reason: null
     });
 
     return NextResponse.json({ plan }, { status: 201 });

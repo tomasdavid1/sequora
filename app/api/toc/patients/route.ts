@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { Patient, PatientInsert, Episode, EpisodeInsert, OutreachPlan, OutreachPlanInsert } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
@@ -81,11 +80,11 @@ export async function POST(request: NextRequest) {
 
     // Create episode medications if provided
     if (medications) {
-      const medicationLines = medications.split('\n').filter(line => line.trim());
-      const medicationInserts = medicationLines.map(med => ({
+      const medicationLines = medications.split('\n').filter((line: string) => line.trim());
+      const medicationInserts = medicationLines.map((med: string) => ({
         episode_id: episode.id,
         name: med.trim(),
-        source: 'PATIENT_REPORTED',
+        source: 'PATIENT_REPORTED' as any,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }));
@@ -170,7 +169,7 @@ export async function GET(request: NextRequest) {
       .range((page - 1) * limit, page * limit - 1);
 
     if (condition) {
-      query = query.eq('Episode.condition_code', condition);
+      query = query.eq('Episode.condition_code', condition as any);
     }
 
     const { data: patients, error } = await query;

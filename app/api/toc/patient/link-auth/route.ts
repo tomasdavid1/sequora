@@ -15,14 +15,36 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
+    // First, get the patient data
+    const { data: patient, error: patientError } = await supabase
+      .from('Patient')
+      .select('email, first_name, last_name')
+      .eq('id', patientId)
+      .single();
+
+    if (patientError || !patient) {
+      console.error('Error fetching patient:', patientError);
+      return NextResponse.json(
+        { error: 'Patient not found' },
+        { status: 404 }
+      );
+    }
+
+    if (!patient.email) {
+      return NextResponse.json(
+        { error: 'Patient email is required' },
+        { status: 400 }
+      );
+    }
+
     // Update the User table to link the auth user to the patient
     const { data: user, error: userError } = await supabase
       .from('User')
       .upsert({
         auth_user_id: authUserId,
-        email: (await supabase.from('Patient').select('email').eq('id', patientId).single()).data?.email,
-        name: (await supabase.from('Patient').select('first_name, last_name').eq('id', patientId).single()).data?.first_name + ' ' + (await supabase.from('Patient').select('first_name, last_name').eq('id', patientId).single()).data?.last_name,
-        role: 'PATIENT',
+        email: patient.email,
+        name: `${patient.first_name} ${patient.last_name}`,
+        role: 'PATIENT' as any,
         active: true,
         updated_at: new Date().toISOString()
       })

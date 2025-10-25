@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
 
     // Clear agent messages first (foreign key dependency)
     const { error: messagesError } = await supabase
-      .from('agent_message')
+      .from('AgentMessage')
       .delete()
       .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
 
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
     // Clear agent interactions
     const { error: interactionsError } = await supabase
-      .from('agent_interaction')
+      .from('AgentInteraction')
       .delete()
       .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
 

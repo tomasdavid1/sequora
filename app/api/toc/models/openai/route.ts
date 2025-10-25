@@ -1,3 +1,5 @@
+import { SupabaseClient } from '@supabase/supabase-js';
+import { Database } from '@/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
@@ -5,7 +7,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPEN_API_KEY || process.env.OPENAI_API_KEY,
 });
 
-// OpenAI model layer for TTS, STT, and response generation
+// OpenAI model layer for text response generation
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -18,12 +20,6 @@ export async function POST(request: NextRequest) {
     console.log(`🤖 OpenAI model layer: ${operation}`);
 
     switch (operation) {
-      case 'text_to_speech':
-        return await handleTextToSpeech(input, options);
-        
-      case 'speech_to_text':
-        return await handleSpeechToText(input, options);
-        
       case 'generate_response':
         return await handleGenerateResponse(input, options);
         
@@ -49,62 +45,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function handleTextToSpeech(text: string, options: any) {
-  try {
-    const response = await openai.audio.speech.create({
-      model: "tts-1",
-      voice: options.voice || "alloy",
-      input: text,
-      response_format: "mp3"
-    });
-
-    const audioBuffer = Buffer.from(await response.arrayBuffer());
-    const base64Audio = audioBuffer.toString('base64');
-
-    return NextResponse.json({
-      success: true,
-      audio: base64Audio,
-      format: 'mp3',
-      duration: options.estimatedDuration || 0
-    });
-
-  } catch (error) {
-    console.error('Error in text-to-speech:', error);
-    return NextResponse.json(
-      { error: 'TTS processing failed' },
-      { status: 500 }
-    );
-  }
-}
-
-async function handleSpeechToText(audioData: string, options: any) {
-  try {
-    // Convert base64 audio to buffer
-    const audioBuffer = Buffer.from(audioData, 'base64');
-    
-    const response = await openai.audio.transcriptions.create({
-      model: "whisper-1",
-      file: new File([audioBuffer], "audio.mp3", { type: "audio/mp3" }),
-      language: options.language || "en",
-      response_format: "json"
-    });
-
-    return NextResponse.json({
-      success: true,
-      text: response.text,
-      duration: options.duration || 0
-    });
-
-  } catch (error) {
-    console.error('Error in speech-to-text:', error);
-    return NextResponse.json(
-      { error: 'STT processing failed' },
-      { status: 500 }
-    );
-  }
-}
-
-async function handleGenerateResponse(input: any, options: any) {
+async function handleGenerateResponse(input: Record<string, unknown>, options: Record<string, unknown>) {
   try {
     const { 
       condition, 
@@ -186,7 +127,7 @@ async function handleGenerateResponse(input: any, options: any) {
   }
 }
 
-async function handleGenerateResponseWithTools(input: any, options: any) {
+async function handleGenerateResponseWithTools(input: Record<string, unknown>, options: Record<string, unknown>) {
   try {
     const { 
       condition, 
@@ -375,7 +316,7 @@ Generate a response to the patient and use appropriate tools based on the decisi
   }
 }
 
-async function handleAnalyzeSentiment(input: any, options: any) {
+async function handleAnalyzeSentiment(input: Record<string, unknown>, options: Record<string, unknown>) {
   try {
     const { text, context } = input;
 
@@ -458,7 +399,7 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-async function handleStreamingResponse(input: any, stream: any) {
+async function handleStreamingResponse(input: Record<string, unknown>, stream: Record<string, unknown>) {
   try {
     const { condition, patientResponses, context } = input;
 

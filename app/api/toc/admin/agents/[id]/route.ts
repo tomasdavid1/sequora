@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { supabaseServer, tocTable } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { Database } from '@/database.types';
 
 export async function GET(
   request: Request,
@@ -7,7 +9,7 @@ export async function GET(
 ) {
   try {
     const { data: agent, error } = await supabaseServer
-      .from(tocTable('agent_config'))
+      .from('AgentConfig')
       .select('*')
       .eq('id', params.id)
       .single();
@@ -32,20 +34,11 @@ export async function PATCH(
     const body = await request.json();
     
     // Increment version if system_prompt or model changed
-    if (body.system_prompt || body.model) {
-      const { data: currentAgent } = await supabaseServer
-        .from(tocTable('agent_config'))
-        .select('version')
-        .eq('id', params.id)
-        .single();
-      
-      if (currentAgent) {
-        body.version = currentAgent.version + 1;
-      }
-    }
+    // Note: Version tracking removed - not in current schema
+    // TODO: Add version column to AgentConfig if versioning is needed
     
     const { data: agent, error } = await supabaseServer
-      .from(tocTable('agent_config'))
+      .from('AgentConfig')
       .update({ ...body, updated_at: new Date().toISOString() })
       .eq('id', params.id)
       .select()
@@ -70,7 +63,7 @@ export async function DELETE(
   try {
     // Soft delete by setting status to INACTIVE
     const { error } = await supabaseServer
-      .from(tocTable('agent_config'))
+      .from('AgentConfig')
       .update({ status: 'INACTIVE', updated_at: new Date().toISOString() })
       .eq('id', params.id);
 

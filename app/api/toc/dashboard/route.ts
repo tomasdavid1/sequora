@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { supabaseServer, tocTable } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
@@ -13,53 +15,53 @@ export async function GET(request: Request) {
 
     // Total episodes
     const { count: totalEpisodes } = await supabaseServer
-      .from(tocTable('episode'))
+      .from('Episode')
       .select('*', { count: 'exact', head: true })
       .gte('discharge_at', startDate.toISOString());
 
     // Episodes with outreach plans
     const { count: episodesWithPlans } = await supabaseServer
-      .from(tocTable('outreach_plan'))
+      .from('OutreachPlan')
       .select('episode_id', { count: 'exact', head: true })
       .gte('created_at', startDate.toISOString());
 
     // Completed outreach attempts
     const { count: completedAttempts } = await supabaseServer
-      .from(tocTable('outreach_attempt'))
+      .from('OutreachAttempt')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'COMPLETED')
       .gte('created_at', startDate.toISOString());
 
     // Total attempts
     const { count: totalAttempts } = await supabaseServer
-      .from(tocTable('outreach_attempt'))
+      .from('OutreachAttempt')
       .select('*', { count: 'exact', head: true })
       .gte('created_at', startDate.toISOString());
 
     // Successful connections
     const { count: successfulConnects } = await supabaseServer
-      .from(tocTable('outreach_attempt'))
+      .from('OutreachAttempt')
       .select('*', { count: 'exact', head: true })
       .eq('connect', true)
       .gte('created_at', startDate.toISOString());
 
     // Open tasks
     const { count: openTasks } = await supabaseServer
-      .from(tocTable('escalation_task'))
+      .from('EscalationTask')
       .select('*', { count: 'exact', head: true })
       .in('status', ['OPEN', 'IN_PROGRESS']);
 
     // Breached tasks
     const now = new Date().toISOString();
     const { count: breachedTasks } = await supabaseServer
-      .from(tocTable('escalation_task'))
+      .from('EscalationTask')
       .select('*', { count: 'exact', head: true })
       .in('status', ['OPEN', 'IN_PROGRESS'])
       .lt('sla_due_at', now);
 
     // Tasks within SLA
     const { count: totalTasks } = await supabaseServer
-      .from(tocTable('escalation_task'))
+      .from('EscalationTask')
       .select('*', { count: 'exact', head: true })
       .gte('created_at', startDate.toISOString());
 

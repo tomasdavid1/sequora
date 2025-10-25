@@ -1,3 +1,5 @@
+import { SupabaseClient } from '@supabase/supabase-js';
+import { Database } from '@/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -94,14 +96,14 @@ export async function POST(request: NextRequest) {
 
     // If call was completed and we have responses, process them
     if (status === 'completed' && responses && responses.length > 0) {
-      await processVoiceResponses(attempt.id, responses, attempt.Episode.condition_code);
+      await processVoiceResponses(attempt.id, responses, (attempt.Episode as any).condition_code);
     }
 
     // Create communication message record
     await supabase
       .from('CommunicationMessage')
       .insert({
-        episode_id: attempt.Episode.id,
+        episode_id: (attempt.Episode as any).id,
         patient_id: metadata?.patient_id,
         direction: 'OUTBOUND',
         channel: 'VOICE',
