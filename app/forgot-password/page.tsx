@@ -19,6 +19,7 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [resending, setResending] = useState(false);
 
   const requestOTP = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,13 +50,57 @@ export default function ForgotPasswordPage() {
         setError(data.error || 'Failed to send verification code');
       } else {
         setSuccess('A 6-digit verification code has been sent to your email.');
-        setStep('code'); // Move to code entry step
+        // Clear success message after moving to code step
+        setTimeout(() => {
+          setSuccess('');
+          setStep('code'); // Move to code entry step
+        }, 1500);
       }
     } catch (err) {
       console.error('Error sending OTP:', err);
       setError('Failed to send verification code. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const resendCode = async () => {
+    setError('');
+    setSuccess('');
+    setResending(true);
+
+    try {
+      const functionsUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('/rest/v1', '') || 
+                          'https://fcxaptzmnywtcdxvpuii.supabase.co';
+      
+      const response = await fetch(`${functionsUrl}/functions/v1/sendPasswordResetOTP`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({
+          email: email,
+          recipientName: email.split('@')[0]
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        setError(data.error || 'Failed to resend verification code');
+      } else {
+        setSuccess('New verification code sent!');
+        // Clear OTP input for new code
+        setOtpCode('');
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccess(''), 3000);
+      }
+    } catch (err) {
+      console.error('Error resending OTP:', err);
+      setError('Failed to resend verification code. Please try again.');
+    } finally {
+      setResending(false);
     }
   };
 
@@ -92,30 +137,43 @@ export default function ForgotPasswordPage() {
       
       // Code verified! Show success message
       setSuccess('Code verified! Redirecting to password reset...');
-      setLoading(false); // Stop loading immediately
       
-      // Set the session and redirect
+      // Set the session and wait for it to complete before redirecting
       if (data.session) {
         console.log('Setting session with tokens');
         
-        // Set session in background without waiting
-        supabase.auth.setSession({
+        const { error: sessionError } = await supabase.auth.setSession({
           access_token: data.session.access_token,
           refresh_token: data.session.refresh_token
-        }).then(({ error: sessionError }) => {
-          if (sessionError) {
-            console.error('Session error:', sessionError);
-          } else {
-            console.log('Session set successfully');
-          }
         });
+        
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          setError('Failed to establish session. Please try again.');
+          setLoading(false);
+          return;
+        }
+        
+        console.log('Session set successfully');
+        
+        // Verify session is active
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log('Active session:', session ? 'Yes' : 'No');
+        
+        if (!session) {
+          setError('Failed to establish session. Please try again.');
+          setLoading(false);
+          return;
+        }
       }
       
-      // Redirect immediately - don't wait for session
+      setLoading(false);
+      
+      // Redirect after session is confirmed
       setTimeout(() => {
         console.log('Redirecting to reset-password page');
         window.location.href = `/reset-password?email=${encodeURIComponent(email)}&verified=true`;
-      }, 800);
+      }, 500);
     } catch (err) {
       console.error('Error verifying OTP:', err);
       setError('Failed to verify code. Please try again.');
@@ -134,7 +192,7 @@ export default function ForgotPasswordPage() {
       {step === 'email' ? (
           <form onSubmit={requestOTP} className="space-y-4">
               <div>
-                <Label htmlFor="email">Email Address</Label>
+                <Label htmlFor="email" className="mb-3 block">Email Address</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
@@ -176,7 +234,7 @@ export default function ForgotPasswordPage() {
       ) : (
           <form onSubmit={verifyCode} className="space-y-4">
               <div>
-                <Label htmlFor="otp">Verification Code</Label>
+                <Label htmlFor="otp" className="mb-3 block">Verification Code</Label>
                 <div className="relative">
                   <KeyRound className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
@@ -217,17 +275,26 @@ export default function ForgotPasswordPage() {
                   type="button"
                   variant="link"
                   className="text-sm text-emerald-600"
-                  onClick={() => {
-                    setStep('email');
-                    setOtpCode('');
-                    setError('');
-                    setSuccess('');
-                  }}
+                  onClick={resendCode}
+                  disabled={resending}
                 >
-                  Didn't receive code? Send again
+                  {resending ? 'Resending...' : 'Didn\'t receive code? Resend'}
                 </Button>
-                <div>
-                  <Link href="/login" className="text-sm text-gray-600 hover:underline">
+                <div className="flex gap-2 justify-center text-sm">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep('email');
+                      setOtpCode('');
+                      setError('');
+                      setSuccess('');
+                    }}
+                    className="text-gray-600 hover:underline"
+                  >
+                    Change email
+                  </button>
+                  <span className="text-gray-400">•</span>
+                  <Link href="/login" className="text-gray-600 hover:underline">
                     Back to Login
                   </Link>
                 </div>

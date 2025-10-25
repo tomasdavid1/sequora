@@ -478,6 +478,56 @@ export type Database = {
           },
         ]
       }
+      CareInstruction: {
+        Row: {
+          completed: boolean | null
+          completed_at: string | null
+          created_at: string | null
+          due_date: string | null
+          episode_id: string
+          id: string
+          instruction_text: string
+          instruction_type: string
+          priority: string | null
+          sort_order: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          completed?: boolean | null
+          completed_at?: string | null
+          created_at?: string | null
+          due_date?: string | null
+          episode_id: string
+          id?: string
+          instruction_text: string
+          instruction_type: string
+          priority?: string | null
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          completed?: boolean | null
+          completed_at?: string | null
+          created_at?: string | null
+          due_date?: string | null
+          episode_id?: string
+          id?: string
+          instruction_text?: string
+          instruction_type?: string
+          priority?: string | null
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "CareInstruction_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "Episode"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       CommunicationMessage: {
         Row: {
           body_hash: string | null
@@ -613,6 +663,8 @@ export type Database = {
       Episode: {
         Row: {
           admit_at: string | null
+          attending_physician_name: string | null
+          attending_physician_npi: string | null
           condition_code: Database["public"]["Enums"]["condition_code"]
           created_at: string | null
           discharge_at: string
@@ -623,15 +675,23 @@ export type Database = {
           discharge_systolic_bp: number | null
           discharge_weight_kg: number | null
           education_level: string | null
+          ejection_fraction_pct: number | null
           elixhauser_score: number | null
+          facility_id: string | null
+          facility_name: string | null
+          hospital_course_summary: string | null
+          hospital_id: string | null
           id: string
           patient_id: string
           risk_scores: Json | null
+          severity_indicator: string | null
           source_system: string | null
           updated_at: string | null
         }
         Insert: {
           admit_at?: string | null
+          attending_physician_name?: string | null
+          attending_physician_npi?: string | null
           condition_code: Database["public"]["Enums"]["condition_code"]
           created_at?: string | null
           discharge_at: string
@@ -642,15 +702,23 @@ export type Database = {
           discharge_systolic_bp?: number | null
           discharge_weight_kg?: number | null
           education_level?: string | null
+          ejection_fraction_pct?: number | null
           elixhauser_score?: number | null
+          facility_id?: string | null
+          facility_name?: string | null
+          hospital_course_summary?: string | null
+          hospital_id?: string | null
           id?: string
           patient_id: string
           risk_scores?: Json | null
+          severity_indicator?: string | null
           source_system?: string | null
           updated_at?: string | null
         }
         Update: {
           admit_at?: string | null
+          attending_physician_name?: string | null
+          attending_physician_npi?: string | null
           condition_code?: Database["public"]["Enums"]["condition_code"]
           created_at?: string | null
           discharge_at?: string
@@ -661,10 +729,16 @@ export type Database = {
           discharge_systolic_bp?: number | null
           discharge_weight_kg?: number | null
           education_level?: string | null
+          ejection_fraction_pct?: number | null
           elixhauser_score?: number | null
+          facility_id?: string | null
+          facility_name?: string | null
+          hospital_course_summary?: string | null
+          hospital_id?: string | null
           id?: string
           patient_id?: string
           risk_scores?: Json | null
+          severity_indicator?: string | null
           source_system?: string | null
           updated_at?: string | null
         }
@@ -1622,6 +1696,15 @@ export type Database = {
       consent_status: "GRANTED" | "DENIED" | "REVOKED" | "EXPIRED"
       consent_type: "SMS" | "VOICE" | "DATA_SHARE" | "RCM_BILLING" | "RESEARCH"
       contact_channel: "SMS" | "VOICE" | "HUMAN_CALL" | "EMAIL" | "APP"
+      instruction_priority: "CRITICAL" | "HIGH" | "NORMAL" | "LOW"
+      instruction_type:
+        | "FOLLOWUP_APPOINTMENT"
+        | "DAILY_MONITORING"
+        | "DIETARY"
+        | "ACTIVITY"
+        | "MEDICATION"
+        | "EMERGENCY_SIGNS"
+        | "OTHER"
       interaction_status:
         | "IN_PROGRESS"
         | "COMPLETED"
@@ -1829,6 +1912,16 @@ export const Constants = {
       consent_status: ["GRANTED", "DENIED", "REVOKED", "EXPIRED"],
       consent_type: ["SMS", "VOICE", "DATA_SHARE", "RCM_BILLING", "RESEARCH"],
       contact_channel: ["SMS", "VOICE", "HUMAN_CALL", "EMAIL", "APP"],
+      instruction_priority: ["CRITICAL", "HIGH", "NORMAL", "LOW"],
+      instruction_type: [
+        "FOLLOWUP_APPOINTMENT",
+        "DAILY_MONITORING",
+        "DIETARY",
+        "ACTIVITY",
+        "MEDICATION",
+        "EMERGENCY_SIGNS",
+        "OTHER",
+      ],
       interaction_status: [
         "IN_PROGRESS",
         "COMPLETED",

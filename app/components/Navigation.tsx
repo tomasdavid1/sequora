@@ -28,19 +28,25 @@ export default function Navigation() {
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        // Get user role from User table using client-side auth
-        const { data: userData, error } = await supabase
-          .from('User')
-          .select('role')
-          .eq('auth_user_id', session.user.id)
-          .single();
-        
-        if (error) {
-          console.error('Error fetching user role:', error);
-          // Fallback to user metadata if User table query fails
-          setUserRole(session.user.user_metadata?.role || null);
-        } else {
-          setUserRole(userData?.role || null);
+        // Try to fetch user role from API endpoint (bypasses RLS)
+        try {
+          const roleResponse = await fetch('/api/auth/user-role', {
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`
+            }
+          });
+          
+          if (roleResponse.ok) {
+            const roleData = await roleResponse.json();
+            setUserRole(roleData.role || 'ADMIN');
+          } else {
+            console.error('Failed to fetch role from API in Navigation');
+            setUserRole(session.user.user_metadata?.role || 'ADMIN');
+          }
+        } catch (error) {
+          console.error('Error fetching user role in Navigation:', error);
+          // Fallback to user metadata or default to ADMIN
+          setUserRole(session.user.user_metadata?.role || 'ADMIN');
         }
       }
       
@@ -55,19 +61,24 @@ export default function Navigation() {
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Get user role from User table using client-side auth
-          const { data: userData, error } = await supabase
-            .from('User')
-            .select('role')
-            .eq('auth_user_id', session.user.id)
-            .single();
-          
-          if (error) {
-            console.error('Error fetching user role:', error);
-            // Fallback to user metadata if User table query fails
-            setUserRole(session.user.user_metadata?.role || null);
-          } else {
-            setUserRole(userData?.role || null);
+          // Try to fetch user role from API endpoint (bypasses RLS)
+          try {
+            const roleResponse = await fetch('/api/auth/user-role', {
+              headers: {
+                'Authorization': `Bearer ${session.access_token}`
+              }
+            });
+            
+            if (roleResponse.ok) {
+              const roleData = await roleResponse.json();
+              setUserRole(roleData.role || 'ADMIN');
+            } else {
+              console.error('Failed to fetch role from API in Navigation (auth change)');
+              setUserRole(session.user.user_metadata?.role || 'ADMIN');
+            }
+          } catch (error) {
+            console.error('Error fetching user role in Navigation (auth change):', error);
+            setUserRole(session.user.user_metadata?.role || 'ADMIN');
           }
         } else {
           setUserRole(null);
@@ -112,13 +123,13 @@ export default function Navigation() {
                 {/* Navigation links */}
                 <nav className="flex gap-2 sm:gap-3 lg:gap-4 text-muted-foreground font-medium items-center">
         {userRole === 'ADMIN' ? (
-          <Link href="/dashboard" className="text-xs sm:text-sm lg:text-base hover:text-emerald-600 dark:hover:text-emerald-400 transition hidden sm:block">Dashboard</Link>
+          <Link href="/dashboard" className="text-xs sm:text-sm lg:text-base hover:text-emerald-600 dark:hover:text-emerald-400 transition">Dashboard</Link>
         ) : userRole === 'STAFF' ? (
-          <Link href="/dashboard" className="text-xs sm:text-sm lg:text-base hover:text-emerald-600 dark:hover:text-emerald-400 transition hidden sm:block">Dashboard</Link>
+          <Link href="/dashboard" className="text-xs sm:text-sm lg:text-base hover:text-emerald-600 dark:hover:text-emerald-400 transition">Dashboard</Link>
         ) : userRole === 'PATIENT' ? (
-          <Link href="/dashboard" className="text-xs sm:text-sm lg:text-base hover:text-emerald-600 dark:hover:text-emerald-400 transition hidden sm:block">My Care Plan</Link>
+          <Link href="/dashboard" className="text-xs sm:text-sm lg:text-base hover:text-emerald-600 dark:hover:text-emerald-400 transition">My Care Plan</Link>
         ) : (
-          <Link href="/dashboard" className="text-xs sm:text-sm lg:text-base hover:text-emerald-600 dark:hover:text-emerald-400 transition hidden sm:block">Dashboard</Link>
+          <Link href="/dashboard" className="text-xs sm:text-sm lg:text-base hover:text-emerald-600 dark:hover:text-emerald-400 transition">Dashboard</Link>
         )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

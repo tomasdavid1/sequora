@@ -95,6 +95,21 @@ export default function NurseDashboard() {
   const handleCreatePatientFromPDF = async () => {
     if (!parsedData) return;
 
+    // Validate required fields
+    const missingFields = [];
+    if (!parsedData.firstName?.trim()) missingFields.push('First Name');
+    if (!parsedData.lastName?.trim()) missingFields.push('Last Name');
+    if (!parsedData.phone?.trim()) missingFields.push('Phone Number');
+    if (!parsedData.email?.trim()) missingFields.push('Email Address');
+    if (!parsedData.dob) missingFields.push('Date of Birth');
+    if (!parsedData.dischargeDate) missingFields.push('Discharge Date');
+    if (!parsedData.condition) missingFields.push('Primary Condition');
+
+    if (missingFields.length > 0) {
+      alert(`Please fill in all required fields:\n\n• ${missingFields.join('\n• ')}`);
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch('/api/toc/nurse/upload-patient', {
@@ -108,9 +123,13 @@ export default function NurseDashboard() {
         setShowConfirmation(false);
         setParsedData(null);
         fetchNurseData(); // Refresh data
-        alert('Patient created successfully!');
+        alert('Patient created successfully and TOC process started!');
       } else {
-        alert('Error creating patient: ' + result.error);
+        console.error('Patient creation error:', result);
+        const errorMessage = result.details 
+          ? `${result.error}\n\nDetails: ${result.details}\n${result.hint || ''}`
+          : result.error;
+        alert('Error creating patient:\n\n' + errorMessage);
       }
     } catch (error) {
       console.error('Error creating patient:', error);
@@ -276,7 +295,7 @@ export default function NurseDashboard() {
                       <div className="space-y-4">
                         <div>
                           <Label htmlFor="pdf-upload" className="text-base font-medium">
-                            Hospital Discharge Form (PDF)
+                            Hospital Discharge Form (PDF) <span className="text-gray-500 font-normal">(Optional)</span>
                           </Label>
                           <div className="mt-2">
                             <Input
@@ -284,31 +303,140 @@ export default function NurseDashboard() {
                               type="file"
                               accept=".pdf"
                               className="cursor-pointer"
-                              onChange={(e) => {
+                              onChange={async (e) => {
                                 const file = e.target.files?.[0];
                                 if (file) {
                                   console.log('PDF selected:', file.name);
-                                  // Mock PDF parsing
-                                  setTimeout(() => {
+                                  setLoading(true);
+                                  
+                                  try {
+                                    // Parse PDF using API
+                                    const formData = new FormData();
+                                    formData.append('file', file);
+                                    
+                                    const response = await fetch('/api/toc/parse-discharge-pdf', {
+                                      method: 'POST',
+                                      body: formData
+                                    });
+                                    
+                                    const result = await response.json();
+                                    
+                                    if (result.parsedData) {
+                                      // Set parsed data (even if incomplete)
+                                      setParsedData({
+                                        firstName: result.parsedData.firstName || '',
+                                        lastName: result.parsedData.lastName || '',
+                                        dob: result.parsedData.dob || '',
+                                        phone: result.parsedData.phone || '',
+                                        email: result.parsedData.email || '',
+                                        sexAtBirth: result.parsedData.sexAtBirth || null,
+                                        address: result.parsedData.address || null,
+                                        city: result.parsedData.city || null,
+                                        state: result.parsedData.state || null,
+                                        zip: result.parsedData.zip || null,
+                                        condition: result.parsedData.condition || '',
+                                        educationLevel: result.parsedData.educationLevel || 'medium',
+                                        dischargeDate: result.parsedData.dischargeDate || '',
+                                        admitDate: result.parsedData.admitDate || null,
+                                        diagnosisCodes: result.parsedData.diagnosisCodes || [],
+                                        medications: result.parsedData.medications || ''
+                                      });
+                                      
+                                      if (!result.success) {
+                                        alert(result.warning || 'Some fields could not be extracted. Please fill them in manually.');
+                                      }
+                                      
+                                      setShowConfirmation(true);
+                                    } else {
+                                      alert(result.error || 'Failed to parse PDF. Please enter patient information manually.');
+                                      // Show form with empty data for manual entry
+                                      setParsedData({
+                                        firstName: '',
+                                        lastName: '',
+                                        dob: '',
+                                        phone: '',
+                                        email: '',
+                                        sexAtBirth: null,
+                                        address: null,
+                                        city: null,
+                                        state: null,
+                                        zip: null,
+                                        condition: '',
+                                        educationLevel: 'medium',
+                                        dischargeDate: '',
+                                        admitDate: null,
+                                        diagnosisCodes: [],
+                                        medications: ''
+                                      });
+                                      setShowConfirmation(true);
+                                    }
+                                  } catch (error) {
+                                    console.error('PDF parsing error:', error);
+                                    alert('Failed to parse PDF. Please enter patient information manually.');
+                                    // Show form with empty data for manual entry
                                     setParsedData({
-                                      firstName: 'John',
-                                      lastName: 'Doe',
-                                      dob: '1980-05-15',
-                                      phone: '(555) 123-4567',
-                                      email: 'john.doe@email.com',
-                                      condition: 'HF',
+                                      firstName: '',
+                                      lastName: '',
+                                      dob: '',
+                                      phone: '',
+                                      email: '',
+                                      sexAtBirth: null,
+                                      address: null,
+                                      city: null,
+                                      state: null,
+                                      zip: null,
+                                      condition: '',
                                       educationLevel: 'medium',
-                                      dischargeDate: new Date().toISOString().split('T')[0],
-                                      diagnosisCode: 'I50.9',
-                                      medications: 'Lisinopril 10mg daily\nMetoprolol 25mg twice daily'
+                                      dischargeDate: '',
+                                      admitDate: null,
+                                      diagnosisCodes: [],
+                                      medications: ''
                                     });
                                     setShowConfirmation(true);
-                                  }, 1000);
+                                  } finally {
+                                    setLoading(false);
+                                  }
                                 }
                               }}
                             />
                           </div>
+                          <p className="text-sm text-gray-500 mt-2">
+                            Upload a PDF to auto-fill patient data, or skip to enter manually.
+                          </p>
                         </div>
+                        
+                        {/* Manual Entry Button */}
+                        {!showConfirmation && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => {
+                              setParsedData({
+                                firstName: '',
+                                lastName: '',
+                                dob: '',
+                                phone: '',
+                                email: '',
+                                sexAtBirth: null,
+                                address: null,
+                                city: null,
+                                state: null,
+                                zip: null,
+                                condition: '',
+                                educationLevel: 'medium',
+                                dischargeDate: '',
+                                admitDate: null,
+                                diagnosisCodes: [],
+                                medications: ''
+                              });
+                              setShowConfirmation(true);
+                            }}
+                          >
+                            <UserPlus className="w-4 h-4 mr-2" />
+                            Skip PDF - Enter Patient Data Manually
+                          </Button>
+                        )}
                       </div>
 
                       {/* Parsed Data Confirmation */}
@@ -347,6 +475,26 @@ export default function NurseDashboard() {
                                 type="email"
                                 value={parsedData.email}
                                 onChange={(e) => setParsedData((prev: any) => ({...prev, email: e.target.value}))}
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="confirm-dob">Date of Birth *</Label>
+                              <Input 
+                                id="confirm-dob" 
+                                type="date"
+                                value={parsedData.dob}
+                                onChange={(e) => setParsedData((prev: any) => ({...prev, dob: e.target.value}))}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="confirm-discharge-date">Discharge Date *</Label>
+                              <Input 
+                                id="confirm-discharge-date" 
+                                type="date"
+                                value={parsedData.dischargeDate}
+                                onChange={(e) => setParsedData((prev: any) => ({...prev, dischargeDate: e.target.value}))}
+                                required
                               />
                             </div>
                             <div>

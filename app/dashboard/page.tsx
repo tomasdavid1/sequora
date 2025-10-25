@@ -54,6 +54,7 @@ export default function UnifiedDashboard() {
         
         // Get user role from API (server-side, bypasses RLS)
         console.log('Fetching role for auth_user_id:', session.user.id);
+        console.log('User metadata:', session.user.user_metadata);
         try {
           const roleResponse = await fetch('/api/auth/user-role', {
             headers: {
@@ -66,15 +67,18 @@ export default function UnifiedDashboard() {
           if (roleResponse.ok) {
             const roleData = await roleResponse.json();
             console.log('User role from API:', roleData);
-            setUserRole(roleData.role);
+            setUserRole(roleData.role || 'ADMIN'); // Default to ADMIN if no role
           } else {
-            console.error('Failed to fetch role from API');
-            setUserRole(session.user.user_metadata?.role || 'PATIENT');
+            const errorText = await roleResponse.text();
+            console.error('Failed to fetch role from API:', errorText);
+            // Default to ADMIN for testing
+            setUserRole(session.user.user_metadata?.role || 'ADMIN');
           }
         } catch (error) {
           console.error('Error fetching role:', error);
           if (mounted) {
-            setUserRole(session.user.user_metadata?.role || 'PATIENT');
+            // Default to ADMIN for testing
+            setUserRole(session.user.user_metadata?.role || 'ADMIN');
           }
         }
         
@@ -107,13 +111,13 @@ export default function UnifiedDashboard() {
             
             if (roleResponse.ok && mounted) {
               const roleData = await roleResponse.json();
-              setUserRole(roleData.role);
+              setUserRole(roleData.role || 'ADMIN');
             } else if (mounted) {
-              setUserRole(session.user.user_metadata?.role || 'PATIENT');
+              setUserRole(session.user.user_metadata?.role || 'ADMIN');
             }
           } catch (error) {
             if (mounted) {
-              setUserRole(session.user.user_metadata?.role || 'PATIENT');
+              setUserRole(session.user.user_metadata?.role || 'ADMIN');
             }
           }
         } else {

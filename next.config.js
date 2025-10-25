@@ -2,7 +2,7 @@
 const nextConfig = {
   // Exclude server-only packages from bundling
   experimental: {
-    serverComponentsExternalPackages: ['twilio'],
+    serverComponentsExternalPackages: ['twilio', 'pdf-parse', 'mammoth'],
   },
   webpack: (config, { isServer }) => {
     // Handle optional WebSocket dependencies
@@ -20,6 +20,7 @@ const nextConfig = {
       /Module not found: Can't resolve 'bufferutil'/,
       /Critical dependency: the request of a dependency is an expression/,
       /Module not found: ESM packages \(supports-color\) need to be imported/,
+      /ENOENT: no such file or directory.*pdf-parse.*test\/data/,
     ];
     
     return config;

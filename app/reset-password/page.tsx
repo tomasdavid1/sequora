@@ -60,21 +60,43 @@ export default function ResetPasswordPage() {
     setLoading(true);
 
     try {
+      // First, verify we have an active session
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('Reset password - session check:', session ? 'Active' : 'None');
+      
+      if (!session) {
+        setError('Your session has expired. Please request a new password reset code.');
+        setLoading(false);
+        setTimeout(() => {
+          router.push('/forgot-password');
+        }, 3000);
+        return;
+      }
+
+      console.log('Attempting to update password for user:', session.user.email);
+
       // Update the password (user is already authenticated from OTP verification)
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword
       });
 
       if (updateError) {
-        setError('Failed to update password. Please try again.');
+        console.error('Password update error:', updateError);
+        setError(`Failed to update password: ${updateError.message}`);
       } else {
+        console.log('Password updated successfully');
         setSuccess('Password reset successfully! Redirecting to login...');
+        
+        // Sign out the user after password reset
+        await supabase.auth.signOut();
+        
         setTimeout(() => {
           router.push('/login?message=Password updated successfully. Please sign in.');
         }, 2000);
       }
-    } catch (err) {
-      setError('Failed to reset password. Please try again.');
+    } catch (err: any) {
+      console.error('Reset password error:', err);
+      setError(`Failed to reset password: ${err.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -91,7 +113,7 @@ export default function ResetPasswordPage() {
     >
       <form onSubmit={resetPassword} className="space-y-4">
         <div>
-          <Label htmlFor="newPassword">New Password</Label>
+          <Label htmlFor="newPassword" className="mb-3 block">New Password</Label>
           <div className="relative">
             <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
             <Input
@@ -109,7 +131,7 @@ export default function ResetPasswordPage() {
         </div>
 
         <div>
-          <Label htmlFor="confirmPassword">Confirm Password</Label>
+          <Label htmlFor="confirmPassword" className="mb-3 block">Confirm Password</Label>
           <div className="relative">
             <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
             <Input

@@ -4,9 +4,22 @@ import { PatientInsert, EpisodeInsert } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const file = formData.get('pdf') as File;
-    const patientData = JSON.parse(formData.get('patientData') as string);
+    const contentType = request.headers.get('content-type') || '';
+    let patientData: any;
+    let file: File | null = null;
+
+    // Handle both FormData (with PDF) and JSON (manual entry)
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData();
+      file = formData.get('pdf') as File;
+      const patientDataString = formData.get('patientData') as string;
+      if (patientDataString) {
+        patientData = JSON.parse(patientDataString);
+      }
+    } else if (contentType.includes('application/json')) {
+      // Handle JSON body for manual entry
+      patientData = await request.json();
+    }
 
     if (!file && !patientData) {
       return NextResponse.json(
@@ -15,9 +28,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If PDF is uploaded, we would parse it here
-    // For now, we'll use the manual form data
+    // Process patient data
     if (patientData) {
+      console.log('[Upload Patient] Creating patient with data:', {
+        name: `${patientData.firstName} ${patientData.lastName}`,
+        email: patientData.email,
+        condition: patientData.condition
+      });
       // Note: We'll create the patient record first, and they can sign up themselves
       // The auth user creation will be handled when they first log in
 
@@ -46,7 +63,12 @@ export async function POST(request: NextRequest) {
       if (patientError) {
         console.error('Error creating patient:', patientError);
         return NextResponse.json(
-          { error: 'Failed to create patient record' },
+          { 
+            error: 'Failed to create patient record',
+            details: patientError.message,
+            hint: patientError.hint,
+            code: patientError.code
+          },
           { status: 500 }
         );
       }
@@ -72,7 +94,12 @@ export async function POST(request: NextRequest) {
       if (episodeError) {
         console.error('Error creating episode:', episodeError);
         return NextResponse.json(
-          { error: 'Failed to create episode record' },
+          { 
+            error: 'Failed to create episode record',
+            details: episodeError.message,
+            hint: episodeError.hint,
+            code: episodeError.code
+          },
           { status: 500 }
         );
       }
@@ -127,7 +154,12 @@ export async function POST(request: NextRequest) {
       if (planError) {
         console.error('Error creating outreach plan:', planError);
         return NextResponse.json(
-          { error: 'Failed to create outreach plan' },
+          { 
+            error: 'Failed to create outreach plan',
+            details: planError.message,
+            hint: planError.hint,
+            code: planError.code
+          },
           { status: 500 }
         );
       }
@@ -169,10 +201,14 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in upload-patient API:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error',
+        details: error?.message || 'Unknown error',
+        stack: process.env.NODE_ENV === 'development' ? error?.stack : undefined
+      },
       { status: 500 }
     );
   }
