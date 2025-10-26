@@ -173,29 +173,34 @@ export async function POST(request: NextRequest) {
     const decisionHint = await evaluateRulesDSL(parsedResponse, protocolAssignment, protocolConfig, supabase);
     
     // 6. Check if this patient has been contacted before and fetch summaries
-    const { data: previousInteractions } = await supabase
+    const { data: allInteractions } = await supabase
       .from('AgentInteraction')
       .select('id, started_at, status') // Note: 'summary' added in migration 20250126260000
       .eq('episode_id', episodeId)
-      .in('status', ['COMPLETED', 'ESCALATED']) // Only completed interactions
       .order('started_at', { ascending: false })
-      .limit(5);
+      .limit(10);
     
-    const hasBeenContactedBefore = (previousInteractions?.length || 0) > 0;
-    const isFirstMessageInCurrentChat = !interactionId;
+    // Check if ANY previous interaction exists (including current IN_PROGRESS one)
+    const hasBeenContactedBefore = (allInteractions?.length || 0) > 0;
+    const isFirstMessageInCurrentChat = !interactionId; // No interactionId = brand new chat
     
-    // Build previous interaction context from summaries (if column exists)
-    const previousSummaries = (previousInteractions || [])
+    // Build previous interaction context from COMPLETED interactions with summaries
+    const completedInteractions = (allInteractions || []).filter((i: any) => 
+      i.status === 'COMPLETED' || i.status === 'ESCALATED'
+    );
+    const previousSummaries = completedInteractions
       .filter((i: any) => i.summary) // Only interactions with summaries (column may not exist yet)
       .map((i: any) => `[${new Date(i.started_at).toLocaleDateString()}] ${i.summary}`)
       .join('\n');
     
     console.log('📞 [Interaction] Contact history:', {
       episodeId,
-      previousInteractionsCount: previousInteractions?.length || 0,
+      totalInteractions: allInteractions?.length || 0,
+      completedInteractions: completedInteractions.length,
       hasBeenContactedBefore,
       isFirstMessageInCurrentChat,
-      hasSummaries: previousSummaries.length > 0
+      hasSummaries: previousSummaries.length > 0,
+      currentInteractionId: interactionId
     });
     
     // 5. Generate AI response with tools (AI handles escalation messages naturally via decisionHint)
