@@ -13,6 +13,7 @@ INSERT INTO public."ProtocolContentPack" (
   action_type,
   severity,
   message,
+  numeric_follow_up_question,
   active
 ) VALUES
 -- Critical severity (visible to all risk levels)
@@ -21,6 +22,7 @@ INSERT INTO public."ProtocolContentPack" (
  'HANDOFF_TO_NURSE',
  'CRITICAL',
  'Chest pain reported - possible cardiac event',
+ NULL,
  true),
 
 ('HF', 'HF_BREATHING_WORSE', 'RED_FLAG',
@@ -28,6 +30,7 @@ INSERT INTO public."ProtocolContentPack" (
  'HANDOFF_TO_NURSE',
  'CRITICAL',
  'Significant breathing difficulty',
+ NULL,
  true),
 
 -- High severity (visible to MEDIUM and HIGH risk)
@@ -36,6 +39,7 @@ INSERT INTO public."ProtocolContentPack" (
  'RAISE_FLAG',
  'HIGH',
  'Significant weight gain (3+ lbs in 1 day)',
+ NULL,
  true),
 
 ('HF', 'HF_WEIGHT_GAIN_5LB', 'RED_FLAG',
@@ -43,6 +47,7 @@ INSERT INTO public."ProtocolContentPack" (
  'RAISE_FLAG',
  'HIGH',
  'Significant weight gain (5+ lbs in 1 week)',
+ NULL,
  true),
 
 -- Generic weight concern (visible to HIGH risk only) - asks for amount
@@ -51,6 +56,7 @@ INSERT INTO public."ProtocolContentPack" (
  'ASK_MORE',
  'LOW',
  'Weight change reported - need specific amount',
+ 'How many pounds have you gained? This will help me understand if we need to escalate this to a nurse.',
  true),
 
 -- Moderate severity (visible to HIGH risk only)
@@ -59,6 +65,7 @@ INSERT INTO public."ProtocolContentPack" (
  'RAISE_FLAG',
  'MODERATE',
  'New or worsening swelling',
+ NULL,
  true),
 
 ('HF', 'HF_SLEEP_DIFFICULTY', 'RED_FLAG',
@@ -66,6 +73,7 @@ INSERT INTO public."ProtocolContentPack" (
  'RAISE_FLAG',
  'MODERATE',
  'Sleep difficulty due to breathing',
+ NULL,
  true),
 
 -- Low severity / Educational (visible to HIGH risk only)
@@ -74,6 +82,7 @@ INSERT INTO public."ProtocolContentPack" (
  'ASK_MORE',
  'LOW',
  'Medication adherence issue',
+ 'Which medication did you miss? How many doses?',
  true),
 
 -- Closures (patient doing well)
@@ -82,6 +91,7 @@ INSERT INTO public."ProtocolContentPack" (
  'LOG_CHECKIN',
  NULL, -- No severity for closures
  'Patient stable and doing well',
+ NULL,
  true);
 
 -- Verify data

@@ -530,7 +530,7 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
   // Query red flags (now using proper columns, not JSONB!)
   const { data: redFlagData, error: redFlagError } = await supabase
     .from('ProtocolContentPack')
-    .select('rule_code, text_patterns, action_type, severity, message')
+    .select('rule_code, text_patterns, action_type, severity, message, numeric_follow_up_question')
     .eq('condition_code', conditionCode)
     .eq('rule_type', 'RED_FLAG')
     .in('severity', severityFilter)
@@ -577,7 +577,8 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
         type: rule.rule_code,
         action: rule.action_type,
         severity: rule.severity,
-        message: rule.message
+        message: rule.message,
+        numeric_follow_up: rule.numeric_follow_up_question
       }
     };
   });
@@ -768,14 +769,13 @@ async function evaluateRulesDSL(
         console.log('   Pattern:', ruleMatch.matchedPattern);
         console.log('   Input:', parsedResponse.rawInput);
         
-        // Ask for the specific number instead of escalating
+        // Use database-driven numeric follow-up question if available
+        const followUpQuestion = rule.flag.numeric_follow_up || 
+          "Can you be more specific about the amount? This will help me understand how urgent this is.";
+        
         return {
           action: 'ASK_MORE' as const,
-          questions: [
-            rule.flag.type.includes('WEIGHT') 
-              ? "How many pounds have you gained? It's important to know the specific amount."
-              : "Can you be more specific about the amount or severity?"
-          ],
+          questions: [followUpQuestion],
           reason: 'Need specific numeric detail for accurate assessment',
           messageGuidance: 'ASK_MORE: Patient mentioned symptom but without specific amount. Focus ONLY on getting the number - don\'t ask about other symptoms yet. The amount determines urgency.'
         };
@@ -845,6 +845,7 @@ async function evaluateRulesDSL(
   return {
     action: 'ASK_MORE' as const,
     questions: [], // AI will generate based on system prompt and decisionHint
+    reason: 'No red flags detected yet - ask open-ended questions',
     messageGuidance: 'ASK_MORE: No red flags detected yet. Ask open-ended questions to check on their condition. Monitor for key symptoms based on your system prompt. Be conversational and supportive.'
   };
 }
