@@ -113,18 +113,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Build dynamic condition context from database rules
+    const conditionContext = `
+${getConditionFullName(condition)} Red Flags:
+${redFlagRules.map(rule => `- ${rule.description} (Severity: ${rule.severity})`).join('\n')}
+`;
+
     // Analyze responses using LLM
     const analysisResult = await analyzeResponsesWithLLM(
       responses, 
       condition, 
-      redFlagRules // No fallback - validated above
+      redFlagRules,
+      conditionContext // Pass dynamic context from DB
     );
 
     // Save outreach responses
     const responseInserts = responses.map((response: Record<string, unknown>) => ({
       outreach_attempt_id: outreachAttemptId,
       question_code: response.questionCode,
-      question_version: response.questionVersion, // No fallback - validated above
+      question_version: response.questionVersion, 
       response_type: response.responseType,
       value_text: response.valueText,
       value_number: response.valueNumber,
@@ -226,7 +233,8 @@ export async function POST(request: NextRequest) {
 async function analyzeResponsesWithLLM(
   responses:  unknown[], 
   condition: string, 
-  redFlagRules:  unknown[]
+  redFlagRules:  unknown[],
+  conditionContext: string
 ): Promise<{
   severity: SeverityType;
   redFlagCode: string;
@@ -239,7 +247,7 @@ You are a medical AI assistant analyzing patient responses for ${condition} (${g
 in a Transition of Care program. Your job is to identify potential red flags that require nurse escalation.
 
 CONDITION CONTEXT:
-${getConditionContext(condition)}
+${conditionContext}
 
 RED FLAG RULES:
 ${redFlagRules.map((rule: any) => `
@@ -339,57 +347,6 @@ function getConditionFullName(condition: string): string {
     case 'AMI': return 'Acute Myocardial Infarction';
     case 'PNA': return 'Pneumonia';
     default: return condition;
-  }
-}
-
-function getConditionContext(condition: string): string {
-  switch (condition) {
-    case 'HF':
-      return `
-Heart Failure Red Flags:
-- Weight gain of 3+ pounds in 1 day or 5+ pounds in 1 week
-- Increased shortness of breath
-- Swelling in feet, ankles, or legs
-- Difficulty sleeping due to breathing problems
-- Persistent cough or wheezing
-- Fatigue or weakness
-- Confusion or memory problems
-`;
-    case 'COPD':
-      return `
-COPD Red Flags:
-- Increased shortness of breath
-- Change in sputum color or amount
-- Fever or signs of infection
-- Increased use of rescue inhaler
-- Difficulty sleeping due to breathing
-- Swelling in feet or ankles
-- Confusion or drowsiness
-`;
-    case 'AMI':
-      return `
-Post-Heart Attack Red Flags:
-- Chest pain or pressure
-- Pain in arms, back, neck, or jaw
-- Shortness of breath
-- Nausea or vomiting
-- Cold sweat
-- Feeling lightheaded or dizzy
-- Irregular heartbeat
-`;
-    case 'PNA':
-      return `
-Pneumonia Recovery Red Flags:
-- Fever returns or gets worse
-- Increased breathing difficulty
-- Chest pain that worsens
-- Coughing up blood
-- Confusion or disorientation
-- Inability to keep food/fluids down
-- Blue lips or fingernails
-`;
-    default:
-      return 'General medical red flags: severe pain, breathing difficulty, confusion, fever, bleeding, or any concerning symptoms.';
   }
 }
 
