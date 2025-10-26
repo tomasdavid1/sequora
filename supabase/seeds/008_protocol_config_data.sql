@@ -28,7 +28,7 @@ INSERT INTO public."ProtocolConfig" (
   0.40,  -- Ask clarifying questions if confidence < 40%
   ARRAY['discomfort', 'off', 'tired', 'heavy', 'weird', 'not right', 'strange', 'uncomfortable'],
   true,
-  'critical',  -- Distressed + symptoms = CRITICAL escalation
+  'CRITICAL',  -- Distressed + symptoms = CRITICAL escalation
   true,
   true,
   true,  -- Detect all symptoms, not just first match
@@ -55,7 +55,7 @@ INSERT INTO public."ProtocolConfig" (
   0.55,  -- More clarifying questions than HIGH risk
   ARRAY['discomfort', 'off', 'tired', 'heavy', 'weird'],
   true,
-  'high',  -- Distressed + symptoms = HIGH escalation (not critical)
+  'HIGH',  -- Distressed + symptoms = HIGH escalation (not critical)
   true,
   true,
   true,
@@ -82,7 +82,7 @@ INSERT INTO public."ProtocolConfig" (
   0.65,  -- Fewer clarifying questions
   ARRAY['off', 'tired', 'weird'],
   true,
-  'high',  -- Distressed + symptoms = HIGH escalation
+  'HIGH',  -- Distressed + symptoms = HIGH escalation
   true,
   true,
   true,
@@ -113,7 +113,7 @@ INSERT INTO public."ProtocolConfig" (
   0.60,
   ARRAY['achey', 'unwell', 'congested', 'off', 'weak', 'run down'],
   true,
-  'high',  -- Distressed + symptoms = HIGH (not critical, PNA is less immediately dangerous)
+  'HIGH',  -- Distressed + symptoms = HIGH (not critical, PNA is less immediately dangerous)
   true,
   true,
   true,
@@ -140,7 +140,7 @@ INSERT INTO public."ProtocolConfig" (
   0.65,
   ARRAY['unwell', 'off', 'weak'],
   true,
-  'moderate',  -- Less aggressive escalation
+  'MODERATE',  -- Less aggressive escalation
   true,
   true,
   true,
@@ -167,7 +167,7 @@ INSERT INTO public."ProtocolConfig" (
   0.70,
   ARRAY['tired', 'off'],
   true,
-  'moderate',
+  'MODERATE',
   true,
   true,
   false,  -- LOW risk: single symptom detection is fine
@@ -198,7 +198,7 @@ INSERT INTO public."ProtocolConfig" (
   0.55,
   ARRAY['tight', 'wheezy', 'short winded', 'breathless', 'off', 'heavy chest'],
   true,
-  'high',
+  'HIGH',
   true,
   true,
   true,
@@ -225,7 +225,7 @@ INSERT INTO public."ProtocolConfig" (
   0.60,
   ARRAY['tight', 'wheezy', 'off'],
   true,
-  'moderate',
+  'MODERATE',
   true,
   true,
   true,
@@ -252,7 +252,7 @@ INSERT INTO public."ProtocolConfig" (
   0.65,
   ARRAY['off', 'tired'],
   true,
-  'moderate',
+  'MODERATE',
   true,
   true,
   false,
@@ -283,7 +283,7 @@ INSERT INTO public."ProtocolConfig" (
   0.35,
   ARRAY['discomfort', 'off', 'tired', 'heavy', 'pressure', 'tight', 'weird', 'not right'],
   true,
-  'critical',  -- Any distressed + symptoms = CRITICAL
+  'CRITICAL',  -- Any distressed + symptoms = CRITICAL
   true,
   true,
   true,
@@ -337,7 +337,7 @@ INSERT INTO public."ProtocolConfig" (
   0.60,
   ARRAY['off', 'tired'],
   true,
-  'high',
+  'HIGH',
   true,
   true,
   true,

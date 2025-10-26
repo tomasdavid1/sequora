@@ -691,7 +691,7 @@ export type Database = {
           hospital_id: string | null
           id: string
           patient_id: string
-          risk_level: string | null
+          risk_level: Database["public"]["Enums"]["risk_level"] | null
           risk_scores: Json | null
           severity_indicator: string | null
           source_system: string | null
@@ -718,7 +718,7 @@ export type Database = {
           hospital_id?: string | null
           id?: string
           patient_id: string
-          risk_level?: string | null
+          risk_level?: Database["public"]["Enums"]["risk_level"] | null
           risk_scores?: Json | null
           severity_indicator?: string | null
           source_system?: string | null
@@ -745,7 +745,7 @@ export type Database = {
           hospital_id?: string | null
           id?: string
           patient_id?: string
-          risk_level?: string | null
+          risk_level?: Database["public"]["Enums"]["risk_level"] | null
           risk_scores?: Json | null
           severity_indicator?: string | null
           source_system?: string | null
@@ -1266,7 +1266,7 @@ export type Database = {
           city: string | null
           created_at: string | null
           date_of_birth: string
-          education_level: string | null
+          education_level: Database["public"]["Enums"]["education_level"] | null
           email: string | null
           first_name: string
           id: string
@@ -1294,7 +1294,9 @@ export type Database = {
           city?: string | null
           created_at?: string | null
           date_of_birth: string
-          education_level?: string | null
+          education_level?:
+            | Database["public"]["Enums"]["education_level"]
+            | null
           email?: string | null
           first_name: string
           id?: string
@@ -1322,7 +1324,9 @@ export type Database = {
           city?: string | null
           created_at?: string | null
           date_of_birth?: string
-          education_level?: string | null
+          education_level?:
+            | Database["public"]["Enums"]["education_level"]
+            | null
           email?: string | null
           first_name?: string
           id?: string
@@ -1406,7 +1410,7 @@ export type Database = {
           episode_id: string
           id: string
           is_active: boolean | null
-          risk_level: string | null
+          risk_level: Database["public"]["Enums"]["risk_level"] | null
           updated_at: string | null
         }
         Insert: {
@@ -1417,7 +1421,7 @@ export type Database = {
           episode_id: string
           id?: string
           is_active?: boolean | null
-          risk_level?: string | null
+          risk_level?: Database["public"]["Enums"]["risk_level"] | null
           updated_at?: string | null
         }
         Update: {
@@ -1428,7 +1432,7 @@ export type Database = {
           episode_id?: string
           id?: string
           is_active?: boolean | null
-          risk_level?: string | null
+          risk_level?: Database["public"]["Enums"]["risk_level"] | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1451,7 +1455,7 @@ export type Database = {
       ProtocolConfig: {
         Row: {
           active: boolean
-          condition_code: string
+          condition_code: Database["public"]["Enums"]["condition_code"]
           created_at: string
           critical_confidence_threshold: number
           detect_multiple_symptoms: boolean
@@ -1460,7 +1464,7 @@ export type Database = {
           id: string
           low_confidence_threshold: number
           notes: string | null
-          risk_level: string
+          risk_level: Database["public"]["Enums"]["risk_level"]
           route_general_questions_to_info: boolean
           route_medication_questions_to_info: boolean
           updated_at: string
@@ -1468,7 +1472,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
-          condition_code: string
+          condition_code: Database["public"]["Enums"]["condition_code"]
           created_at?: string
           critical_confidence_threshold?: number
           detect_multiple_symptoms?: boolean
@@ -1477,7 +1481,7 @@ export type Database = {
           id?: string
           low_confidence_threshold?: number
           notes?: string | null
-          risk_level: string
+          risk_level: Database["public"]["Enums"]["risk_level"]
           route_general_questions_to_info?: boolean
           route_medication_questions_to_info?: boolean
           updated_at?: string
@@ -1485,7 +1489,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
-          condition_code?: string
+          condition_code?: Database["public"]["Enums"]["condition_code"]
           created_at?: string
           critical_confidence_threshold?: number
           detect_multiple_symptoms?: boolean
@@ -1494,7 +1498,7 @@ export type Database = {
           id?: string
           low_confidence_threshold?: number
           notes?: string | null
-          risk_level?: string
+          risk_level?: Database["public"]["Enums"]["risk_level"]
           route_general_questions_to_info?: boolean
           route_medication_questions_to_info?: boolean
           updated_at?: string
@@ -1504,41 +1508,41 @@ export type Database = {
       }
       ProtocolContentPack: {
         Row: {
-          action_type: string
+          action_type: string | null
           active: boolean | null
           condition_code: Database["public"]["Enums"]["condition_code"]
           created_at: string | null
           id: string
           message: string | null
           rule_code: string
-          rule_type: string
-          severity: string | null
+          rule_type: Database["public"]["Enums"]["rule_type"]
+          severity: Database["public"]["Enums"]["red_flag_severity"] | null
           text_patterns: string[]
           updated_at: string | null
         }
         Insert: {
-          action_type: string
+          action_type?: string | null
           active?: boolean | null
           condition_code: Database["public"]["Enums"]["condition_code"]
           created_at?: string | null
           id?: string
           message?: string | null
           rule_code: string
-          rule_type: string
-          severity?: string | null
+          rule_type: Database["public"]["Enums"]["rule_type"]
+          severity?: Database["public"]["Enums"]["red_flag_severity"] | null
           text_patterns?: string[]
           updated_at?: string | null
         }
         Update: {
-          action_type?: string
+          action_type?: string | null
           active?: boolean | null
           condition_code?: Database["public"]["Enums"]["condition_code"]
           created_at?: string | null
           id?: string
           message?: string | null
           rule_code?: string
-          rule_type?: string
-          severity?: string | null
+          rule_type?: Database["public"]["Enums"]["rule_type"]
+          severity?: Database["public"]["Enums"]["red_flag_severity"] | null
           text_patterns?: string[]
           updated_at?: string | null
         }
@@ -1801,6 +1805,7 @@ export type Database = {
       consent_status: "GRANTED" | "DENIED" | "REVOKED" | "EXPIRED"
       consent_type: "SMS" | "VOICE" | "DATA_SHARE" | "RCM_BILLING" | "RESEARCH"
       contact_channel: "SMS" | "VOICE" | "HUMAN_CALL" | "EMAIL" | "APP"
+      education_level: "LOW" | "MEDIUM" | "HIGH"
       instruction_priority: "CRITICAL" | "HIGH" | "NORMAL" | "LOW"
       instruction_type:
         | "FOLLOWUP_APPOINTMENT"
@@ -1839,14 +1844,15 @@ export type Database = {
         | "DECLINED"
         | "EXCLUDED"
       red_flag_severity: "NONE" | "LOW" | "MODERATE" | "HIGH" | "CRITICAL"
-      redflag_severity: "NONE" | "LOW" | "MODERATE" | "HIGH" | "CRITICAL"
       response_type:
         | "SINGLE_CHOICE"
         | "MULTI_CHOICE"
         | "NUMERIC"
         | "TEXT"
         | "YES_NO"
+      risk_level: "LOW" | "MEDIUM" | "HIGH"
       risk_model_type: "HOSPITAL" | "LACE" | "LACE_PLUS" | "CUSTOM"
+      rule_type: "RED_FLAG" | "CLOSURE" | "QUESTION"
       task_priority: "LOW" | "NORMAL" | "HIGH" | "URGENT"
       task_status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CANCELLED" | "EXPIRED"
       transport_status:
@@ -2017,6 +2023,7 @@ export const Constants = {
       consent_status: ["GRANTED", "DENIED", "REVOKED", "EXPIRED"],
       consent_type: ["SMS", "VOICE", "DATA_SHARE", "RCM_BILLING", "RESEARCH"],
       contact_channel: ["SMS", "VOICE", "HUMAN_CALL", "EMAIL", "APP"],
+      education_level: ["LOW", "MEDIUM", "HIGH"],
       instruction_priority: ["CRITICAL", "HIGH", "NORMAL", "LOW"],
       instruction_type: [
         "FOLLOWUP_APPOINTMENT",
@@ -2059,7 +2066,6 @@ export const Constants = {
         "EXCLUDED",
       ],
       red_flag_severity: ["NONE", "LOW", "MODERATE", "HIGH", "CRITICAL"],
-      redflag_severity: ["NONE", "LOW", "MODERATE", "HIGH", "CRITICAL"],
       response_type: [
         "SINGLE_CHOICE",
         "MULTI_CHOICE",
@@ -2067,7 +2073,9 @@ export const Constants = {
         "TEXT",
         "YES_NO",
       ],
+      risk_level: ["LOW", "MEDIUM", "HIGH"],
       risk_model_type: ["HOSPITAL", "LACE", "LACE_PLUS", "CUSTOM"],
+      rule_type: ["RED_FLAG", "CLOSURE", "QUESTION"],
       task_priority: ["LOW", "NORMAL", "HIGH", "URGENT"],
       task_status: ["OPEN", "IN_PROGRESS", "RESOLVED", "CANCELLED", "EXPIRED"],
       transport_status: [
