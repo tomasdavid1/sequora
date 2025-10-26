@@ -101,15 +101,8 @@ export async function POST(request: NextRequest) {
     let protocolAssignment = await loadProtocolAssignment(episodeId, supabase);
     
     if (!protocolAssignment) {
-      console.log('No protocol assignment found - creating one now');
+      console.log('📝 [Interaction] No protocol assignment found - creating one now');
       protocolAssignment = await createProtocolAssignment(episodeId, supabase);
-      
-      if (!protocolAssignment) {
-        return NextResponse.json(
-          { error: 'Failed to create protocol assignment. Episode may not exist or have invalid condition code.' },
-          { status: 400 }
-        );
-      }
     }
 
     // 2. Get conversation history if continuing an existing interaction
@@ -374,8 +367,12 @@ async function loadProtocolAssignment(episodeId: string, supabase: SupabaseAdmin
     .single();
 
   if (error) {
-    console.error('Error loading protocol assignment:', error);
-    return null;
+    console.error('❌ [Protocol Assignment] Database error loading assignment for episode:', episodeId, error);
+    throw new Error(`Failed to load protocol assignment: ${error.message}`);
+  }
+
+  if (!assignment) {
+    return null; // This is OK - no assignment means we need to create one
   }
 
   return assignment;
@@ -383,48 +380,54 @@ async function loadProtocolAssignment(episodeId: string, supabase: SupabaseAdmin
 
 // Create protocol assignment for an episode
 async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdmin) {
-  try {
-    // First, get the episode details
-    const { data: episode, error: episodeError } = await supabase
-      .from('Episode')
-      .select('condition_code, risk_level')
-      .eq('id', episodeId)
-      .single();
+  // First, get the episode details
+  const { data: episode, error: episodeError } = await supabase
+    .from('Episode')
+    .select('condition_code, risk_level')
+    .eq('id', episodeId)
+    .single();
 
-    if (episodeError || !episode) {
-      console.error('Error fetching episode:', episodeError);
-      return null;
-    }
-
-    // Create the protocol assignment (just metadata, no rule duplication)
-    const { data: assignment, error: assignmentError } = await supabase
-      .from('ProtocolAssignment')
-      .insert({
-        episode_id: episodeId,
-        condition_code: episode.condition_code,
-        risk_level: episode.risk_level || 'MEDIUM',
-        is_active: true
-      })
-      .select(`
-        *,
-        Episode!inner(
-          condition_code, 
-          risk_level,
-          Patient!inner(education_level)
-        )
-      `)
-      .single();
-
-    if (assignmentError) {
-      console.error('Error creating protocol assignment:', assignmentError);
-      return null;
-    }
-
-    return assignment;
-  } catch (error) {
-    console.error('Error in createProtocolAssignment:', error);
-    return null;
+  if (episodeError) {
+    console.error('❌ [Protocol Assignment] Database error fetching episode:', episodeId, episodeError);
+    throw new Error(`Failed to fetch episode data: ${episodeError.message}`);
   }
+
+  if (!episode) {
+    console.error('❌ [Protocol Assignment] Episode not found:', episodeId);
+    throw new Error(`Episode ${episodeId} not found. Cannot create protocol assignment.`);
+  }
+
+  // Create the protocol assignment (just metadata, no rule duplication)
+  const { data: assignment, error: assignmentError } = await supabase
+    .from('ProtocolAssignment')
+    .insert({
+      episode_id: episodeId,
+      condition_code: episode.condition_code,
+      risk_level: episode.risk_level || 'MEDIUM',
+      is_active: true
+    })
+    .select(`
+      *,
+      Episode!inner(
+        condition_code, 
+        risk_level,
+        Patient!inner(education_level)
+      )
+    `)
+    .single();
+
+  if (assignmentError) {
+    console.error('❌ [Protocol Assignment] Database error creating assignment:', assignmentError);
+    throw new Error(`Failed to create protocol assignment: ${assignmentError.message}`);
+  }
+
+  if (!assignment) {
+    console.error('❌ [Protocol Assignment] Assignment creation returned no data');
+    throw new Error('Protocol assignment creation failed - no data returned');
+  }
+
+  console.log('✅ [Protocol Assignment] Created for episode:', episodeId);
+  return assignment;
 }
 
 // Query protocol configuration (AI decision parameters) from database
@@ -437,19 +440,14 @@ async function getProtocolConfig(conditionCode: string, riskLevel: string, supab
     .eq('active', true)
     .single();
 
-  if (error || !config) {
-    console.warn(`⚠️ [Protocol Config] No config found for ${conditionCode} + ${riskLevel}, using defaults`);
-    // Return safe defaults if config not found
-    return {
-      critical_confidence_threshold: 0.80,
-      low_confidence_threshold: 0.60,
-      vague_symptoms: ['discomfort', 'off', 'weird', 'strange', 'not right'],
-      enable_sentiment_boost: true,
-      distressed_severity_upgrade: 'high',
-      route_medication_questions_to_info: true,
-      route_general_questions_to_info: true,
-      detect_multiple_symptoms: false
-    };
+  if (error) {
+    console.error(`❌ [Protocol Config] Database error fetching config for ${conditionCode} + ${riskLevel}:`, error);
+    throw new Error(`Failed to load protocol configuration: ${error.message}`);
+  }
+
+  if (!config) {
+    console.error(`❌ [Protocol Config] No active config found for ${conditionCode} + ${riskLevel}`);
+    throw new Error(`No protocol configuration found for ${conditionCode} at ${riskLevel} risk level. Please configure protocols in the admin dashboard.`);
   }
 
   console.log(`⚙️ [Protocol Config] Loaded config for ${conditionCode} + ${riskLevel}`, {
@@ -484,7 +482,8 @@ async function getProtocolRules(conditionCode: string, riskLevel: string, supaba
     .eq('active', true);
 
   if (redFlagError) {
-    console.error('Error fetching red flag rules:', redFlagError);
+    console.error('❌ [Protocol Rules] Database error fetching red flags:', redFlagError);
+    throw new Error(`Failed to load red flag rules: ${redFlagError.message}`);
   }
 
   // Query closures
@@ -496,7 +495,8 @@ async function getProtocolRules(conditionCode: string, riskLevel: string, supaba
     .eq('active', true);
 
   if (closureError) {
-    console.error('Error fetching closure rules:', closureError);
+    console.error('❌ [Protocol Rules] Database error fetching closures:', closureError);
+    throw new Error(`Failed to load closure rules: ${closureError.message}`);
   }
 
   // Transform to DSL format expected by evaluateRulesDSL
@@ -530,44 +530,49 @@ async function parsePatientInputWithProtocol(
   protocolAssignment: ProtocolAssignmentWithRelations,
   conversationHistory: Array<{role: string, content: string}> = []
 ) {
-  try {
-    console.log('🔍 [Parser] Requesting structured symptom extraction from AI');
-    console.log('💬 [Parser] Using', conversationHistory.length, 'previous messages for context');
-    
-    // Call OpenAI directly with structured output request
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        operation: 'parse_patient_input',
-        input: {
-          condition: protocolAssignment.condition_code,
-          educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level || 'medium',
-          patientInput: input,
-          conversationHistory: conversationHistory,
-          requestStructuredOutput: true
-        }
-      })
-    });
+  console.log('🔍 [Parser] Requesting structured symptom extraction from AI');
+  console.log('💬 [Parser] Using', conversationHistory.length, 'previous messages for context');
+  
+  // Call OpenAI directly with structured output request
+  const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      operation: 'parse_patient_input',
+      input: {
+        condition: protocolAssignment.condition_code,
+        educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level || 'medium',
+        patientInput: input,
+        conversationHistory: conversationHistory,
+        requestStructuredOutput: true
+      }
+    })
+  });
 
-    const result = await response.json();
-    console.log('📊 [Parser] AI extracted:', result.parsed);
-    
-    if (result.success && result.parsed) {
-      // Use structured AI output directly
-      return {
-        ...result.parsed,
-        rawInput: input,
-        confidence: result.parsed.confidence || 0.85
-      };
-    } else {
-      console.warn('⚠️ [Parser] Falling back to regex extraction');
-      return getMockParsedResponse(input, protocolAssignment.condition_code);
-    }
-  } catch (error) {
-    console.error('❌ [Parser] Error calling AI for parsing:', error);
-    return getMockParsedResponse(input, protocolAssignment.condition_code);
+  if (!response.ok) {
+    console.error('❌ [Parser] AI API returned error status:', response.status);
+    throw new Error(`AI parsing service unavailable (HTTP ${response.status}). Please try again.`);
   }
+
+  const result = await response.json();
+  console.log('📊 [Parser] AI extracted:', result.parsed);
+  
+  if (!result.success) {
+    console.error('❌ [Parser] AI parsing failed:', result.error);
+    throw new Error(`Failed to parse patient input: ${result.error || 'AI service error'}`);
+  }
+
+  if (!result.parsed) {
+    console.error('❌ [Parser] AI returned success but no parsed data');
+    throw new Error('AI parsing returned no data. Please try again.');
+  }
+
+  // Use structured AI output
+  return {
+    ...result.parsed,
+    rawInput: input,
+    confidence: result.parsed.confidence || 0.85
+  };
 }
 
 // Evaluate rules DSL to get decision hint with AI insights
