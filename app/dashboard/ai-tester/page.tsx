@@ -109,6 +109,7 @@ export default function AITesterPage() {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showPatientConfigModal, setShowPatientConfigModal] = useState(false);
   const [editingConfig, setEditingConfig] = useState<any>({});
+  const [editingRules, setEditingRules] = useState<Record<string, any>>({});
   const renderCountRef = React.useRef(0);
   
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
@@ -159,27 +160,58 @@ export default function AITesterPage() {
     }
   };
 
-  // Save patient config changes
+  // Save patient config AND rule pattern changes
   const savePatientConfig = async () => {
-    if (!editingConfig?.id) return;
+    if (!protocolProfile?.protocolConfig?.id) return;
 
     try {
-      const response = await fetch(`/api/admin/protocol-config/${editingConfig.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingConfig)
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        toast({ title: 'Config updated!', description: 'Changes apply immediately.' });
-        setShowPatientConfigModal(false);
-        setEditingConfig({});
-      } else {
-        toast({ title: 'Error', description: data.error, variant: 'destructive' });
+      // Save protocol config if changed
+      if (Object.keys(editingConfig).length > 0) {
+        const configResponse = await fetch(`/api/admin/protocol-config/${protocolProfile.protocolConfig.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(editingConfig)
+        });
+        const configData = await configResponse.json();
+        if (!configData.success) {
+          toast({ title: 'Error saving config', description: configData.error, variant: 'destructive' });
+          return;
+        }
       }
+
+      // Save edited rules (ProtocolContentPack)
+      for (const ruleCode in editingRules) {
+        const rule = editingRules[ruleCode];
+        const originalRule = protocolProfile.activeProtocolRules?.find((r: any) => r.rule_code === ruleCode);
+        if (originalRule?.id) {
+          const ruleResponse = await fetch(`/api/admin/protocol-content-pack/${originalRule.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text_patterns: rule.text_patterns,
+              numeric_follow_up_question: rule.numeric_follow_up_question
+            })
+          });
+          const ruleData = await ruleResponse.json();
+          if (!ruleData.success) {
+            toast({ title: 'Error saving rule', description: `${ruleCode}: ${ruleData.error}`, variant: 'destructive' });
+            return;
+          }
+        }
+      }
+
+      toast({ 
+        title: 'Saved!', 
+        description: `Updated ${Object.keys(editingRules).length} rules + config. Changes apply immediately.`
+      });
+      setShowPatientConfigModal(false);
+      setEditingConfig({});
+      setEditingRules({});
+      
+      // Refresh profile to show new values
+      await fetchProtocolProfile();
     } catch (error) {
-      toast({ title: 'Error', description: 'Failed to save', variant: 'destructive' });
+      toast({ title: 'Error', description: 'Failed to save changes', variant: 'destructive' });
     }
   };
 
@@ -1235,25 +1267,52 @@ export default function AITesterPage() {
                       <Zap className="w-5 h-5 text-blue-700" />
                       Active Detection Rules for {protocolProfile.episode.risk_level} Risk
                     </h3>
-                    <p className="text-xs text-gray-600 mb-3">These patterns trigger AI actions. To edit, go to /dashboard/protocol-config.</p>
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                    <p className="text-xs text-gray-600 mb-3">Edit patterns below. Changes save when you click "Save & Test".</p>
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
                       {protocolProfile.activeProtocolRules?.filter((r: any) => r.rule_type === 'RED_FLAG').map((rule: any) => (
                         <div key={rule.rule_code} className="bg-white rounded p-3 border border-gray-200 text-xs">
-                          <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center justify-between mb-2">
                             <span className="font-semibold">{rule.rule_code}</span>
-                            <Badge variant={rule.severity === 'CRITICAL' ? 'destructive' : 'default'} className="text-xs">
-                              {rule.severity}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={rule.severity === 'CRITICAL' ? 'destructive' : 'default'} className="text-xs">
+                                {rule.severity}
+                              </Badge>
+                              <span className="text-emerald-700 font-medium text-xs">→ {rule.action_type}</span>
+                            </div>
                           </div>
-                          <div className="text-gray-600 mb-1">
-                            <strong>Patterns:</strong> {rule.text_patterns?.join(', ')}
+                          <div className="mb-2">
+                            <Label className="text-xs font-medium">Patterns (comma-separated):</Label>
+                            <Textarea
+                              value={
+                                editingRules[rule.rule_code]?.text_patterns?.join(', ') || 
+                                rule.text_patterns?.join(', ') || ''
+                              }
+                              onChange={(e) => setEditingRules({
+                                ...editingRules,
+                                [rule.rule_code]: {
+                                  ...rule,
+                                  text_patterns: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                                }
+                              })}
+                              rows={2}
+                              className="text-xs mt-1"
+                            />
                           </div>
-                          <div className="text-emerald-700 font-medium">
-                            → Action: {rule.action_type}
-                          </div>
-                          {rule.numeric_follow_up_question && (
-                            <div className="mt-2 pt-2 border-t border-gray-200 bg-blue-50 p-2 rounded">
-                              <strong className="text-blue-900">If vague, ask:</strong> {rule.numeric_follow_up_question}
+                          {(rule.numeric_follow_up_question || editingRules[rule.rule_code]?.numeric_follow_up_question !== undefined) && (
+                            <div className="mt-2 pt-2 border-t border-gray-200">
+                              <Label className="text-xs font-medium">Numeric Follow-Up Question:</Label>
+                              <Input
+                                value={editingRules[rule.rule_code]?.numeric_follow_up_question ?? rule.numeric_follow_up_question ?? ''}
+                                onChange={(e) => setEditingRules({
+                                  ...editingRules,
+                                  [rule.rule_code]: {
+                                    ...editingRules[rule.rule_code],
+                                    numeric_follow_up_question: e.target.value
+                                  }
+                                })}
+                                className="text-xs mt-1"
+                                placeholder="e.g., How many pounds have you gained?"
+                              />
                             </div>
                           )}
                         </div>
