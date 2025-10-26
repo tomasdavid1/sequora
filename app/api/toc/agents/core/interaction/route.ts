@@ -162,12 +162,19 @@ export async function POST(request: NextRequest) {
       ...protocolRules.closures.flatMap((c: any) => c.if.any_text || [])
     ];
     
+    // Extract patterns that require numeric clarification
+    const patternsWithNumbers = protocolRules.red_flags
+      .filter((r: any) => r.flag.numeric_follow_up)
+      .flatMap((r: any) => r.if.any_text || [])
+      .filter((p: string) => !/\d/.test(p)); // Generic patterns without numbers
+    
     // 5. Parse the patient input using LLM with protocol patterns
     const parsedResponse = await parsePatientInputWithProtocol(
       patientInput, 
       protocolAssignment,
       conversationHistory,
-      allPatterns // Pass database patterns to AI
+      allPatterns, // Pass database patterns to AI
+      patternsWithNumbers // Patterns that need numbers
     );
     
     // 6. Evaluate rules DSL to get decision hint (using protocol config)
@@ -608,28 +615,31 @@ async function parsePatientInputWithProtocol(
   input: string, 
   protocolAssignment: ProtocolAssignmentWithRelations,
   conversationHistory: Array<{role: string, content: string}> = [],
-  protocolPatterns: string[] = []
+  protocolPatterns: string[] = [],
+  patternsRequiringNumbers: string[] = []
 ) {
   console.log('🔍 [Parser] Requesting structured symptom extraction from AI');
   console.log('💬 [Parser] Using', conversationHistory.length, 'previous messages for context');
   console.log('🎯 [Parser] Using', protocolPatterns.length, 'protocol patterns from database');
+  console.log('🔢 [Parser] Patterns requiring numbers:', patternsRequiringNumbers.length);
   
   // Call OpenAI directly with structured output request
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+  const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
       operation: 'parse_patient_input',
-        input: {
-          condition: protocolAssignment.condition_code,
+      input: {
+        condition: protocolAssignment.condition_code,
         educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level, // NOT NULL in DB
         patientInput: input,
         conversationHistory: conversationHistory,
         protocolPatterns: protocolPatterns, // Database patterns for AI to match against
+        patternsRequiringNumbers: patternsRequiringNumbers, // Patterns that need specific amounts
         requestStructuredOutput: true
-        }
-      })
-    });
+      }
+    })
+  });
 
   if (!response.ok) {
     console.error('❌ [Parser] AI API returned error status:', response.status);

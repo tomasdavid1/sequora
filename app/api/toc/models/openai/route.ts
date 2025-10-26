@@ -473,13 +473,15 @@ async function handleStreamingResponse(input: Record<string, unknown>, stream: R
 // Handle structured patient input parsing
 async function handleParsePatientInput(input: Record<string, unknown>, options: Record<string, unknown>) {
   try {
-    const { condition, educationLevel, patientInput, conversationHistory = [], protocolPatterns = [] } = input;
+    const { condition, educationLevel, patientInput, conversationHistory = [], protocolPatterns = [], patternsRequiringNumbers = [] } = input;
     const history = conversationHistory as Array<{role: string, content: string}>;
     const patterns = protocolPatterns as string[];
+    const numericPatterns = patternsRequiringNumbers as string[];
     
     console.log('🔍 [OpenAI Parser] Extracting structured data from:', patientInput);
     console.log('💬 [OpenAI Parser] With conversation context:', history.length, 'messages');
     console.log('🎯 [OpenAI Parser] Matching against', patterns.length, 'protocol patterns from database');
+    console.log('🔢 [OpenAI Parser] Patterns requiring numbers:', numericPatterns.length);
     
     // Define the schema for structured output
     const systemPrompt = `You are a medical AI specialized in parsing patient symptom reports for ${condition} patients.
@@ -504,11 +506,14 @@ NORMALIZATION INSTRUCTIONS:
 - Always convert "lbs" → "pounds" and preserve numbers if present (3 lbs → 3 pounds)
 
 ⚠️ CRITICAL - NUMERIC PATTERNS:
-Some patterns contain numbers (e.g., "gained 3 pounds", "temperature 101"). 
-- If patient mentions a SPECIFIC number → use the numeric pattern that matches
-- If patient is VAGUE (e.g., "some weight", "a bit", "a little") → use the GENERIC pattern WITHOUT numbers
-- NEVER invent or assume numbers the patient didn't say!
-- When unsure about amount → choose generic pattern to trigger follow-up question
+These patterns will trigger follow-up questions for specific amounts (from database):
+${numericPatterns.length > 0 ? numericPatterns.map(p => `- ${p}`).join('\n') : 'None'}
+
+RULES:
+- If patient mentions these topics VAGUELY (no specific number) → use these GENERIC patterns
+- If patient gives SPECIFIC number → use the numbered pattern from the full list above
+- NEVER invent numbers the patient didn't say!
+- Examples: "some weight" → "weight gain" (generic), "3 pounds" → "gained 3 pounds" (specific)
 
 Multiple patterns can match one input (e.g., "chest pain and can't breathe" → "chest pain, cant breathe")
 
