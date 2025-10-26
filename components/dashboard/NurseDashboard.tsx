@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { TasksTable } from '@/components/tasks/TasksTable';
 import { PatientInfoModal } from '@/components/patient/PatientInfoModal';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Users, 
   Upload,
@@ -24,17 +25,20 @@ import {
 } from 'lucide-react';
 
 export default function NurseDashboard() {
+  const { toast } = useToast();
   const [patients, setPatients] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAddPatient, setShowAddPatient] = useState(false);
   const [parsedData, setParsedData] = useState<any>(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
   const [conversationData, setConversationData] = useState<any[]>([]);
   const [showConversationModal, setShowConversationModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [contactPatient, setContactPatient] = useState<any>(null);
   const [showPatientModal, setShowPatientModal] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   useEffect(() => {
     fetchNurseData();
@@ -61,7 +65,7 @@ export default function NurseDashboard() {
     try {
       const response = await fetch(`/api/debug/interactions?patientId=${patientId}`);
       if (response.ok) {
-        const data = await response.json();
+      const data = await response.json();
         setConversationData(data.interactions || []);
       }
     } catch (error) {
@@ -79,21 +83,28 @@ export default function NurseDashboard() {
   const handleCreatePatientFromPDF = async () => {
     if (!parsedData) return;
 
-    const missingFields = [];
-    if (!parsedData.firstName?.trim()) missingFields.push('First Name');
-    if (!parsedData.lastName?.trim()) missingFields.push('Last Name');
-    if (!parsedData.phone?.trim()) missingFields.push('Phone Number');
-    if (!parsedData.email?.trim()) missingFields.push('Email Address');
-    if (!parsedData.dob) missingFields.push('Date of Birth');
-    if (!parsedData.dischargeDate) missingFields.push('Discharge Date');
-    if (!parsedData.condition) missingFields.push('Primary Condition');
+    // Validate required fields
+    const errors: string[] = [];
+    if (!parsedData.firstName?.trim()) errors.push('firstName');
+    if (!parsedData.lastName?.trim()) errors.push('lastName');
+    if (!parsedData.phone?.trim()) errors.push('phone');
+    if (!parsedData.dob) errors.push('dob');
+    if (!parsedData.dischargeDate) errors.push('dischargeDate');
+    if (!parsedData.condition) errors.push('condition');
 
-    if (missingFields.length > 0) {
-      alert(`Please fill in all required fields:\n\n• ${missingFields.join('\n• ')}`);
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      toast({
+        title: "Missing Required Fields",
+        description: "Please fill in all required fields (marked with *)",
+        variant: "destructive"
+      });
       return;
     }
 
+    setValidationErrors([]);
     setLoading(true);
+    
     try {
       const response = await fetch('/api/toc/nurse/upload-patient', {
         method: 'POST',
@@ -104,18 +115,28 @@ export default function NurseDashboard() {
       const result = await response.json();
       if (result.success) {
         setShowAddPatient(false);
+        setShowConfirmation(false);
         setParsedData(null);
         fetchNurseData();
-        alert('Patient created successfully and TOC process started!');
+        
+        toast({
+          title: "Patient Created!",
+          description: "TOC process started successfully",
+        });
       } else {
-        const errorMessage = result.details 
-          ? `${result.error}\n\nDetails: ${result.details}\n${result.hint || ''}`
-          : result.error;
-        alert('Error creating patient:\n\n' + errorMessage);
+        toast({
+          title: "Failed to create patient",
+          description: result.error || "Please try again",
+          variant: "destructive"
+        });
       }
     } catch (error) {
       console.error('Error creating patient:', error);
-      alert('Error creating patient');
+      toast({
+        title: "Error",
+        description: "Failed to create patient - please try again",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
@@ -250,7 +271,7 @@ export default function NurseDashboard() {
         }}>
           <UserPlus className="w-4 h-4 mr-2" />
           Add New Patient
-        </Button>
+          </Button>
       </div>
 
       {/* Quick Stats */}
@@ -361,62 +382,152 @@ export default function NurseDashboard() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="w-5 h-5" />
-              Add New Patient
+              {!showConfirmation ? 'Upload Discharge Summary' : 'Review & Confirm'}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <Alert>
-              <AlertDescription>
-                Enter patient information to create a new TOC episode.
-              </AlertDescription>
-            </Alert>
+          {!showConfirmation ? (
+            <div className="space-y-4">
+              <Alert>
+                <AlertDescription>
+                  Upload a discharge summary PDF and we'll extract patient information automatically.
+                </AlertDescription>
+              </Alert>
+
+              <div>
+                <Label>Select PDF File</Label>
+                <Input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const formData = new FormData();
+                      formData.append('file', file);
+
+                      try {
+                        setLoading(true);
+                        const response = await fetch('/api/toc/nurse/parse-pdf', {
+                          method: 'POST',
+                          body: formData
+                        });
+
+                        const result = await response.json();
+                        if (result.success) {
+                          setParsedData(result.data);
+                          setShowConfirmation(true);
+                        } else {
+                          alert('Error parsing PDF: ' + result.error);
+                        }
+                      } catch (error) {
+                        console.error('Error uploading file:', error);
+                        alert('Error uploading file');
+                      } finally {
+                        setLoading(false);
+                      }
+                    }
+                  }}
+                  className="mt-2"
+                  disabled={loading}
+                />
+                {loading && <p className="text-sm text-gray-500 mt-2">Parsing PDF...</p>}
+              </div>
+
+              <div className="pt-4 border-t">
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={() => {
+                    setParsedData({});
+                    setShowConfirmation(true);
+                  }}
+                >
+                  Skip PDF - Enter Manually
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <Alert>
+                <AlertDescription>
+                  Review and edit the information below, then create the patient.
+                </AlertDescription>
+              </Alert>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>First Name *</Label>
+                  <Label className={validationErrors.includes('firstName') ? 'text-red-600' : ''}>
+                    First Name *
+                  </Label>
                   <Input
                     value={parsedData?.firstName || ''}
-                    onChange={(e) => setParsedData({ ...parsedData, firstName: e.target.value })}
+                    onChange={(e) => {
+                      setParsedData({ ...parsedData, firstName: e.target.value });
+                      setValidationErrors(validationErrors.filter(f => f !== 'firstName'));
+                    }}
+                    className={validationErrors.includes('firstName') ? 'border-red-500' : ''}
                   />
                 </div>
                 <div>
-                  <Label>Last Name *</Label>
+                  <Label className={validationErrors.includes('lastName') ? 'text-red-600' : ''}>
+                    Last Name *
+                  </Label>
                   <Input
                     value={parsedData?.lastName || ''}
-                    onChange={(e) => setParsedData({ ...parsedData, lastName: e.target.value })}
+                    onChange={(e) => {
+                      setParsedData({ ...parsedData, lastName: e.target.value });
+                      setValidationErrors(validationErrors.filter(f => f !== 'lastName'));
+                    }}
+                    className={validationErrors.includes('lastName') ? 'border-red-500' : ''}
                   />
                 </div>
                 <div>
-                  <Label>Date of Birth *</Label>
+                  <Label className={validationErrors.includes('dob') ? 'text-red-600' : ''}>
+                    Date of Birth *
+                  </Label>
                   <Input
                     type="date"
                     value={parsedData?.dob || ''}
-                    onChange={(e) => setParsedData({ ...parsedData, dob: e.target.value })}
+                    onChange={(e) => {
+                      setParsedData({ ...parsedData, dob: e.target.value });
+                      setValidationErrors(validationErrors.filter(f => f !== 'dob'));
+                    }}
+                    className={validationErrors.includes('dob') ? 'border-red-500' : ''}
                   />
                 </div>
                 <div>
-                  <Label>Phone *</Label>
+                  <Label className={validationErrors.includes('phone') ? 'text-red-600' : ''}>
+                    Phone *
+                  </Label>
                   <Input
                     value={parsedData?.phone || ''}
-                    onChange={(e) => setParsedData({ ...parsedData, phone: e.target.value })}
+                    onChange={(e) => {
+                      setParsedData({ ...parsedData, phone: e.target.value });
+                      setValidationErrors(validationErrors.filter(f => f !== 'phone'));
+                    }}
+                    className={validationErrors.includes('phone') ? 'border-red-500' : ''}
                   />
                 </div>
                 <div>
-                  <Label>Email *</Label>
+                  <Label>Email</Label>
                   <Input
                     value={parsedData?.email || ''}
                     onChange={(e) => setParsedData({ ...parsedData, email: e.target.value })}
                   />
                 </div>
                 <div>
-                  <Label>Condition *</Label>
+                  <Label className={validationErrors.includes('condition') ? 'text-red-600' : ''}>
+                    Condition *
+                  </Label>
                   <Select
                     value={parsedData?.condition || ''}
-                    onValueChange={(value) => setParsedData({ ...parsedData, condition: value })}
+                    onValueChange={(value) => {
+                      setParsedData({ ...parsedData, condition: value });
+                      setValidationErrors(validationErrors.filter(f => f !== 'condition'));
+                    }}
                   >
-                    <SelectTrigger>
-                      <SelectValue />
+                    <SelectTrigger className={validationErrors.includes('condition') ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Select condition" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="HF">Heart Failure</SelectItem>
@@ -427,11 +538,17 @@ export default function NurseDashboard() {
                   </Select>
                 </div>
                 <div>
-                  <Label>Discharge Date *</Label>
+                  <Label className={validationErrors.includes('dischargeDate') ? 'text-red-600' : ''}>
+                    Discharge Date *
+                  </Label>
                   <Input
                     type="date"
                     value={parsedData?.dischargeDate || ''}
-                    onChange={(e) => setParsedData({ ...parsedData, dischargeDate: e.target.value })}
+                    onChange={(e) => {
+                      setParsedData({ ...parsedData, dischargeDate: e.target.value });
+                      setValidationErrors(validationErrors.filter(f => f !== 'dischargeDate'));
+                    }}
+                    className={validationErrors.includes('dischargeDate') ? 'border-red-500' : ''}
                   />
                 </div>
                 <div>
@@ -449,7 +566,7 @@ export default function NurseDashboard() {
                       <SelectItem value="HIGH">High</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
+                    </div>
                 <div>
                   <Label>Education Level</Label>
                   <Select
@@ -468,18 +585,28 @@ export default function NurseDashboard() {
                 </div>
               </div>
 
-            <div className="flex justify-end gap-2 pt-4 border-t">
+            <div className="flex justify-between gap-2 pt-4 border-t">
               <Button variant="outline" onClick={() => {
-                setShowAddPatient(false);
+                setShowConfirmation(false);
                 setParsedData(null);
               }}>
-                Cancel
+                ← Back
               </Button>
-              <Button onClick={handleCreatePatientFromPDF} disabled={loading}>
-                {loading ? 'Creating...' : 'Create Patient & Start TOC'}
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => {
+                  setShowAddPatient(false);
+                  setShowConfirmation(false);
+                  setParsedData(null);
+                }}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCreatePatientFromPDF} disabled={loading}>
+                  {loading ? 'Creating...' : 'Create Patient & Start TOC'}
+                </Button>
+              </div>
             </div>
           </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -548,8 +675,8 @@ export default function NurseDashboard() {
                     <span className="text-sm text-gray-500">
                       {new Date(interaction.started_at).toLocaleString()}
                     </span>
-                  </div>
-                  
+            </div>
+            
                   {interaction.messages && interaction.messages.length > 0 && (
                     <div className="space-y-2">
                       {interaction.messages.map((message: any, msgIndex: number) => (
@@ -573,7 +700,7 @@ export default function NurseDashboard() {
             <div className="text-center py-8 text-gray-500">
               <MessageSquare className="w-12 h-12 mx-auto mb-4 text-gray-300" />
               <p>No conversation history found</p>
-            </div>
+          </div>
           )}
         </DialogContent>
       </Dialog>
