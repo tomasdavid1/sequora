@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import PatientsTable from '@/components/dashboard/PatientsTable';
+import { PatientsTable } from '@/components/patients/PatientsTable';
+import { PatientInfoModal } from '@/components/patient/PatientInfoModal';
 import { 
   Users, 
   TrendingUp, 
@@ -28,6 +29,9 @@ export default function PatientsPage() {
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
   const [conversationData, setConversationData] = useState<any[]>([]);
   const [showConversationModal, setShowConversationModal] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [contactPatient, setContactPatient] = useState<any>(null);
+  const [showPatientModal, setShowPatientModal] = useState(false);
 
   useEffect(() => {
     fetchPatients();
@@ -242,9 +246,17 @@ export default function PatientsPage() {
               </div>
             ) : (
               <PatientsTable 
-                patients={patients} 
-                onPatientClick={handlePatientClick}
-                showActions={true}
+                patients={patients}
+                loading={loading}
+                onPatientClick={(patient) => {
+                  setSelectedPatient(patient);
+                  setShowPatientModal(true);
+                }}
+                onContactClick={(patient) => {
+                  setContactPatient(patient);
+                  setShowContactModal(true);
+                }}
+                onConversationClick={handlePatientClick}
               />
             )}
           </CardContent>
@@ -332,6 +344,48 @@ export default function PatientsPage() {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Contact Patient Modal */}
+        <Dialog open={showContactModal} onOpenChange={setShowContactModal}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                Contact {contactPatient?.first_name} {contactPatient?.last_name}
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div className="border rounded-lg p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <Phone className="w-5 h-5 text-emerald-600" />
+                  <div>
+                    <p className="text-xs text-gray-500">Phone</p>
+                    <a href={`tel:${contactPatient?.primary_phone}`} className="text-sm font-medium text-emerald-600 hover:underline">
+                      {contactPatient?.primary_phone || 'No phone number'}
+                    </a>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <MessageSquare className="w-5 h-5 text-emerald-600" />
+                  <div>
+                    <p className="text-xs text-gray-500">Email</p>
+                    <a href={`mailto:${contactPatient?.email}`} className="text-sm font-medium text-emerald-600 hover:underline">
+                      {contactPatient?.email || 'No email'}
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Patient Info Modal */}
+        <PatientInfoModal
+          open={showPatientModal}
+          onOpenChange={setShowPatientModal}
+          patient={selectedPatient}
+        />
       </div>
     
   );

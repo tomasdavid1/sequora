@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { TasksTable } from '@/components/tasks/TasksTable';
+import { PatientsTable } from '@/components/patients/PatientsTable';
 import { PatientInfoModal } from '@/components/patient/PatientInfoModal';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -142,121 +143,6 @@ export default function NurseDashboard() {
     }
   };
 
-  // Patients table columns
-  const patientColumns: Column<any>[] = [
-    {
-      header: 'Patient',
-      accessor: 'name',
-      filterable: true,
-      filterPlaceholder: 'Search patient...',
-      cell: (value, row) => (
-        <button
-          onClick={() => {
-            setSelectedPatient(row);
-            setShowPatientModal(true);
-          }}
-          className="font-medium text-sm text-blue-600 hover:underline text-left"
-        >
-          {value}
-        </button>
-      )
-    },
-    {
-      header: 'Condition',
-      accessor: 'condition',
-      filterable: 'select',
-      filterOptions: [
-        { label: 'HF', value: 'HF' },
-        { label: 'COPD', value: 'COPD' },
-        { label: 'AMI', value: 'AMI' },
-        { label: 'PNA', value: 'PNA' }
-      ],
-      cell: (value, row) => (
-        <div className="flex items-center gap-1">
-          <Badge variant="outline">{value}</Badge>
-          <Badge variant="outline" className="text-xs">{row.riskLevel}</Badge>
-        </div>
-      )
-    },
-    {
-      header: 'Last Contact',
-      accessor: 'lastContact',
-      cell: (value) => (
-        <div className="text-sm text-gray-600">
-          {value ? new Date(value).toLocaleDateString() : 'Never'}
-        </div>
-      )
-    },
-    {
-      header: 'Days Since Discharge',
-      accessor: 'daysSinceDischarge',
-      cell: (value) => (
-        <div className="text-sm">{value} days</div>
-      )
-    },
-    {
-      header: 'Flags',
-      accessor: 'flags',
-      cell: (value) => value > 0 ? (
-        <Badge variant="destructive">{value}</Badge>
-      ) : (
-        <Badge variant="outline">0</Badge>
-      )
-    },
-    {
-      header: 'Status',
-      accessor: 'status',
-      filterable: 'select',
-      filterOptions: [
-        { label: 'Active', value: 'ACTIVE' },
-        { label: 'Escalated', value: 'ESCALATED' },
-        { label: 'Completed', value: 'COMPLETED' }
-      ],
-      cell: (value) => (
-        <Badge variant={
-          value === 'ESCALATED' ? 'destructive' :
-          value === 'ACTIVE' ? 'default' :
-          'outline'
-        }>
-          {value}
-        </Badge>
-      )
-    },
-    {
-      header: 'Actions',
-      accessor: 'id',
-      headerClassName: 'text-right',
-      className: 'text-right',
-      cell: (value, row) => (
-        <div className="flex gap-1 justify-end">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={(e) => {
-              e.stopPropagation();
-              setContactPatient(row);
-              setShowContactModal(true);
-            }}
-            title="Contact patient"
-          >
-            <Phone className="w-4 h-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={(e) => {
-              e.stopPropagation();
-              handlePatientClick(row);
-            }}
-            title="View conversation history"
-          >
-            <MessageSquare className="w-4 h-4" />
-          </Button>
-        </div>
-      )
-    }
-  ];
-
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -357,18 +243,19 @@ export default function NurseDashboard() {
               <CardTitle>All Patients</CardTitle>
             </CardHeader>
             <CardContent>
-              <DataTable
-                data={patients}
-                columns={patientColumns}
+              <PatientsTable
+                patients={patients}
                 loading={loading}
-                emptyMessage="No patients found"
-                searchable={true}
-                searchPlaceholder="Search patients..."
-                searchKeys={['name', 'condition', 'email', 'primary_phone']}
-                getRowClassName={(row) => {
-                  if (row.status === 'ESCALATED') return 'bg-red-50 border-l-4 border-red-500';
-                  if (row.flags > 0) return 'bg-yellow-50 border-l-4 border-yellow-400';
-                  return '';
+                onPatientClick={(patient) => {
+                  setSelectedPatient(patient);
+                  setShowPatientModal(true);
+                }}
+                onContactClick={(patient) => {
+                  setContactPatient(patient);
+                  setShowContactModal(true);
+                }}
+                onConversationClick={(patient) => {
+                  handlePatientClick(patient);
                 }}
               />
             </CardContent>
