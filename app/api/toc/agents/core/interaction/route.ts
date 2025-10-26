@@ -11,6 +11,15 @@ import {
 } from '@/types';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@/database.types';
+import { 
+  SeverityType,
+  RiskLevelType,
+  VALID_SEVERITIES,
+  getSeverityFilterForRiskLevel,
+  getPriorityFromSeverity,
+  getSLAMinutesFromSeverity,
+  isValidSeverity
+} from '@/lib/enums';
 
 type SupabaseAdmin = SupabaseClient<Database>;
 
@@ -164,13 +173,13 @@ export async function POST(request: NextRequest) {
       console.log('🚨 Severity:', decisionHint.severity);
       
       // Determine which tool to call based on severity
-      const toolName = decisionHint.severity === 'critical' ? 'handoff_to_nurse' : 'raise_flag';
+      const toolName = decisionHint.severity === 'CRITICAL' ? 'handoff_to_nurse' : 'raise_flag';
       
       // Create patient-friendly message based on severity
       let escalationMessage = '';
-      if (decisionHint.severity === 'critical') {
+      if (decisionHint.severity === 'CRITICAL') {
         escalationMessage = `Thank you for letting me know. I'm going to have one of our nurses reach out to you right away to help with this. They should contact you within the next 30 minutes. If your symptoms get worse or you feel you need immediate help, please call 911 or go to the emergency room.`;
-      } else if (decisionHint.severity === 'high') {
+      } else if (decisionHint.severity === 'HIGH') {
         escalationMessage = `I appreciate you sharing this with me. A nurse will give you a call within the next 2 hours to check in and provide guidance. In the meantime, if anything gets worse, don't hesitate to call 911 or visit the emergency room.`;
       } else {
         escalationMessage = `Thanks for letting me know. I've made a note for our care team to follow up with you. If you have any concerns in the meantime, please reach out to your healthcare provider.`;
@@ -461,16 +470,8 @@ async function getProtocolConfig(conditionCode: string, riskLevel: string, supab
 
 // Query protocol rules from ProtocolContentPack based on condition and risk level
 async function getProtocolRules(conditionCode: string, riskLevel: string, supabase: SupabaseAdmin) {
-  // Determine severity filter based on risk level
-  let severityFilter: ('critical' | 'high' | 'moderate' | 'low')[] = [];
-  
-  if (riskLevel === 'HIGH') {
-    severityFilter = ['critical', 'high', 'moderate', 'low'];
-  } else if (riskLevel === 'MEDIUM') {
-    severityFilter = ['critical', 'high'];
-  } else {
-    severityFilter = ['critical'];
-  }
+  // Use the centralized severity filter from enums
+  const severityFilter = getSeverityFilterForRiskLevel(riskLevel as RiskLevelType);
 
   // Query red flags (now using proper columns, not JSONB!)
   const { data: redFlagData, error: redFlagError } = await supabase
@@ -478,7 +479,7 @@ async function getProtocolRules(conditionCode: string, riskLevel: string, supaba
     .select('rule_code, text_patterns, action_type, severity, message')
     .eq('condition_code', conditionCode as any)
     .eq('rule_type', 'RED_FLAG')
-    .in('severity', severityFilter)
+    .in('severity', severityFilter as any)
     .eq('active', true);
 
   if (redFlagError) {
@@ -639,12 +640,12 @@ async function evaluateRulesDSL(
   
   // ENHANCEMENT 1: AI Severity Override
   // If AI is very confident about critical severity, escalate immediately
-  if (parsedResponse.severity === 'critical' && (parsedResponse.confidence || 0) > CRITICAL_CONFIDENCE_THRESHOLD) {
+  if (parsedResponse.severity === 'CRITICAL' && (parsedResponse.confidence || 0) > CRITICAL_CONFIDENCE_THRESHOLD) {
     console.log('🚨 [Rules Engine] AI detected CRITICAL severity with high confidence');
     return {
       action: 'FLAG' as const,
       flagType: 'AI_CRITICAL_ASSESSMENT',
-      severity: 'critical',
+      severity: 'CRITICAL',
       reason: `AI assessed as critical with ${Math.round((parsedResponse.confidence || 0) * 100)}% confidence`,
       followUp: []
     };
@@ -709,7 +710,7 @@ async function evaluateRulesDSL(
       // ENHANCEMENT 5: Severity boost based on AI + sentiment (configurable)
       let finalSeverity = rule.flag.severity;
       if (protocolConfig.enable_sentiment_boost && 
-          parsedResponse.severity === 'critical' && 
+          parsedResponse.severity === 'CRITICAL' && 
           parsedResponse.sentiment === 'distressed') {
         finalSeverity = protocolConfig.distressed_severity_upgrade;
         
@@ -961,9 +962,9 @@ async function handleRaiseFlag(parameters: Record<string, unknown>, patientId: s
       agent_interaction_id: interactionId || null,
       reason_codes: [flagTypeStr],
       severity: severityStr.toUpperCase() as any,
-      priority: (severityStr === 'high' ? 'URGENT' : severityStr === 'medium' ? 'HIGH' : 'NORMAL') as any,
+      priority: getPriorityFromSeverity(severityStr.toUpperCase() as SeverityType) as any,
       status: 'OPEN' as any,
-      sla_due_at: new Date(Date.now() + getSLAMinutes(severityStr) * 60 * 1000).toISOString(),
+      sla_due_at: new Date(Date.now() + getSLAMinutesFromSeverity(severityStr.toUpperCase() as SeverityType) * 60 * 1000).toISOString(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })
@@ -1130,12 +1131,6 @@ function extractComplications(input: string): string[] {
   return complications;
 }
 
-// Keep the existing helper functions that are still needed
-function getSLAMinutes(severity: string): number {
-  const slaMinutes = { 'CRITICAL': 30, 'HIGH': 120, 'MODERATE': 240, 'LOW': 480 };
-  return slaMinutes[severity as keyof typeof slaMinutes] || 480;
-}
-
 // Helper functions for parsing (simplified for protocol system)
 function extractIntent(input: string): string {
   const lowerInput = input.toLowerCase();
@@ -1186,12 +1181,12 @@ function extractSymptoms(input: string, condition: string): string[] {
   return symptoms;
 }
 
-function extractSeverity(input: string): string {
+function extractSeverity(input: string): SeverityType {
   const lowerInput = input.toLowerCase();
-  if (lowerInput.includes('severe') || lowerInput.includes('very bad') || lowerInput.includes('emergency')) return 'high';
-  if (lowerInput.includes('moderate') || lowerInput.includes('somewhat')) return 'moderate';
-  if (lowerInput.includes('mild') || lowerInput.includes('slight')) return 'low';
-  return 'moderate';
+  if (lowerInput.includes('severe') || lowerInput.includes('very bad') || lowerInput.includes('emergency')) return 'HIGH';
+  if (lowerInput.includes('moderate') || lowerInput.includes('somewhat')) return 'MODERATE';
+  if (lowerInput.includes('mild') || lowerInput.includes('slight')) return 'LOW';
+  return 'MODERATE';
 }
 
 function extractQuestions(input: string): string[] {

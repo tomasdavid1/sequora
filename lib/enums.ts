@@ -162,9 +162,9 @@ export function isValidInteractionStatus(value: unknown): value is InteractionSt
 export type EducationLevelType = Database['public']['Enums']['education_level'];
 
 export const VALID_EDUCATION_LEVELS: readonly EducationLevelType[] = [
-  'low',
-  'medium',
-  'high'
+  'LOW',
+  'MEDIUM',
+  'HIGH'
 ] as const;
 
 export function isValidEducationLevel(value: unknown): value is EducationLevelType {
