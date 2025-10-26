@@ -48,6 +48,10 @@ BEGIN
     DROP CONSTRAINT IF EXISTS "ProtocolContentPack_severity_check";
   RAISE NOTICE 'Dropped ProtocolContentPack_severity_check constraint';
   
+  ALTER TABLE "ProtocolContentPack" 
+    DROP CONSTRAINT IF EXISTS "check_valid_action_type";
+  RAISE NOTICE 'Dropped check_valid_action_type constraint';
+  
   ALTER TABLE "ProtocolConfig" 
     DROP CONSTRAINT IF EXISTS "ProtocolConfig_distressed_severity_upgrade_check";
   RAISE NOTICE 'Dropped ProtocolConfig_distressed_severity_upgrade_check constraint';
