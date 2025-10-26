@@ -3,6 +3,7 @@ import { Database } from '@/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { VALID_SEVERITIES } from '@/lib/enums';
+import { Medication } from '@/types';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -169,8 +170,9 @@ async function handleGenerateResponseWithTools(input: Record<string, unknown>, o
       wellnessConfirmationCount = 0
     } = input;
     
-    const hint = decisionHint as any; // Type assertion for nested access
-    const medList = medications as any[]; // Medications array
+    // Type hint and medications with proper types
+    const hint = decisionHint as Record<string, unknown>; // DecisionHint from interaction route
+    const medList = (medications || []) as Medication[];
     
     console.log('🔧 [OpenAI Tools] First message in chat:', isFirstMessageInCurrentChat);
     console.log('🔧 [OpenAI Tools] Patient contacted before:', hasBeenContactedBefore);

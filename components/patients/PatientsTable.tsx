@@ -8,10 +8,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Phone, MessageSquare, UserPlus, Upload, AlertTriangle } from 'lucide-react';
+import { Phone, MessageSquare, UserPlus, AlertTriangle } from 'lucide-react';
+import { RiskLevelType, EducationLevelType } from '@/lib/enums';
 
 interface PatientsTableProps {
   patients: any[];
@@ -19,8 +19,8 @@ interface PatientsTableProps {
   onPatientClick?: (patient: any) => void;
   onContactClick?: (patient: any) => void;
   onConversationClick?: (patient: any) => void;
-  showAddPatient?: boolean; // Whether to show the Add Patient button
-  onPatientAdded?: () => void; // Callback after patient is added successfully
+  showAddPatient?: boolean;
+  onPatientAdded?: () => void;
 }
 
 export function PatientsTable({ 
@@ -80,6 +80,8 @@ export function PatientsTable({
     if (!parsedData.dob) errors.push('dob');
     if (!parsedData.dischargeDate) errors.push('dischargeDate');
     if (!parsedData.condition) errors.push('condition');
+    if (!parsedData.riskLevel) errors.push('riskLevel');
+    if (!parsedData.educationLevel) errors.push('educationLevel');
 
     if (errors.length > 0) {
       setValidationErrors(errors);
@@ -111,7 +113,7 @@ export function PatientsTable({
         setShowAddPatientModal(false);
         setParsedData(null);
         setValidationErrors([]);
-        onPatientAdded?.(); // Refresh the patient list
+        onPatientAdded?.();
       } else {
         toast({
           title: "Error",
@@ -443,13 +445,18 @@ export function PatientsTable({
                   />
                 </div>
                 <div>
-                  <Label>Risk Level</Label>
+                  <Label className={validationErrors.includes('riskLevel') ? 'text-red-600' : ''}>
+                    Risk Level *
+                  </Label>
                   <Select
-                    value={parsedData?.riskLevel || 'MEDIUM'}
-                    onValueChange={(value) => setParsedData({ ...parsedData, riskLevel: value })}
+                    value={parsedData?.riskLevel as RiskLevelType}
+                    onValueChange={(value) => {
+                      setParsedData({ ...parsedData, riskLevel: value });
+                      setValidationErrors(validationErrors.filter(f => f !== 'riskLevel'));
+                    }}
                   >
-                    <SelectTrigger>
-                      <SelectValue />
+                    <SelectTrigger className={validationErrors.includes('riskLevel') ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Select risk level" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="LOW">Low</SelectItem>
@@ -459,13 +466,18 @@ export function PatientsTable({
                   </Select>
                 </div>
                 <div>
-                  <Label>Education Level</Label>
+                  <Label className={validationErrors.includes('educationLevel') ? 'text-red-600' : ''}>
+                    Education Level *
+                  </Label>
                   <Select
-                    value={parsedData?.educationLevel || 'MEDIUM'}
-                    onValueChange={(value) => setParsedData({ ...parsedData, educationLevel: value })}
+                    value={parsedData?.educationLevel}
+                    onValueChange={(value) => {
+                      setParsedData({ ...parsedData, educationLevel: value });
+                      setValidationErrors(validationErrors.filter(f => f !== 'educationLevel'));
+                    }}
                   >
-                    <SelectTrigger>
-                      <SelectValue />
+                    <SelectTrigger className={validationErrors.includes('educationLevel') ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Select education level" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="LOW">LOW (5th grade)</SelectItem>

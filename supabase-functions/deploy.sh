@@ -76,6 +76,7 @@ echo -e "\nFunctions deployed:"
 echo -e "  • sendPasswordResetOTP"
 echo -e "  • verifyPasswordResetOTP"
 echo -e "  • sendEmail"
+echo -e "  • sendPatientInvite (NEW)"
 echo -e "\nView logs: ${BLUE}supabase functions logs <function-name> --project-ref $PROJECT_REF${NC}"
 echo -e "List functions: ${BLUE}supabase functions list --project-ref $PROJECT_REF${NC}"
 

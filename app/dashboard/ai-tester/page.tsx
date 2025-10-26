@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { EducationLevelType } from '@/lib/enums';
 import { 
   AgentInteraction, 
   AgentMessage, 
@@ -464,7 +465,7 @@ export default function AITesterPage() {
               ...prev, 
               episodeId: firstEpisode.id,
               condition: firstEpisode.condition_code,
-              educationLevel: firstEpisode.education_level || 'MEDIUM'
+              educationLevel: firstEpisode.education_level
             }));
           }
         }
@@ -881,7 +882,7 @@ export default function AITesterPage() {
         patientId: interaction.patient.id,
         episodeId: interaction.episode.id,
         condition: interaction.episode.condition_code,
-        educationLevel: interaction.patient.education_level || 'MEDIUM'
+        educationLevel: interaction.patient.education_level
       });
     }
   };
@@ -1042,7 +1043,7 @@ export default function AITesterPage() {
                         )}
                         </div>
                         <div className="text-xs text-gray-600">
-                          {interaction.episode?.condition_code} • {interaction.patient?.education_level || 'medium'}
+                          {interaction.episode?.condition_code} • {interaction.patient?.education_level as EducationLevelType}
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
                           {new Date(interaction.started_at || interaction.created_at || Date.now()).toLocaleDateString()}

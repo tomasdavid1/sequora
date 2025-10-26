@@ -8,6 +8,9 @@ Programmatically deployed Supabase Edge Functions for the Sequora platform.
 - **sendPasswordResetOTP**: Generates and sends a 6-digit OTP code via email
 - **verifyPasswordResetOTP**: Verifies OTP and creates authenticated session
 
+### Patient Onboarding
+- **sendPatientInvite**: Sends welcome email with account creation link to newly enrolled patients
+
 ### Email Services
 - **sendEmail**: Generic email sender for any email needs
 

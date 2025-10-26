@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { UserRoleType } from '@/lib/enums';
 import { User, UserInsert, Patient } from '@/types';
 
 export async function POST(request: NextRequest) {
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
         auth_user_id: authUserId,
         email: patient.email,
         name: `${patient.first_name} ${patient.last_name}`,
-        role: 'PATIENT' as any,
+        role: 'PATIENT' as UserRoleType,
         active: true,
         updated_at: new Date().toISOString()
       })

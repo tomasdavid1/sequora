@@ -12,6 +12,11 @@ import {
   RiskLevelType,
   ConditionCodeType,
   EducationLevelType,
+  InteractionStatusType,
+  InteractionType,
+  MessageType,
+  TaskStatusType,
+  TaskPriorityType,
   VALID_SEVERITIES,
   getSeverityFilterForRiskLevel,
   getPriorityFromSeverity,
@@ -72,6 +77,19 @@ interface AIResponse {
 interface ToolCall {
   name: string;
   parameters: Record<string, unknown>;
+}
+
+// Typed metadata structure for AgentInteraction.metadata JSONB field
+interface InteractionMetadata {
+  condition?: string;
+  decisionHint?: DecisionHint;
+  protocolAssignment?: string;
+  wellnessConfirmationCount?: number;
+  lastMessageAt?: string;
+  messageCount?: number;
+  lastConfirmedArea?: string | null;
+  lastConfirmedAt?: string;
+  [key: string]: unknown; // Index signature for JSONB compatibility
 }
 
 interface ToolResult {
@@ -137,8 +155,8 @@ export async function POST(request: NextRequest) {
     
     // CRITICAL: Verify protocol assignment matches current episode condition/risk
     // (Assignment can become stale if episode is edited in admin)
-    const episodeCondition = (protocolAssignment.Episode as any)?.condition_code;
-    const episodeRiskLevel = (protocolAssignment.Episode as any)?.risk_level;
+    const episodeCondition = protocolAssignment.Episode?.condition_code;
+    const episodeRiskLevel = protocolAssignment.Episode?.risk_level;
     
     if (episodeCondition !== protocolAssignment.condition_code || episodeRiskLevel !== protocolAssignment.risk_level) {
       console.error('❌ [Interaction] STALE PROTOCOL ASSIGNMENT DETECTED!', {
@@ -175,7 +193,8 @@ export async function POST(request: NextRequest) {
         .eq('id', interactionId)
         .single();
         
-      wellnessConfirmationCount = (existing?.metadata as any)?.wellnessConfirmationCount || 0;
+      const existingMetadata = existing?.metadata as InteractionMetadata;
+      wellnessConfirmationCount = existingMetadata?.wellnessConfirmationCount || 0;
       console.log('📊 [Interaction] Current wellness confirmation count:', wellnessConfirmationCount);
     }
     
@@ -312,19 +331,19 @@ export async function POST(request: NextRequest) {
           patient_id: patientId,
           episode_id: episodeId,
           agent_config_id: null,
-          interaction_type: interactionType === 'VOICE' ? 'VOICE_CALL' : 'SMS',
-          status: 'IN_PROGRESS',
+          interaction_type: (interactionType === 'VOICE' ? 'VOICE_CALL' : 'SMS') as InteractionType,
+          status: 'IN_PROGRESS' as InteractionStatusType,
           external_id: null,
           started_at: new Date().toISOString(),
-          protocol_config_snapshot: protocolConfig as any, // Snapshot AI decision parameters
-          protocol_rules_snapshot: protocolRules as any, // Snapshot all active rules
+          protocol_config_snapshot: protocolConfig as any, // Snapshot AI decision parameters - JSONB allows any
+          protocol_rules_snapshot: protocolRules as any, // Snapshot all active rules - JSONB allows any
           protocol_snapshot_at: new Date().toISOString(),
           metadata: {
             condition,
-            decisionHint: decisionHint as any,
+            decisionHint: decisionHint,
             protocolAssignment: protocolAssignment?.id,
             wellnessConfirmationCount: 0 // Track how many times patient confirmed they're doing well
-          } as any
+          } as any // JSONB field - InteractionMetadata structure documented above
         })
         .select()
         .single();
@@ -356,7 +375,7 @@ export async function POST(request: NextRequest) {
         .from('AgentMessage')
         .insert({
           agent_interaction_id: activeInteractionId,
-          message_type: 'USER',
+          message_type: 'USER' as MessageType,
           role: 'user',
           content: patientInput,
           sequence_number: nextSequence,
@@ -374,7 +393,7 @@ export async function POST(request: NextRequest) {
         .from('AgentMessage')
         .insert({
           agent_interaction_id: activeInteractionId,
-          message_type: 'ASSISTANT',
+          message_type: 'ASSISTANT' as MessageType,
           role: 'assistant',
           content: aiResponse.response,
           sequence_number: nextSequence + 1,
@@ -396,15 +415,23 @@ export async function POST(request: NextRequest) {
         .from('AgentMessage')
         .select('id')
         .eq('agent_interaction_id', activeInteractionId);
+      
+      // Validate interaction exists before updating
+      if (!interaction) {
+        console.error('❌ [Interaction] Cannot update metadata - interaction not found');
+        throw new Error('Interaction not found - cannot update metadata');
+      }
         
+      const currentMetadata = (interaction.metadata as InteractionMetadata) || {};
+      
       await supabase
         .from('AgentInteraction')
         .update({
           metadata: {
-            ...(interaction?.metadata as Record<string, unknown> || {}),
+            ...currentMetadata,
             lastMessageAt: new Date().toISOString(),
             messageCount: allMessages?.length || 0
-          }
+          } as any // JSONB field - InteractionMetadata structure
         })
         .eq('id', activeInteractionId);
     }
@@ -446,11 +473,11 @@ export async function POST(request: NextRequest) {
         console.log('📝 [Interaction] Summary generated:', summary);
         
         // Determine final status based on action type
-        let finalStatus: 'COMPLETED' | 'ESCALATED' = 'COMPLETED';
+        let finalStatus: InteractionStatusType = 'COMPLETED';
         if (decisionHint.action === 'FLAG') {
-          finalStatus = 'ESCALATED'; // Any escalation (handoff or raise_flag)
+          finalStatus = 'ESCALATED' as InteractionStatusType; // Any escalation (handoff or raise_flag)
         } else if (decisionHint.action === 'CLOSE') {
-          finalStatus = 'COMPLETED'; // Patient doing well
+          finalStatus = 'COMPLETED' as InteractionStatusType; // Patient doing well
         }
         
         console.log('📝 [Interaction] Updating interaction to status:', finalStatus);
@@ -476,7 +503,7 @@ export async function POST(request: NextRequest) {
         await supabase
           .from('AgentInteraction')
           .update({
-            status: decisionHint.action === 'FLAG' ? 'ESCALATED' : 'COMPLETED',
+            status: (decisionHint.action === 'FLAG' ? 'ESCALATED' : 'COMPLETED') as InteractionStatusType,
             summary: `Error generating summary: ${summaryError}`,
             completed_at: new Date().toISOString()
           })
@@ -528,6 +555,17 @@ async function loadProtocolAssignment(episodeId: string, supabase: SupabaseAdmin
   if (!assignment) {
     console.log('📝 [Protocol Assignment] No active assignment found for episode:', episodeId);
     return null; // This is OK - no assignment means we need to create one
+  }
+  
+  // Validate critical relationships exist
+  if (!assignment.Episode) {
+    console.error('❌ [Protocol Assignment] Episode data missing from assignment');
+    throw new Error('Protocol assignment missing Episode relationship - data integrity issue');
+  }
+  
+  if (!assignment.Episode.Patient) {
+    console.error('❌ [Protocol Assignment] Patient data missing from Episode');
+    throw new Error('Episode missing Patient relationship - data integrity issue');
   }
 
   console.log('✅ [Protocol Assignment] Loaded:', assignment.condition_code, assignment.risk_level);
@@ -646,7 +684,7 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
   const { data: closureData, error: closureError } = await supabase
     .from('ProtocolContentPack')
     .select('rule_code, text_patterns, action_type, message')
-    .eq('condition_code', conditionCode as any)
+    .eq('condition_code', conditionCode)
     .eq('rule_type', 'CLOSURE')
     .eq('active', true);
 
@@ -725,7 +763,7 @@ async function parsePatientInputWithProtocol(
       operation: 'parse_patient_input',
       input: {
         condition: protocolAssignment.condition_code,
-        educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level, // NOT NULL in DB
+        educationLevel: protocolAssignment.Episode?.Patient?.education_level, // NOT NULL in DB
         patientInput: input,
         conversationHistory: conversationHistory,
         protocolPatterns: protocolPatterns, // Database patterns for AI to match against
@@ -754,10 +792,23 @@ async function parsePatientInputWithProtocol(
   }
 
   // Use structured AI output
+  const parsed = result.parsed;
+  
+  // Validate critical fields from AI parser
+  if (!Array.isArray(parsed.symptoms)) {
+    console.error('❌ [Parser] AI parser did not return symptoms array:', parsed);
+    throw new Error('AI parser must return symptoms array (can be empty)');
+  }
+  
+  if (parsed.confidence === undefined || parsed.confidence === null) {
+    console.error('❌ [Parser] AI parser did not return confidence score:', parsed);
+    throw new Error('AI parser must return confidence score (0.0-1.0)');
+  }
+  
   return {
-    ...result.parsed,
+    ...parsed,
     rawInput: input,
-    confidence: result.parsed.confidence
+    confidence: parsed.confidence
   };
 }
 
@@ -804,13 +855,14 @@ async function evaluateRulesDSL(
   
   // ENHANCEMENT 1: AI Severity Override - CRITICAL
   // If AI is very confident about critical severity, escalate immediately
-  if (parsedResponse.severity === 'CRITICAL' && (parsedResponse.confidence || 0) > CRITICAL_CONFIDENCE_THRESHOLD) {
+  // Note: confidence is validated in parser - guaranteed to exist
+  if (parsedResponse.severity === 'CRITICAL' && parsedResponse.confidence > CRITICAL_CONFIDENCE_THRESHOLD) {
     console.log('🚨 [Rules Engine] AI detected CRITICAL severity with high confidence');
       return {
       action: 'FLAG' as const,
       flagType: 'AI_CRITICAL_ASSESSMENT',
       severity: 'CRITICAL',
-      reason: `AI assessed as critical with ${Math.round((parsedResponse.confidence || 0) * 100)}% confidence. Symptoms: ${parsedResponse.symptoms.join(', ')}`,
+      reason: `AI assessed as critical with ${Math.round(parsedResponse.confidence * 100)}% confidence. Symptoms: ${parsedResponse.symptoms.join(', ')}`,
       messageGuidance: 'CLOSURE MESSAGE: Acknowledge the critical symptoms detected. Explain briefly why this is concerning for their condition. Let them know a nurse will contact them urgently. Be calm but clear about the seriousness.',
       followUp: []
     };
@@ -818,7 +870,7 @@ async function evaluateRulesDSL(
   
   // ENHANCEMENT 1.5: AI Severity Override - HIGH with good confidence
   // Safety net: If AI detects HIGH severity with decent confidence, flag it even without pattern match
-  if (parsedResponse.severity === 'HIGH' && (parsedResponse.confidence || 0) > LOW_CONFIDENCE_THRESHOLD) {
+  if (parsedResponse.severity === 'HIGH' && parsedResponse.confidence > LOW_CONFIDENCE_THRESHOLD) {
     console.log('⚠️ [Rules Engine] AI detected HIGH severity - escalating as safety net');
     return {
       action: 'FLAG' as const,
@@ -832,12 +884,13 @@ async function evaluateRulesDSL(
   
   // ENHANCEMENT 1.75: Multiple concerning symptoms safety net
   // If patient reports 2+ symptoms AND moderate+ severity, escalate
-  const symptomCount = (parsedResponse.symptoms || []).length;
+  // Note: symptoms array is validated in parser - guaranteed to exist
+  const symptomCount = parsedResponse.symptoms.length;
   const hasMultipleSymptoms = symptomCount >= 2;
   const hasConcerningSeverity = ['MODERATE', 'HIGH', 'CRITICAL'].includes(parsedResponse.severity);
   const hasConcernedSentiment = ['concerned', 'distressed'].includes(parsedResponse.sentiment);
   
-  if (hasMultipleSymptoms && hasConcerningSeverity && (parsedResponse.confidence || 0) > LOW_CONFIDENCE_THRESHOLD) {
+  if (hasMultipleSymptoms && hasConcerningSeverity && parsedResponse.confidence > LOW_CONFIDENCE_THRESHOLD) {
     console.log(`⚠️ [Rules Engine] Multiple symptoms (${symptomCount}) + ${parsedResponse.severity} severity - escalating as safety net`);
     return {
       action: 'FLAG' as const,
@@ -853,7 +906,7 @@ async function evaluateRulesDSL(
   
   // ENHANCEMENT 1.8: MODERATE severity with concerning sentiment
   // If AI assesses MODERATE severity AND patient sounds concerned/distressed, flag it
-  if (parsedResponse.severity === 'MODERATE' && hasConcernedSentiment && (parsedResponse.confidence || 0) > LOW_CONFIDENCE_THRESHOLD) {
+  if (parsedResponse.severity === 'MODERATE' && hasConcernedSentiment && parsedResponse.confidence > LOW_CONFIDENCE_THRESHOLD) {
     console.log(`⚠️ [Rules Engine] MODERATE severity + ${parsedResponse.sentiment} sentiment - escalating due to patient concern`);
     return {
       action: 'FLAG' as const,
@@ -887,11 +940,12 @@ async function evaluateRulesDSL(
   }
   
   // ENHANCEMENT 3: Low confidence + vague symptoms = clarify
-  const hasVagueSymptom = (parsedResponse.symptoms || []).some(s => 
+  // Note: symptoms array is validated in parser - guaranteed to exist
+  const hasVagueSymptom = parsedResponse.symptoms.some(s => 
     VAGUE_SYMPTOMS.some((v: string) => s.toLowerCase().includes(v))
   );
   
-  if ((parsedResponse.confidence || 1) < LOW_CONFIDENCE_THRESHOLD && hasVagueSymptom) {
+  if (parsedResponse.confidence < LOW_CONFIDENCE_THRESHOLD && hasVagueSymptom) {
     console.log('❓ [Rules Engine] Low confidence + vague symptoms - requesting clarification');
     return {
       action: 'ASK_MORE' as const,
@@ -1064,8 +1118,9 @@ function isPatternNegated(text: string, pattern: string): boolean {
 function evaluateRuleCondition(condition: Record<string, unknown>, parsedResponse: any): { matched: boolean; matchedPattern?: string } {
   if (condition.any_text && Array.isArray(condition.any_text)) {
     // Priority order: normalized_text > extracted symptoms > raw input
+    // Note: symptoms array validated in parser - guaranteed to exist
     const normalizedText = parsedResponse.normalized_text?.toLowerCase() || '';
-    const extractedSymptoms = (parsedResponse.symptoms || []).join(' ').toLowerCase();
+    const extractedSymptoms = parsedResponse.symptoms.join(' ').toLowerCase();
     const inputText = parsedResponse.rawInput?.toLowerCase() || '';
     const combinedText = `${normalizedText} ${extractedSymptoms} ${inputText}`;
     
@@ -1141,7 +1196,12 @@ async function generateAIResponseWithTools(
     
     const fullContext = `${protocolConfig.system_prompt} ${conversationContext} Use the decision hint to guide your response and call appropriate tools.`;
     
-      const medications = (protocolAssignment.Episode as any)?.medications || [];
+      // Get medications from Episode (distinguish between "no meds" and "missing data")
+      const medications = protocolAssignment.Episode?.medications;
+      if (medications === undefined || medications === null) {
+        console.warn('⚠️ [AI Generation] Medications data missing from Episode - using empty array');
+      }
+      const medList = medications || [];
       
       const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
         method: 'POST',
@@ -1150,8 +1210,8 @@ async function generateAIResponseWithTools(
           operation: 'generate_response_with_tools',
           input: {
             condition: protocolAssignment.condition_code,
-            educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level, // NOT NULL in DB
-            medications: medications, // Pass medications for AI to reference
+            educationLevel: protocolAssignment.Episode?.Patient?.education_level, // NOT NULL in DB
+            medications: medList, // Pass medications for AI to reference
             patientResponses: parsedResponse.rawInput,
             decisionHint: decisionHint,
             context: fullContext,
@@ -1266,7 +1326,7 @@ async function handleWellnessConfirmation(parameters: Record<string, unknown>, i
     return { success: false, error: 'Could not fetch interaction' };
   }
   
-  const metadata = (interaction.metadata as any) || {};
+  const metadata = (interaction.metadata as InteractionMetadata) || {};
   const currentCount = metadata.wellnessConfirmationCount || 0;
   
   if (isConfirmation) {
@@ -1280,9 +1340,9 @@ async function handleWellnessConfirmation(parameters: Record<string, unknown>, i
         metadata: {
           ...metadata,
           wellnessConfirmationCount: newCount,
-          lastConfirmedArea: areaConfirmed || null,
+          lastConfirmedArea: areaConfirmed as string || null,
           lastConfirmedAt: new Date().toISOString()
-        }
+        } as any // JSONB field - InteractionMetadata structure
       })
       .eq('id', interactionId);
       
@@ -1326,7 +1386,7 @@ async function handleRaiseFlag(parameters: Record<string, unknown>, patientId: s
       reason_codes: [flagTypeStr],
       severity: severityStr.toUpperCase() as SeverityType,
       priority: getPriorityFromSeverity(severityStr.toUpperCase() as SeverityType),
-      status: 'OPEN',
+      status: 'OPEN' as TaskStatusType,
       sla_due_at: new Date(Date.now() + getSLAMinutesFromSeverity(severityStr.toUpperCase() as SeverityType) * 60 * 1000).toISOString(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -1391,9 +1451,9 @@ async function handleHandoffToNurse(parameters: Record<string, unknown>, patient
       episode_id: episodeId,
       agent_interaction_id: interactionId, // Required - no null allowed
       reason_codes: [flagTypeStr, reasonStr],
-      severity: 'CRITICAL',
-      priority: 'URGENT',
-      status: 'OPEN',
+      severity: 'CRITICAL' as SeverityType,
+      priority: 'URGENT' as TaskPriorityType,
+      status: 'OPEN' as TaskStatusType,
       sla_due_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutes
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()

@@ -13,9 +13,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { TasksTable } from '@/components/tasks/TasksTable';
-import { PatientsTable } from '@/components/patients/PatientsTable';
+import PatientsTable from '@/components/dashboard/PatientsTable';
 import { PatientInfoModal } from '@/components/patient/PatientInfoModal';
 import { useToast } from '@/hooks/use-toast';
+import { Patient } from '@/types';
 import { 
   Users, 
   Upload,
@@ -93,6 +94,8 @@ export default function NurseDashboard() {
     if (!parsedData.dob) errors.push('dob');
     if (!parsedData.dischargeDate) errors.push('dischargeDate');
     if (!parsedData.condition) errors.push('condition');
+    if (!parsedData.riskLevel) errors.push('riskLevel');
+    if (!parsedData.educationLevel) errors.push('educationLevel');
 
     if (errors.length > 0) {
       setValidationErrors(errors);
@@ -246,17 +249,9 @@ export default function NurseDashboard() {
             <CardContent>
               <PatientsTable
                 patients={patients}
-                loading={loading}
-                onPatientClick={(patient) => {
+                onPatientClick={(patient: any) => {
                   setSelectedPatient(patient);
                   setShowPatientModal(true);
-                }}
-                onContactClick={(patient) => {
-                  setContactPatient(patient);
-                  setShowContactModal(true);
-                }}
-                onConversationClick={(patient) => {
-                  handlePatientClick(patient);
                 }}
               />
             </CardContent>
@@ -440,13 +435,18 @@ export default function NurseDashboard() {
                   />
                 </div>
                 <div>
-                  <Label>Risk Level</Label>
+                  <Label className={validationErrors.includes('riskLevel') ? 'text-red-600' : ''}>
+                    Risk Level *
+                  </Label>
                   <Select
-                    value={parsedData?.riskLevel || 'MEDIUM'}
-                    onValueChange={(value) => setParsedData({ ...parsedData, riskLevel: value })}
+                    value={parsedData?.riskLevel}
+                    onValueChange={(value) => {
+                      setParsedData({ ...parsedData, riskLevel: value });
+                      setValidationErrors(validationErrors.filter(f => f !== 'riskLevel'));
+                    }}
                   >
-                    <SelectTrigger>
-                      <SelectValue />
+                    <SelectTrigger className={validationErrors.includes('riskLevel') ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Select risk level" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="LOW">Low</SelectItem>
@@ -456,13 +456,18 @@ export default function NurseDashboard() {
                   </Select>
                     </div>
                 <div>
-                  <Label>Education Level</Label>
+                  <Label className={validationErrors.includes('educationLevel') ? 'text-red-600' : ''}>
+                    Education Level *
+                  </Label>
                   <Select
-                    value={parsedData?.educationLevel || 'MEDIUM'}
-                    onValueChange={(value) => setParsedData({ ...parsedData, educationLevel: value })}
+                    value={parsedData?.educationLevel}
+                    onValueChange={(value) => {
+                      setParsedData({ ...parsedData, educationLevel: value });
+                      setValidationErrors(validationErrors.filter(f => f !== 'educationLevel'));
+                    }}
                   >
-                    <SelectTrigger>
-                      <SelectValue />
+                    <SelectTrigger className={validationErrors.includes('educationLevel') ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Select education level" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="LOW">LOW (5th grade)</SelectItem>

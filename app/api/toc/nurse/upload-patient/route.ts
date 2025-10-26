@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { PatientInsert, EpisodeInsert } from '@/types';
-import { EducationLevelType } from '@/lib/enums';
+import { 
+  EducationLevelType,
+  ContactChannelType,
+  LanguageCodeType,
+  OutreachStatusType
+} from '@/lib/enums';
 
 export async function POST(request: NextRequest) {
   try {
@@ -55,7 +60,7 @@ export async function POST(request: NextRequest) {
           state: patientData.state || null,
           zip: patientData.zip || null,
           education_level: patientData.educationLevel as EducationLevelType, // Patient attribute
-          preferred_channel: 'SMS', // Default to SMS
+          preferred_channel: 'SMS' as ContactChannelType, // Default to SMS
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -82,7 +87,7 @@ export async function POST(request: NextRequest) {
           patient_id: patient.id,
           condition_code: patientData.condition,
           risk_level: patientData.riskLevel,
-          admit_at: patientData.admitDate || null,
+          admit_at: patientData.admitDate,
           discharge_at: patientData.dischargeDate || new Date().toISOString(),
           discharge_location: 'HOME',
           discharge_diagnosis_codes: patientData.diagnosisCode ? [patientData.diagnosisCode] : [],
@@ -107,53 +112,13 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Send OTP invitation email to patient
+      // Generate invitation link and send welcome email to patient
       try {
-        const { error: otpError } = await supabaseAdmin.auth.admin.generateLink({
-          type: 'invite',
-          email: patientData.email,
-          options: {
-            data: {
-              patient_id: patient.id,
-              first_name: patientData.firstName,
-              last_name: patientData.lastName
-            }
-          }
-        });
-
-        if (otpError) {
-          console.error('Error sending invitation:', otpError);
-          
-          // Check if email already exists
-          const errorCode = (otpError as any)?.code || (otpError as any)?.error_code;
-          if (errorCode === 'email_exists') {
-            console.error('❌ [Upload Patient] Email already registered - rolling back patient and episode');
-            
-            // Rollback: Delete the patient (cascade deletes episode)
-            await supabaseAdmin
-              .from('Patient')
-              .delete()
-              .eq('id', patient.id);
-            
-            return NextResponse.json(
-              { 
-                error: 'Email already registered',
-                details: 'A user with this email address already exists in the system. Please use a different email or contact the existing patient.',
-                code: 'email_exists'
-              },
-              { status: 409 }
-            );
-          }
-          
-          // Other errors - continue anyway (patient can sign up manually)
-          console.warn('⚠️ [Upload Patient] Invitation failed but continuing - patient can sign up manually');
-        }
-      } catch (inviteError) {
-        console.error('Error sending patient invitation:', inviteError);
+        // First, check if email already exists in auth
+        const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+        const emailExists = existingUsers?.users?.some(u => u.email === patientData.email);
         
-        // Check if it's email_exists error
-        const errorCode = (inviteError as any)?.code || (inviteError as any)?.error_code;
-        if (errorCode === 'email_exists') {
+        if (emailExists) {
           console.error('❌ [Upload Patient] Email already registered - rolling back patient and episode');
           
           // Rollback: Delete the patient (cascade deletes episode)
@@ -172,8 +137,61 @@ export async function POST(request: NextRequest) {
           );
         }
         
-        // Other errors - non-fatal, continue
-        console.warn('⚠️ [Upload Patient] Invitation error but continuing - patient can sign up manually');
+        // Generate magic link for invitation
+        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'magiclink',
+          email: patientData.email,
+          options: {
+            data: {
+              patient_id: patient.id,
+              first_name: patientData.firstName,
+              last_name: patientData.lastName,
+              role: 'PATIENT'
+            }
+          }
+        });
+
+        if (linkError || !linkData.properties?.action_link) {
+          console.error('❌ [Upload Patient] Failed to generate invite link:', linkError);
+          throw new Error('Failed to generate invitation link');
+        }
+
+        const inviteLink = linkData.properties.action_link;
+        console.log('🔗 [Upload Patient] Generated invite link for:', patientData.email);
+        
+        // Send welcome email via Edge Function
+        const emailResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/sendPatientInvite`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+            },
+            body: JSON.stringify({
+              to: patientData.email,
+              patientName: `${patientData.firstName} ${patientData.lastName}`,
+              hospitalName: episode.facility_name || 'your hospital',
+              dischargeDate: new Date(patientData.dischargeDate).toLocaleDateString(),
+              condition: patientData.condition,
+              inviteLink: inviteLink,
+            }),
+          }
+        );
+
+        const emailResult = await emailResponse.json();
+        
+        if (!emailResponse.ok) {
+          console.error('⚠️ [Upload Patient] Failed to send invitation email:', emailResult);
+          // Don't fail the whole request - patient record is created, email can be resent
+        } else {
+          console.log('✅ [Upload Patient] Invitation email sent:', emailResult.emailId);
+        }
+        
+      } catch (inviteError) {
+        console.error('❌ [Upload Patient] Error in invitation process:', inviteError);
+        // Non-fatal - patient record is created, can sign up manually or resend email later
+        console.warn('⚠️ [Upload Patient] Patient created but invitation email failed - can be resent later');
       }
 
       // Create protocol assignment (this will be automatically created by the trigger)
@@ -185,15 +203,15 @@ export async function POST(request: NextRequest) {
         .from('OutreachPlan')
         .insert({
           episode_id: episode.id,
-          preferred_channel: 'SMS',
-          fallback_channel: 'VOICE',
+          preferred_channel: 'SMS' as ContactChannelType,
+          fallback_channel: 'VOICE' as ContactChannelType,
           window_start_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Start tomorrow
           window_end_at: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(), // End in 72 hours
           max_attempts: 3,
           timezone: 'America/New_York',
-          language_code: 'EN',
+          language_code: 'EN' as LanguageCodeType,
           include_caregiver: false,
-          status: 'PENDING',
+          status: 'PENDING' as OutreachStatusType,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
