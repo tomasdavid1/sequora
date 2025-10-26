@@ -277,50 +277,10 @@ export default function ProtocolConfigPage() {
                           </HoverCard>
                         </div>
                       </TableHead>
-                      <TableHead>
-                        <div className="flex items-center gap-1">
-                          Critical Threshold
-                          <HoverCard>
-                            <HoverCardTrigger><HelpCircle className="w-3 h-3 text-gray-400" /></HoverCardTrigger>
-                            <HoverCardContent className="w-80">
-                              <p className="text-sm">AI confidence threshold for immediate escalation. If AI is {'>'}= this confident about critical symptoms, it escalates immediately. Lower = more sensitive.</p>
-                            </HoverCardContent>
-                          </HoverCard>
-                        </div>
-                      </TableHead>
-                      <TableHead>
-                        <div className="flex items-center gap-1">
-                          Low Threshold
-                          <HoverCard>
-                            <HoverCardTrigger><HelpCircle className="w-3 h-3 text-gray-400" /></HoverCardTrigger>
-                            <HoverCardContent className="w-80">
-                              <p className="text-sm">AI confidence threshold for asking clarifying questions. If AI is {'<'} this confident, it asks for more details. Higher = more questions.</p>
-                            </HoverCardContent>
-                          </HoverCard>
-                        </div>
-                      </TableHead>
-                      <TableHead>
-                        <div className="flex items-center gap-1">
-                          Vague Symptoms
-                          <HoverCard>
-                            <HoverCardTrigger><HelpCircle className="w-3 h-3 text-gray-400" /></HoverCardTrigger>
-                            <HoverCardContent className="w-80">
-                              <p className="text-sm">List of vague words (e.g., "discomfort", "off", "tired") that trigger clarifying questions. Helps AI get specific information from patients.</p>
-                            </HoverCardContent>
-                          </HoverCard>
-                        </div>
-                      </TableHead>
-                      <TableHead>
-                        <div className="flex items-center gap-1">
-                          Sentiment Boost
-                          <HoverCard>
-                            <HoverCardTrigger><HelpCircle className="w-3 h-3 text-gray-400" /></HoverCardTrigger>
-                            <HoverCardContent className="w-80">
-                              <p className="text-sm">When enabled, upgrades severity if patient seems distressed. Shows target severity level for distressed patients.</p>
-                            </HoverCardContent>
-                          </HoverCard>
-                        </div>
-                      </TableHead>
+                      <TableHead>Critical Threshold</TableHead>
+                      <TableHead>Low Threshold</TableHead>
+                      <TableHead>Vague Symptoms</TableHead>
+                      <TableHead>Sentiment Boost</TableHead>
                       <TableHead>
                         <div className="flex items-center gap-1">
                           Status
