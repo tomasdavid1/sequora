@@ -88,6 +88,19 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching active protocol rules:', activeRulesError);
     }
 
+    // Fetch protocol configuration (AI decision parameters)
+    const { data: protocolConfig, error: configError } = await supabase
+      .from('ProtocolConfig')
+      .select('*')
+      .eq('condition_code', protocol.Episode.condition_code as any)
+      .eq('risk_level', riskLevel)
+      .eq('active', true)
+      .single();
+
+    if (configError) {
+      console.error('Error fetching protocol config:', configError);
+    }
+
     // Build profile response
     const profile = {
       patient: protocol.Episode.Patient,
@@ -102,6 +115,7 @@ export async function GET(request: NextRequest) {
         risk_level: protocol.risk_level,
         assigned_at: protocol.assigned_at
       },
+      protocolConfig: protocolConfig || null, // AI decision parameters
       activeProtocolRules: (activeRules || []).map(rule => ({
         rule_code: rule.rule_code,
         rule_type: rule.rule_type,
@@ -111,10 +125,6 @@ export async function GET(request: NextRequest) {
         message: rule.message
       })),
       redFlagRules: redFlagRules || [],
-      thresholds: {
-        critical_confidence: riskLevel === 'HIGH' ? 0.7 : riskLevel === 'MEDIUM' ? 0.8 : 0.85,
-        low_confidence: 0.6
-      },
       checkInFrequency: riskLevel === 'HIGH' ? 12 : riskLevel === 'MEDIUM' ? 24 : 48
     };
 

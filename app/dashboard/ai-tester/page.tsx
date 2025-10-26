@@ -637,8 +637,11 @@ export default function AITesterPage() {
               <p className="text-gray-600">Test AI interactions and protocol responses</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => window.location.href = '/dashboard'}>
+              <Button variant="outline" onClick={() => window.location.href = '/dashboard/protocol-config'}>
                 <Settings className="w-4 h-4 mr-2" />
+                Protocol Config
+              </Button>
+              <Button variant="outline" onClick={() => window.location.href = '/dashboard'}>
                 Back to Dashboard
               </Button>
               <Button onClick={createNewChat}>
@@ -829,33 +832,70 @@ export default function AITesterPage() {
                                 </div>
                               </div>
 
-                              {/* AI Thresholds */}
-                              <div>
-                                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                                  <Brain className="w-5 h-5" />
-                                  Protocol Settings
-                                </h3>
-                                <div className="bg-blue-50 rounded-lg p-4 space-y-3">
-                                  <div>
-                                    <div className="font-medium mb-1">Critical Confidence Threshold</div>
-                                    <div className="text-2xl font-bold text-blue-700">{protocolProfile.thresholds.critical_confidence * 100}%</div>
-                                    <p className="text-xs text-gray-600 mt-1">
-                                      {protocolProfile.episode.risk_level === 'HIGH' && 'Lower threshold for HIGH risk = more aggressive escalation'}
-                                      {protocolProfile.episode.risk_level === 'MEDIUM' && 'Standard threshold for MEDIUM risk'}
-                                      {protocolProfile.episode.risk_level === 'LOW' && 'Higher threshold for LOW risk = less aggressive'}
-                                    </p>
-                                  </div>
-                                  <div className="border-t border-blue-200 pt-2">
-                                    <div className="font-medium mb-1">Check-in Frequency</div>
-                                    <div className="text-2xl font-bold text-blue-700">Every {protocolProfile.checkInFrequency}h</div>
-                                    <p className="text-xs text-gray-600 mt-1">
-                                      {protocolProfile.checkInFrequency === 12 && 'Twice daily for HIGH risk patients'}
-                                      {protocolProfile.checkInFrequency === 24 && 'Daily for MEDIUM risk patients'}
-                                      {protocolProfile.checkInFrequency === 48 && 'Every 2 days for LOW risk patients'}
-                                    </p>
+                              {/* AI Decision Parameters */}
+                              {protocolProfile.protocolConfig && (
+                                <div>
+                                  <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                                    <Brain className="w-5 h-5" />
+                                    AI Decision Parameters
+                                  </h3>
+                                  <div className="bg-blue-50 rounded-lg p-4 space-y-3">
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div>
+                                        <div className="font-medium mb-1 text-sm">Critical Confidence</div>
+                                        <div className="text-2xl font-bold text-red-600">
+                                          {(protocolProfile.protocolConfig.critical_confidence_threshold * 100).toFixed(0)}%
+                                        </div>
+                                        <p className="text-xs text-gray-600 mt-1">
+                                          AI escalates if {'>'}  this
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <div className="font-medium mb-1 text-sm">Low Confidence</div>
+                                        <div className="text-2xl font-bold text-yellow-600">
+                                          {(protocolProfile.protocolConfig.low_confidence_threshold * 100).toFixed(0)}%
+                                        </div>
+                                        <p className="text-xs text-gray-600 mt-1">
+                                          AI asks more if {'<'} this
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="border-t border-blue-200 pt-3">
+                                      <div className="font-medium mb-2 text-sm">Vague Symptoms ({protocolProfile.protocolConfig.vague_symptoms?.length || 0})</div>
+                                      <div className="flex flex-wrap gap-1">
+                                        {protocolProfile.protocolConfig.vague_symptoms?.slice(0, 6).map((symptom: string, idx: number) => (
+                                          <Badge key={idx} variant="outline" className="text-xs">{symptom}</Badge>
+                                        ))}
+                                        {(protocolProfile.protocolConfig.vague_symptoms?.length || 0) > 6 && (
+                                          <Badge variant="outline" className="text-xs">+{protocolProfile.protocolConfig.vague_symptoms.length - 6} more</Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="border-t border-blue-200 pt-3">
+                                      <div className="font-medium mb-2 text-sm">Sentiment Boost</div>
+                                      <div className="flex items-center gap-2">
+                                        {protocolProfile.protocolConfig.enable_sentiment_boost ? (
+                                          <>
+                                            <Badge className="bg-emerald-500">Enabled</Badge>
+                                            <span className="text-xs text-gray-600">
+                                              Upgrades to <strong>{protocolProfile.protocolConfig.distressed_severity_upgrade}</strong> when distressed
+                                            </span>
+                                          </>
+                                        ) : (
+                                          <Badge variant="outline">Disabled</Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="border-t border-blue-200 pt-2">
+                                      <div className="font-medium mb-1 text-sm">Check-in Frequency</div>
+                                      <div className="text-2xl font-bold text-blue-700">Every {protocolProfile.checkInFrequency}h</div>
+                                      <p className="text-xs text-gray-600 mt-1">
+                                        Based on {protocolProfile.episode.risk_level} risk level
+                                      </p>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
+                              )}
 
                               {/* Protocol Rules */}
                               <div>
