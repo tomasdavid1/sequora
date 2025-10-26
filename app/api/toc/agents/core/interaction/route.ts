@@ -25,7 +25,7 @@ type SupabaseAdmin = SupabaseClient<Database>;
 interface ParsedResponse {
   intent: string; // Could be enum: 'symptom_report' | 'medication_question' | 'general' | 'question'
   symptoms: string[];
-  severity: SeverityType | string; // AI returns SeverityType, fallback parsing returns string
+  severity: SeverityType; // AI returns SeverityType, fallback parsing returns string
   questions: string[];
   sentiment: string; // Could be enum: 'distressed' | 'concerned' | 'neutral' | 'positive'
   confidence: number;
@@ -579,7 +579,7 @@ async function parsePatientInputWithProtocol(
       operation: 'parse_patient_input',
       input: {
         condition: protocolAssignment.condition_code,
-        educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level,
+        educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level, // NOT NULL in DB
         patientInput: input,
         conversationHistory: conversationHistory,
         requestStructuredOutput: true
@@ -848,7 +848,7 @@ async function generateAIResponseWithTools(
           operation: 'generate_response_with_tools',
           input: {
             condition: protocolAssignment.condition_code,
-            educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level,
+            educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level, // NOT NULL in DB
             patientResponses: parsedResponse.rawInput,
             decisionHint: decisionHint,
             context: fullContext,
