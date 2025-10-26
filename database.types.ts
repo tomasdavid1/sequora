@@ -1398,7 +1398,6 @@ export type Database = {
           episode_id: string
           id: string
           is_active: boolean | null
-          protocol_config: Json
           risk_level: string | null
           updated_at: string | null
         }
@@ -1411,7 +1410,6 @@ export type Database = {
           episode_id: string
           id?: string
           is_active?: boolean | null
-          protocol_config: Json
           risk_level?: string | null
           updated_at?: string | null
         }
@@ -1424,7 +1422,6 @@ export type Database = {
           episode_id?: string
           id?: string
           is_active?: boolean | null
-          protocol_config?: Json
           risk_level?: string | null
           updated_at?: string | null
         }
@@ -1699,22 +1696,13 @@ export type Database = {
     }
     Functions: {
       exec_sql: { Args: { sql_string: string }; Returns: string }
-      get_protocol_config:
-        | {
-            Args: {
-              condition_code_param: Database["public"]["Enums"]["condition_code"]
-              education_level_param?: string
-              risk_level_param?: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              condition_code_param: Database["public"]["Enums"]["condition_code"]
-              education_level_param: string
-            }
-            Returns: Json
-          }
+      get_protocol_config: {
+        Args: {
+          condition_code_param: Database["public"]["Enums"]["condition_code"]
+          education_level_param: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       agent_channel: "SMS" | "VOICE" | "CHAT" | "EMAIL" | "APP"

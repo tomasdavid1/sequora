@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
     );
     
     // 4. Evaluate rules DSL to get decision hint
-    const decisionHint = await evaluateRulesDSL(parsedResponse, protocolAssignment);
+    const decisionHint = await evaluateRulesDSL(parsedResponse, protocolAssignment, supabase);
     
     // 5. Check if this patient has been contacted before in this episode
     const { data: previousInteractions } = await supabase
@@ -364,22 +364,7 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
       return null;
     }
 
-    // Get protocol config using the database function
-    // Protocol is determined by condition + risk level
-    // Education level only affects AI communication style
-    const { data: protocolConfig, error: configError } = await supabase
-      .rpc('get_protocol_config', {
-        condition_code_param: episode.condition_code,
-        risk_level_param: episode.risk_level || 'MEDIUM',
-        education_level_param: episode.education_level || 'medium'
-      });
-
-    if (configError) {
-      console.error('Error getting protocol config:', configError);
-      return null;
-    }
-
-    // Create the protocol assignment
+    // Create the protocol assignment (just metadata, no rule duplication)
     const { data: assignment, error: assignmentError } = await supabase
       .from('ProtocolAssignment')
       .insert({
@@ -387,7 +372,6 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
         condition_code: episode.condition_code,
         risk_level: episode.risk_level || 'MEDIUM',
         education_level: episode.education_level || 'medium',
-        protocol_config: protocolConfig,
         is_active: true
       })
       .select(`
@@ -406,6 +390,61 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
     console.error('Error in createProtocolAssignment:', error);
     return null;
   }
+}
+
+// Query protocol rules from ProtocolContentPack based on condition and risk level
+async function getProtocolRules(conditionCode: string, riskLevel: string, supabase: SupabaseAdmin) {
+  // Determine severity filter based on risk level
+  let severityFilter: ('CRITICAL' | 'HIGH' | 'MODERATE' | 'LOW')[] = [];
+  
+  if (riskLevel === 'HIGH') {
+    severityFilter = ['CRITICAL', 'HIGH', 'MODERATE', 'LOW'];
+  } else if (riskLevel === 'MEDIUM') {
+    severityFilter = ['CRITICAL', 'HIGH'];
+  } else {
+    severityFilter = ['CRITICAL'];
+  }
+
+  // Query red flags
+  const { data: redFlagData, error: redFlagError } = await supabase
+    .from('ProtocolContentPack')
+    .select('*')
+    .eq('condition_code', conditionCode)
+    .eq('rule_type', 'RED_FLAG')
+    .in('actions->>severity', severityFilter)
+    .eq('active', true);
+
+  if (redFlagError) {
+    console.error('Error fetching red flag rules:', redFlagError);
+  }
+
+  // Query closures
+  const { data: closureData, error: closureError } = await supabase
+    .from('ProtocolContentPack')
+    .select('*')
+    .eq('condition_code', conditionCode)
+    .eq('rule_type', 'CLOSURE')
+    .eq('active', true);
+
+  if (closureError) {
+    console.error('Error fetching closure rules:', closureError);
+  }
+
+  // Transform to DSL format expected by evaluateRulesDSL
+  const redFlags = (redFlagData || []).map(rule => ({
+    if: rule.conditions,
+    flag: rule.actions
+  }));
+
+  const closures = (closureData || []).map(rule => ({
+    if: rule.conditions,
+    then: rule.actions
+  }));
+
+  return {
+    red_flags: redFlags,
+    closures: closures
+  };
 }
 
 // Parse patient input with protocol context
@@ -455,7 +494,7 @@ async function parsePatientInputWithProtocol(
 }
 
 // Evaluate rules DSL to get decision hint with AI insights
-async function evaluateRulesDSL(parsedResponse: ParsedResponse, protocolAssignment: ProtocolAssignment): Promise<DecisionHint> {
+async function evaluateRulesDSL(parsedResponse: ParsedResponse, protocolAssignment: ProtocolAssignment, supabase: SupabaseAdmin): Promise<DecisionHint> {
   console.log('🧠 [Rules Engine] Evaluating with AI insights:', {
     symptoms: parsedResponse.symptoms,
     severity: parsedResponse.severity,
@@ -464,8 +503,12 @@ async function evaluateRulesDSL(parsedResponse: ParsedResponse, protocolAssignme
     sentiment: parsedResponse.sentiment
   });
   
-  // Get the rules DSL from the protocol assignment
-  const rulesDSL = (protocolAssignment.protocol_config as any)?.rules || {};
+  // Query rules directly from ProtocolContentPack (single source of truth)
+  const rulesDSL = await getProtocolRules(
+    protocolAssignment.condition_code, 
+    protocolAssignment.risk_level || 'MEDIUM',
+    supabase
+  );
   
   // TODO: Move these thresholds to ProtocolContentPack or separate DecisionConfig table
   // This will allow per-condition tuning and A/B testing without code changes

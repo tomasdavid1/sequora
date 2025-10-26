@@ -864,20 +864,20 @@ export default function AITesterPage() {
                                   Active Protocol Rules
                                 </h3>
                                 <div className="space-y-3">
-                                  {protocolProfile.protocol.protocol_config?.rules?.red_flags?.map((rule: any, index: number) => (
+                                  {protocolProfile.activeProtocolRules?.filter((rule: any) => rule.rule_type === 'RED_FLAG').map((rule: any, index: number) => (
                                     <div key={index} className="border rounded-lg p-3 bg-white">
                                       <div className="flex items-center justify-between mb-2">
-                                        <span className="font-medium text-sm">{rule.flag.type}</span>
-                                        <Badge variant={rule.flag.severity === 'critical' ? 'destructive' : 'default'}>
-                                          {rule.flag.severity}
+                                        <span className="font-medium text-sm">{rule.rule_code}</span>
+                                        <Badge variant={rule.actions?.severity === 'critical' ? 'destructive' : 'default'}>
+                                          {rule.actions?.severity}
                                         </Badge>
                                       </div>
-                                      <p className="text-sm text-gray-600 mb-2">{rule.flag.message}</p>
+                                      <p className="text-sm text-gray-600 mb-2">{rule.actions?.message}</p>
                                       <div className="text-xs text-gray-500">
-                                        <span className="font-medium">Patterns:</span> {rule.if.any_text.join(', ')}
+                                        <span className="font-medium">Patterns:</span> {rule.conditions?.any_text?.join(', ') || 'N/A'}
                                       </div>
                                       <div className="text-xs text-emerald-600 mt-1">
-                                        Action: {rule.flag.action}
+                                        Action: {rule.actions?.action}
                                       </div>
                                     </div>
                                   )) || <p className="text-sm text-gray-500">No red flag rules configured</p>}

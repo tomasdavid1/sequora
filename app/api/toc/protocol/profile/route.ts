@@ -53,9 +53,9 @@ export async function GET(request: NextRequest) {
     // - HIGH risk: All rules
     // - MEDIUM risk: CRITICAL + HIGH severity only
     // - LOW risk: CRITICAL severity only
-    const riskLevel = protocol.Episode.risk_level || 'MEDIUM';
-    let severityFilter: string[] = [];
-    
+    const riskLevel = protocol.Episode.risk_level;
+    let severityFilter: ('CRITICAL' | 'HIGH' | 'MODERATE' | 'LOW')[] = [];
+        
     if (riskLevel === 'HIGH') {
       severityFilter = ['CRITICAL', 'HIGH', 'MODERATE', 'LOW'];
     } else if (riskLevel === 'MEDIUM') {
@@ -76,10 +76,19 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching red flag rules:', rulesError);
     }
 
+    // Query active protocol rules from ProtocolContentPack
+    const { data: activeRules, error: activeRulesError } = await supabase
+      .from('ProtocolContentPack')
+      .select('rule_code, rule_type, conditions, actions')
+      .eq('condition_code', protocol.Episode.condition_code)
+      .in('actions->>severity', severityFilter)
+      .eq('active', true);
+
+    if (activeRulesError) {
+      console.error('Error fetching active protocol rules:', activeRulesError);
+    }
+
     // Build profile response
-    // Cast protocol_config to access nested properties
-    const protocolConfig = protocol.protocol_config as any;
-    
     const profile = {
       patient: protocol.Episode.Patient,
       episode: {
@@ -93,15 +102,20 @@ export async function GET(request: NextRequest) {
         condition_code: protocol.condition_code,
         risk_level: protocol.risk_level,
         education_level: protocol.education_level,
-        protocol_config: protocol.protocol_config,
         assigned_at: protocol.assigned_at
       },
+      activeProtocolRules: (activeRules || []).map(rule => ({
+        rule_code: rule.rule_code,
+        rule_type: rule.rule_type,
+        conditions: rule.conditions,
+        actions: rule.actions
+      })),
       redFlagRules: redFlagRules || [],
-      thresholds: protocolConfig?.thresholds || {
-        critical_confidence: 0.8,
+      thresholds: {
+        critical_confidence: riskLevel === 'HIGH' ? 0.7 : riskLevel === 'MEDIUM' ? 0.8 : 0.85,
         low_confidence: 0.6
       },
-      checkInFrequency: protocolConfig?.check_in_frequency_hours || 24
+      checkInFrequency: riskLevel === 'HIGH' ? 12 : riskLevel === 'MEDIUM' ? 24 : 48
     };
 
     return NextResponse.json({
