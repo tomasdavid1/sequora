@@ -389,30 +389,39 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
 // Parse patient input with protocol context
 async function parsePatientInputWithProtocol(input: string, protocolAssignment: ProtocolAssignment) {
   try {
-    // Call the existing OpenAI model layer with protocol context
+    console.log('🔍 [Parser] Requesting structured symptom extraction from AI');
+    
+    // Call OpenAI directly with structured output request
     const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        operation: 'generate_response',
+        operation: 'parse_patient_input',
         input: {
           condition: protocolAssignment.condition_code,
-          patientResponses: input,
-          context: `Parse this patient input for a ${protocolAssignment.condition_code} patient with ${protocolAssignment.education_level} education level in a TOC program. Extract symptoms, severity, intent, and sentiment.`,
-          responseType: 'patient_response'
+          educationLevel: protocolAssignment.education_level,
+          patientInput: input,
+          requestStructuredOutput: true
         }
       })
     });
 
     const result = await response.json();
+    console.log('📊 [Parser] AI extracted:', result.parsed);
     
-    if (result.success) {
-      return parseAIResponse(result.response, input, protocolAssignment.condition_code);
+    if (result.success && result.parsed) {
+      // Use structured AI output directly
+      return {
+        ...result.parsed,
+        rawInput: input,
+        confidence: result.parsed.confidence || 0.85
+      };
     } else {
+      console.warn('⚠️ [Parser] Falling back to regex extraction');
       return getMockParsedResponse(input, protocolAssignment.condition_code);
     }
   } catch (error) {
-    console.error('Error calling OpenAI for patient input parsing:', error);
+    console.error('❌ [Parser] Error calling AI for parsing:', error);
     return getMockParsedResponse(input, protocolAssignment.condition_code);
   }
 }

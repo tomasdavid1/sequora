@@ -29,6 +29,9 @@ export async function POST(request: NextRequest) {
       case 'analyze_sentiment':
         return await handleAnalyzeSentiment(input, options);
         
+      case 'parse_patient_input':
+        return await handleParsePatientInput(input, options);
+        
       default:
         return NextResponse.json(
           { error: 'Unsupported operation' },
@@ -463,6 +466,99 @@ async function handleStreamingResponse(input: Record<string, unknown>, stream: R
     console.error('Error in streaming response:', error);
     return NextResponse.json(
       { error: 'Streaming response failed' },
+      { status: 500 }
+    );
+  }
+}
+
+// Handle structured patient input parsing
+async function handleParsePatientInput(input: Record<string, unknown>, options: Record<string, unknown>) {
+  try {
+    const { condition, educationLevel, patientInput } = input;
+    
+    console.log('🔍 [OpenAI Parser] Extracting structured data from:', patientInput);
+    
+    // Define the schema for structured output
+    const systemPrompt = `You are a medical AI specialized in parsing patient symptom reports for ${condition} (Heart Failure, COPD, AMI, or Pneumonia) patients.
+
+Your job is to extract structured information from patient messages.
+
+CRITICAL SYMPTOMS TO DETECT:
+${condition === 'HF' ? `
+- Chest pain/pressure/discomfort/tightness (CRITICAL - possible heart attack)
+- Severe breathing difficulty (CRITICAL)
+- Significant weight gain (HIGH)
+- New/worsening swelling (MODERATE)
+` : ''}
+${condition === 'COPD' ? `
+- Severe breathing difficulty (CRITICAL)
+- Increased sputum or color change (HIGH)
+- Fever/infection signs (HIGH)
+` : ''}
+${condition === 'AMI' ? `
+- Chest pain/pressure (CRITICAL)
+- Arm/jaw/back pain (CRITICAL)
+- Shortness of breath (HIGH)
+` : ''}
+
+Extract the following in JSON format:
+{
+  "symptoms": ["symptom1", "symptom2"],  // normalized symptom names
+  "severity": "low|moderate|high|critical",
+  "intent": "symptom_report|question|medication|general",
+  "sentiment": "positive|neutral|concerned|distressed",
+  "confidence": 0.0-1.0,
+  "normalized_text": "chest pain, shortness of breath"  // simplified symptom description
+}
+
+SYMPTOM NORMALIZATION RULES:
+- "pain in my chest" → "chest pain"
+- "my chest hurts" → "chest pain"
+- "chest pressure" → "chest pain"
+- "can't breathe" → "breathing difficulty"
+- "short of breath" → "shortness of breath"
+- "gained weight" → "weight gain"
+- "swollen ankles" → "swelling"
+
+Be liberal in detection - err on the side of safety for critical symptoms.`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt
+        },
+        {
+          role: "user",
+          content: `Patient says: "${patientInput}"\n\nExtract structured information in JSON format.`
+        }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.1,
+      max_tokens: 300
+    });
+
+    const responseText = completion.choices[0]?.message?.content || '{}';
+    console.log('📊 [OpenAI Parser] Raw response:', responseText);
+    
+    const parsed = JSON.parse(responseText);
+    console.log('✅ [OpenAI Parser] Parsed:', parsed);
+
+    return NextResponse.json({
+      success: true,
+      parsed: parsed,
+      tokensUsed: completion.usage?.total_tokens || 0
+    });
+
+  } catch (error) {
+    console.error('❌ Error in parse patient input:', error);
+    return NextResponse.json(
+      { 
+        success: false,
+        error: 'Patient input parsing failed',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
