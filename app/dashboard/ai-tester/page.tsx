@@ -809,7 +809,22 @@ export default function AITesterPage() {
                                 </h3>
                                 <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                                   <div><span className="font-medium">Condition:</span> <Badge>{protocolProfile.episode.condition_code}</Badge></div>
-                                  <div><span className="font-medium">Education Level:</span> <Badge variant="outline">{protocolProfile.episode.education_level}</Badge></div>
+                                  <div>
+                                    <span className="font-medium">Risk of Readmission:</span>{' '}
+                                    <Badge variant={
+                                      protocolProfile.episode.risk_level === 'HIGH' ? 'destructive' : 
+                                      protocolProfile.episode.risk_level === 'MEDIUM' ? 'default' : 
+                                      'outline'
+                                    }>
+                                      {protocolProfile.episode.risk_level || 'MEDIUM'}
+                                    </Badge>
+                                    <span className="ml-2 text-xs text-gray-600">(determines protocol intensity)</span>
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Education Level:</span>{' '}
+                                    <Badge variant="outline">{protocolProfile.episode.education_level}</Badge>
+                                    <span className="ml-2 text-xs text-gray-600">(for communication style only)</span>
+                                  </div>
                                   <div><span className="font-medium">Episode ID:</span> <span className="text-xs font-mono">{protocolProfile.episode.id}</span></div>
                                 </div>
                               </div>
@@ -818,12 +833,27 @@ export default function AITesterPage() {
                               <div>
                                 <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
                                   <Brain className="w-5 h-5" />
-                                  AI Decision Thresholds
+                                  Protocol Settings
                                 </h3>
-                                <div className="bg-blue-50 rounded-lg p-4 space-y-2">
-                                  <div><span className="font-medium">Critical Confidence:</span> {protocolProfile.thresholds.critical_confidence * 100}%</div>
-                                  <div><span className="font-medium">Low Confidence:</span> {protocolProfile.thresholds.low_confidence * 100}%</div>
-                                  <p className="text-xs text-gray-600 mt-2">AI will force escalation if confidence {'>'} {protocolProfile.thresholds.critical_confidence * 100}% and severity is critical</p>
+                                <div className="bg-blue-50 rounded-lg p-4 space-y-3">
+                                  <div>
+                                    <div className="font-medium mb-1">Critical Confidence Threshold</div>
+                                    <div className="text-2xl font-bold text-blue-700">{protocolProfile.thresholds.critical_confidence * 100}%</div>
+                                    <p className="text-xs text-gray-600 mt-1">
+                                      {protocolProfile.episode.risk_level === 'HIGH' && 'Lower threshold for HIGH risk = more aggressive escalation'}
+                                      {protocolProfile.episode.risk_level === 'MEDIUM' && 'Standard threshold for MEDIUM risk'}
+                                      {protocolProfile.episode.risk_level === 'LOW' && 'Higher threshold for LOW risk = less aggressive'}
+                                    </p>
+                                  </div>
+                                  <div className="border-t border-blue-200 pt-2">
+                                    <div className="font-medium mb-1">Check-in Frequency</div>
+                                    <div className="text-2xl font-bold text-blue-700">Every {protocolProfile.checkInFrequency}h</div>
+                                    <p className="text-xs text-gray-600 mt-1">
+                                      {protocolProfile.checkInFrequency === 12 && 'Twice daily for HIGH risk patients'}
+                                      {protocolProfile.checkInFrequency === 24 && 'Daily for MEDIUM risk patients'}
+                                      {protocolProfile.checkInFrequency === 48 && 'Every 2 days for LOW risk patients'}
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
 

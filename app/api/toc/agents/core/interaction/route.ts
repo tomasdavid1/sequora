@@ -335,7 +335,7 @@ async function loadProtocolAssignment(episodeId: string, supabase: SupabaseAdmin
     .from('ProtocolAssignment')
     .select(`
       *,
-      Episode!inner(condition_code, education_level)
+      Episode!inner(condition_code, risk_level, education_level)
     `)
     .eq('episode_id', episodeId)
     .eq('is_active', true)
@@ -355,7 +355,7 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
     // First, get the episode details
     const { data: episode, error: episodeError } = await supabase
       .from('Episode')
-      .select('condition_code, education_level')
+      .select('condition_code, risk_level, education_level')
       .eq('id', episodeId)
       .single();
 
@@ -365,9 +365,12 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
     }
 
     // Get protocol config using the database function
+    // Protocol is determined by condition + risk level
+    // Education level only affects AI communication style
     const { data: protocolConfig, error: configError } = await supabase
       .rpc('get_protocol_config', {
         condition_code_param: episode.condition_code,
+        risk_level_param: episode.risk_level || 'MEDIUM',
         education_level_param: episode.education_level || 'medium'
       });
 
@@ -382,13 +385,14 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
       .insert({
         episode_id: episodeId,
         condition_code: episode.condition_code,
+        risk_level: episode.risk_level || 'MEDIUM',
         education_level: episode.education_level || 'medium',
         protocol_config: protocolConfig,
         is_active: true
       })
       .select(`
         *,
-        Episode!inner(condition_code, education_level)
+        Episode!inner(condition_code, risk_level, education_level)
       `)
       .single();
 

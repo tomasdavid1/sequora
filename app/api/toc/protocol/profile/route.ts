@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
         Episode!inner(
           id,
           condition_code,
+          risk_level,
           education_level,
           Patient!inner(
             id,
@@ -65,20 +66,23 @@ export async function GET(request: NextRequest) {
       episode: {
         id: protocol.Episode.id,
         condition_code: protocol.Episode.condition_code,
+        risk_level: protocol.Episode.risk_level,
         education_level: protocol.Episode.education_level
       },
       protocol: {
         id: protocol.id,
         condition_code: protocol.condition_code,
+        risk_level: protocol.risk_level,
         education_level: protocol.education_level,
         protocol_config: protocol.protocol_config,
         assigned_at: protocol.assigned_at
       },
       redFlagRules: redFlagRules || [],
-      thresholds: {
+      thresholds: protocol.protocol_config?.thresholds || {
         critical_confidence: 0.8,
         low_confidence: 0.6
-      }
+      },
+      checkInFrequency: protocol.protocol_config?.check_in_frequency_hours || 24
     };
 
     return NextResponse.json({

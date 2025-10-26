@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
         .insert({
           patient_id: patient.id,
           condition_code: patientData.condition,
+          risk_level: patientData.riskLevel || 'MEDIUM',
           education_level: patientData.educationLevel || 'medium',
           admit_at: patientData.admitDate || null,
           discharge_at: patientData.dischargeDate || new Date().toISOString(),

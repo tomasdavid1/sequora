@@ -335,6 +335,7 @@ export default function NurseDashboard() {
                                         state: result.parsedData.state || null,
                                         zip: result.parsedData.zip || null,
                                         condition: result.parsedData.condition || '',
+                                        riskLevel: result.parsedData.riskLevel || 'MEDIUM',
                                         educationLevel: result.parsedData.educationLevel || 'medium',
                                         dischargeDate: result.parsedData.dischargeDate || '',
                                         admitDate: result.parsedData.admitDate || null,
@@ -424,6 +425,7 @@ export default function NurseDashboard() {
                                 state: null,
                                 zip: null,
                                 condition: '',
+                                riskLevel: 'MEDIUM',
                                 educationLevel: 'medium',
                                 dischargeDate: '',
                                 admitDate: null,
@@ -513,6 +515,20 @@ export default function NurseDashboard() {
                               </Select>
                             </div>
                             <div>
+                              <Label htmlFor="confirm-risk-level">Risk of Readmission *</Label>
+                              <Select value={parsedData.riskLevel || 'MEDIUM'} onValueChange={(value) => setParsedData((prev: any) => ({...prev, riskLevel: value}))}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select risk level" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="LOW">Low (Stable, few comorbidities)</SelectItem>
+                                  <SelectItem value="MEDIUM">Medium (Moderate risk)</SelectItem>
+                                  <SelectItem value="HIGH">High (Complex, multiple issues)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <p className="text-xs text-gray-500 mt-1">Determines protocol intensity and check-in frequency</p>
+                            </div>
+                            <div>
                               <Label htmlFor="confirm-education-level">Education Level *</Label>
                               <Select value={parsedData.educationLevel || 'medium'} onValueChange={(value) => setParsedData((prev: any) => ({...prev, educationLevel: value}))}>
                                 <SelectTrigger>
@@ -524,6 +540,7 @@ export default function NurseDashboard() {
                                   <SelectItem value="high">High (College level)</SelectItem>
                                 </SelectContent>
                               </Select>
+                              <p className="text-xs text-gray-500 mt-1">For communication style only</p>
                             </div>
                           </div>
 
