@@ -12,8 +12,9 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Pencil, Save, X, Settings2, TrendingUp, AlertCircle, Eye, Brain } from 'lucide-react';
+import { Pencil, Save, X, Settings2, TrendingUp, AlertCircle, Eye, Brain, HelpCircle } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 
 interface ProtocolConfig {
   id: string;
@@ -266,13 +267,83 @@ export default function ProtocolConfigPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Condition</TableHead>
-                      <TableHead>Risk</TableHead>
-                      <TableHead>Critical Threshold</TableHead>
-                      <TableHead>Low Threshold</TableHead>
-                      <TableHead>Vague Symptoms</TableHead>
-                      <TableHead>Sentiment Boost</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>
+                        <div className="flex items-center gap-1">
+                          Condition
+                          <HoverCard>
+                            <HoverCardTrigger><HelpCircle className="w-3 h-3 text-gray-400" /></HoverCardTrigger>
+                            <HoverCardContent className="w-80">
+                              <p className="text-sm">Medical condition this configuration applies to (HF, COPD, AMI, PNA)</p>
+                            </HoverCardContent>
+                          </HoverCard>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center gap-1">
+                          Risk
+                          <HoverCard>
+                            <HoverCardTrigger><HelpCircle className="w-3 h-3 text-gray-400" /></HoverCardTrigger>
+                            <HoverCardContent className="w-80">
+                              <p className="text-sm">Patient's risk of readmission (LOW/MEDIUM/HIGH). Higher risk → more sensitive AI detection.</p>
+                            </HoverCardContent>
+                          </HoverCard>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center gap-1">
+                          Critical Threshold
+                          <HoverCard>
+                            <HoverCardTrigger><HelpCircle className="w-3 h-3 text-gray-400" /></HoverCardTrigger>
+                            <HoverCardContent className="w-80">
+                              <p className="text-sm">AI confidence threshold for immediate escalation. If AI is {'>'}= this confident about critical symptoms, it escalates immediately. Lower = more sensitive.</p>
+                            </HoverCardContent>
+                          </HoverCard>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center gap-1">
+                          Low Threshold
+                          <HoverCard>
+                            <HoverCardTrigger><HelpCircle className="w-3 h-3 text-gray-400" /></HoverCardTrigger>
+                            <HoverCardContent className="w-80">
+                              <p className="text-sm">AI confidence threshold for asking clarifying questions. If AI is {'<'} this confident, it asks for more details. Higher = more questions.</p>
+                            </HoverCardContent>
+                          </HoverCard>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center gap-1">
+                          Vague Symptoms
+                          <HoverCard>
+                            <HoverCardTrigger><HelpCircle className="w-3 h-3 text-gray-400" /></HoverCardTrigger>
+                            <HoverCardContent className="w-80">
+                              <p className="text-sm">List of vague words (e.g., "discomfort", "off", "tired") that trigger clarifying questions. Helps AI get specific information from patients.</p>
+                            </HoverCardContent>
+                          </HoverCard>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center gap-1">
+                          Sentiment Boost
+                          <HoverCard>
+                            <HoverCardTrigger><HelpCircle className="w-3 h-3 text-gray-400" /></HoverCardTrigger>
+                            <HoverCardContent className="w-80">
+                              <p className="text-sm">When enabled, upgrades severity if patient seems distressed. Shows target severity level for distressed patients.</p>
+                            </HoverCardContent>
+                          </HoverCard>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center gap-1">
+                          Status
+                          <HoverCard>
+                            <HoverCardTrigger><HelpCircle className="w-3 h-3 text-gray-400" /></HoverCardTrigger>
+                            <HoverCardContent className="w-80">
+                              <p className="text-sm">Whether this configuration is currently active and being used by the AI.</p>
+                            </HoverCardContent>
+                          </HoverCard>
+                        </div>
+                      </TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
