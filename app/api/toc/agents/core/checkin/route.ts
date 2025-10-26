@@ -4,6 +4,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { Episode, Patient, OutreachResponse, OutreachAttempt, EscalationTask, ContactChannel, RedFlagRule, ConditionCode } from '@/types';
 import OpenAI from 'openai';
+import { 
+  SeverityType,
+  VALID_SEVERITIES,
+  getPriorityFromSeverity,
+  getSLAMinutesFromSeverity
+} from '@/lib/enums';
 
 const openai = new OpenAI({
   apiKey: process.env.OPEN_API_KEY || process.env.OPENAI_API_KEY,
@@ -28,7 +34,7 @@ interface PatientResponse {
 
 interface CheckInResult {
   success: boolean;
-  severity: 'NONE' | 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
+  severity: SeverityType;
   redFlagCode: string;
   reasoning: string;
   escalationTaskId?: string;
@@ -133,7 +139,7 @@ async function analyzeResponsesForRedFlags(
   condition: string, 
   responses: PatientResponse[]
 ): Promise<{
-  severity: 'NONE' | 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
+  severity: SeverityType;
   redFlagCode: string;
   reasoning: string;
 }> {
@@ -237,10 +243,9 @@ Respond in JSON format:
     }
 
     // Validate severity is valid
-    const validSeverities = ['NONE', 'LOW', 'MODERATE', 'HIGH', 'CRITICAL'];
-    if (!validSeverities.includes(analysis.severity)) {
+    if (!VALID_SEVERITIES.includes(analysis.severity)) {
       console.error('❌ [Check-in] AI returned invalid severity:', analysis.severity);
-      throw new Error(`AI analysis failed: Invalid severity "${analysis.severity}". Must be one of: ${validSeverities.join(', ')}`);
+      throw new Error(`AI analysis failed: Invalid severity "${analysis.severity}". Must be one of: ${VALID_SEVERITIES.join(', ')}`);
     }
 
     return {
