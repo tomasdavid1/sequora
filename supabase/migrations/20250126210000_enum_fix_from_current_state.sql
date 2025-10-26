@@ -63,11 +63,26 @@ END $$;
 
 DO $$ 
 BEGIN
+  -- Update severity to uppercase
   UPDATE "ProtocolContentPack"
   SET severity = UPPER(severity)
   WHERE severity IS NOT NULL 
     AND severity != UPPER(severity);
   RAISE NOTICE 'Updated ProtocolContentPack.severity casing';
+  
+  -- Update rule_type to uppercase
+  UPDATE "ProtocolContentPack"
+  SET rule_type = UPPER(rule_type)
+  WHERE rule_type IS NOT NULL 
+    AND rule_type != UPPER(rule_type);
+  RAISE NOTICE 'Updated ProtocolContentPack.rule_type casing';
+  
+  -- Update action_type to uppercase if needed
+  UPDATE "ProtocolContentPack"
+  SET action_type = UPPER(action_type)
+  WHERE action_type IS NOT NULL 
+    AND action_type != UPPER(action_type);
+  RAISE NOTICE 'Updated ProtocolContentPack.action_type casing';
 END $$;
 
 -- ============================================================================
@@ -81,7 +96,7 @@ BEGIN
       WHERE table_name = 'ProtocolContentPack' AND column_name = 'severity') != 'red_flag_severity' THEN
     ALTER TABLE "ProtocolContentPack"
       ALTER COLUMN severity TYPE red_flag_severity 
-      USING severity::red_flag_severity;
+      USING severity::TEXT::red_flag_severity;
     RAISE NOTICE 'Converted ProtocolContentPack.severity to enum';
   ELSE
     RAISE NOTICE 'ProtocolContentPack.severity already red_flag_severity enum, skipping';
@@ -95,7 +110,7 @@ BEGIN
       WHERE table_name = 'ProtocolContentPack' AND column_name = 'rule_type') != 'rule_type' THEN
     ALTER TABLE "ProtocolContentPack"
       ALTER COLUMN rule_type TYPE rule_type 
-      USING rule_type::rule_type;
+      USING rule_type::TEXT::rule_type;
     RAISE NOTICE 'Converted ProtocolContentPack.rule_type to enum';
   ELSE
     RAISE NOTICE 'ProtocolContentPack.rule_type already rule_type enum, skipping';
@@ -109,7 +124,7 @@ BEGIN
       WHERE table_name = 'Episode' AND column_name = 'risk_level') != 'risk_level' THEN
     ALTER TABLE "Episode"
       ALTER COLUMN risk_level TYPE risk_level 
-      USING risk_level::risk_level;
+      USING risk_level::TEXT::risk_level;
     RAISE NOTICE 'Converted Episode.risk_level to enum';
   ELSE
     RAISE NOTICE 'Episode.risk_level already risk_level enum, skipping';
@@ -123,7 +138,7 @@ BEGIN
       WHERE table_name = 'ProtocolAssignment' AND column_name = 'risk_level') != 'risk_level' THEN
     ALTER TABLE "ProtocolAssignment"
       ALTER COLUMN risk_level TYPE risk_level 
-      USING risk_level::risk_level;
+      USING risk_level::TEXT::risk_level;
     RAISE NOTICE 'Converted ProtocolAssignment.risk_level to enum';
   ELSE
     RAISE NOTICE 'ProtocolAssignment.risk_level already risk_level enum, skipping';
@@ -137,7 +152,7 @@ BEGIN
       WHERE table_name = 'ProtocolConfig' AND column_name = 'risk_level') != 'risk_level' THEN
     ALTER TABLE "ProtocolConfig"
       ALTER COLUMN risk_level TYPE risk_level 
-      USING risk_level::risk_level;
+      USING risk_level::TEXT::risk_level;
     RAISE NOTICE 'Converted ProtocolConfig.risk_level to enum';
   ELSE
     RAISE NOTICE 'ProtocolConfig.risk_level already risk_level enum, skipping';
@@ -151,7 +166,7 @@ BEGIN
       WHERE table_name = 'ProtocolConfig' AND column_name = 'condition_code') != 'condition_code' THEN
     ALTER TABLE "ProtocolConfig"
       ALTER COLUMN condition_code TYPE condition_code 
-      USING condition_code::condition_code;
+      USING condition_code::TEXT::condition_code;
     RAISE NOTICE 'Converted ProtocolConfig.condition_code to enum';
   ELSE
     RAISE NOTICE 'ProtocolConfig.condition_code already condition_code enum, skipping';
@@ -165,7 +180,7 @@ BEGIN
       WHERE table_name = 'Patient' AND column_name = 'education_level') != 'education_level' THEN
     ALTER TABLE "Patient"
       ALTER COLUMN education_level TYPE education_level 
-      USING education_level::education_level;
+      USING education_level::TEXT::education_level;
     RAISE NOTICE 'Converted Patient.education_level to enum';
   ELSE
     RAISE NOTICE 'Patient.education_level already education_level enum, skipping';
