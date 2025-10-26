@@ -32,14 +32,14 @@ INSERT INTO public."ProtocolContentPack" (
 
 -- High severity (visible to MEDIUM and HIGH risk)
 ('HF', 'HF_WEIGHT_GAIN_3LB', 'RED_FLAG',
- ARRAY['gained 3 pounds', '3 pounds heavier', 'gained three pounds', 'up 3 pounds', '3 lbs up'],
+ ARRAY['gained 3 pounds', '3 pounds heavier', 'gained three pounds', 'up 3 pounds', '3 lbs up', 'put on 3 pounds', 'put on 3 lbs', 'gained 3 lbs'],
  'RAISE_FLAG',
  'HIGH',
  'Significant weight gain (3+ lbs in 1 day)',
  true),
 
 ('HF', 'HF_WEIGHT_GAIN_5LB', 'RED_FLAG',
- ARRAY['gained 5 pounds', '5 pounds heavier', 'gained five pounds', 'up 5 pounds', '5 lbs up', 'gained weight'],
+ ARRAY['gained 5 pounds', '5 pounds heavier', 'gained five pounds', 'up 5 pounds', '5 lbs up', 'gained weight', 'put on 5 pounds', 'put on 5 lbs', 'gained 5 lbs', 'weight gain', 'put on weight'],
  'RAISE_FLAG',
  'HIGH',
  'Significant weight gain (5+ lbs in 1 week)',

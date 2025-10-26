@@ -507,12 +507,21 @@ Extract the following in JSON format:
 
 SYMPTOM NORMALIZATION RULES:
 - "pain in my chest" → "chest pain"
-- "my chest hurts" → "chest pain"
+- "my chest hurts" → "chest pain"  
 - "chest pressure" → "chest pain"
 - "can't breathe" → "breathing difficulty"
 - "short of breath" → "shortness of breath"
-- "gained weight" → "weight gain"
 - "swollen ankles" → "swelling"
+
+WEIGHT GAIN (CRITICAL FOR HF PATIENTS):
+- "put on 3 lbs" → normalized_text: "gained 3 pounds"
+- "put on 5 lbs" → normalized_text: "gained 5 pounds"
+- "gained 3 lbs" → normalized_text: "gained 3 pounds"
+- "up 3 lbs" → normalized_text: "up 3 pounds"
+- "weight is up" → normalized_text: "weight gain"
+
+IMPORTANT: Always extract weight amounts and use "pounds" not "lbs" in normalized_text.
+Include the number if specified (e.g., "3 pounds", "5 pounds").
 
 Be liberal in detection - err on the side of safety for critical symptoms.`;
 
