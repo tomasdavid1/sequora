@@ -286,13 +286,13 @@ Response: ${r.valueText || r.valueNumber || r.valueChoice}
 `).join('\n')}
 
 Analyze these responses and determine:
-1. Severity level (NONE, LOW, MODERATE, HIGH, CRITICAL)
+1. Severity level (${VALID_SEVERITIES.join(', ')})
 2. Most relevant red flag code
 3. Brief reasoning for your decision
 
 Respond in JSON format:
 {
-  "severity": "NONE|LOW|MODERATE|HIGH|CRITICAL",
+  "severity": "${VALID_SEVERITIES.join('|')}",
   "redFlagCode": "rule_code_or_NONE",
   "reasoning": "brief explanation"
 }
