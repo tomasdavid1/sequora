@@ -156,12 +156,11 @@ async function handleGenerateResponseWithTools(input: Record<string, unknown>, o
           parameters: {
             type: "object",
             properties: {
-              patientId: { type: "string", description: "Patient ID" },
               flagType: { type: "string", description: "Type of flag (symptom_escalation, respiratory, etc.)" },
-              severity: { type: "string", enum: ["low", "medium", "high"], description: "Severity level" },
+              severity: { type: "string", enum: ["LOW", "MODERATE", "HIGH", "CRITICAL"], description: "Severity level" },
               rationale: { type: "string", description: "Brief explanation of why this flag was raised" }
             },
-            required: ["patientId", "flagType", "severity", "rationale"]
+            required: ["flagType", "severity", "rationale"]
           }
         }
       },
@@ -173,7 +172,6 @@ async function handleGenerateResponseWithTools(input: Record<string, unknown>, o
           parameters: {
             type: "object",
             properties: {
-              patientId: { type: "string", description: "Patient ID" },
               questions: { 
                 type: "array", 
                 items: { type: "string" },
@@ -182,7 +180,7 @@ async function handleGenerateResponseWithTools(input: Record<string, unknown>, o
                 description: "List of follow-up questions to ask the patient"
               }
             },
-            required: ["patientId", "questions"]
+            required: ["questions"]
           }
         }
       },
@@ -194,11 +192,10 @@ async function handleGenerateResponseWithTools(input: Record<string, unknown>, o
           parameters: {
             type: "object",
             properties: {
-              patientId: { type: "string", description: "Patient ID" },
               result: { type: "string", enum: ["ASK_MORE", "FLAG", "CLOSE"], description: "Check-in result" },
               summary: { type: "string", description: "Brief summary of the check-in" }
             },
-            required: ["patientId", "result"]
+            required: ["result"]
           }
         }
       },
@@ -206,26 +203,21 @@ async function handleGenerateResponseWithTools(input: Record<string, unknown>, o
         type: "function" as const,
         function: {
           name: "handoff_to_nurse",
-          description: "Hand off to a nurse when immediate attention is needed",
+          description: "Hand off to a nurse when immediate attention is needed (CRITICAL situations only)",
           parameters: {
             type: "object",
             properties: {
-              patientId: { type: "string", description: "Patient ID" },
-              reason: { type: "string", description: "Reason for handoff to nurse" }
+              reason: { type: "string", description: "Reason for handoff to nurse (be specific about symptoms)" },
+              flagType: { type: "string", description: "Type of red flag (e.g., HF_CHEST_PAIN, HF_BREATHING_WORSE)" }
             },
-            required: ["patientId", "reason"]
+            required: ["reason", "flagType"]
           }
         }
       }
     ];
 
     // Build system prompt with protocol context
-    const systemPrompt = `You are a post-discharge nurse assistant for a ${condition} patient with ${educationLevel} education level.
-
-Goals:
-1) Complete a focused check-in
-2) Detect red flags early  
-3) Escalate appropriately
+    const systemPrompt = `${context}
 
 CRITICAL INSTRUCTIONS:
 - Provide a natural, conversational response to the patient
@@ -233,15 +225,9 @@ CRITICAL INSTRUCTIONS:
 - Call tools separately using the function calling feature
 - Your text response should ONLY contain what the patient will read/hear
 
-Style:
-- Reading level: ${educationLevel} (low/medium/high)
-- Tone: warm, caring, reassuring
-- Use plain language, short sentences
-- Always confirm understanding
-
 Decision Hint: ${JSON.stringify(decisionHint)}
 
-Tool Usage:
+Tool Usage (NOTE: patientId is already known - you don't need to provide it):
 - raise_flag: When symptoms are concerning
 - ask_more: When you need more information  
 - log_checkin: When patient is doing well
