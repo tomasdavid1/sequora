@@ -287,9 +287,9 @@ async function createEscalationTask(
       source_attempt_id: sessionId,
       reason_codes: [String(analysis.redFlagCode)],
       severity: analysis.severity as any,
-      priority: getPriorityFromSeverity(String(analysis.severity)) as any,
+      priority: getPriorityFromSeverity(analysis.severity as SeverityType) as any,
       status: 'OPEN' as any,
-      sla_due_at: getSLADueTime(String(analysis.severity)),
+      sla_due_at: getSLADueTime(analysis.severity as SeverityType),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })
@@ -412,28 +412,8 @@ Pneumonia Recovery Red Flags:
   }
 }
 
-function getPriorityFromSeverity(severity: string): 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' {
-  switch (severity) {
-    case 'CRITICAL': return 'URGENT';
-    case 'HIGH': return 'HIGH';
-    case 'MODERATE': return 'NORMAL';
-    case 'LOW': return 'LOW';
-    default: return 'NORMAL';
-  }
-}
-
-function getSLADueTime(severity: string): string {
+function getSLADueTime(severity: SeverityType): string {
   const now = new Date();
-  switch (severity) {
-    case 'CRITICAL': 
-      return new Date(now.getTime() + 30 * 60 * 1000).toISOString(); // 30 minutes
-    case 'HIGH': 
-      return new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString(); // 2 hours
-    case 'MODERATE': 
-      return new Date(now.getTime() + 4 * 60 * 60 * 1000).toISOString(); // 4 hours
-    case 'LOW': 
-      return new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
-    default: 
-      return new Date(now.getTime() + 4 * 60 * 60 * 1000).toISOString(); // 4 hours
-  }
+  const minutes = getSLAMinutesFromSeverity(severity);
+  return new Date(now.getTime() + minutes * 60 * 1000).toISOString();
 }
