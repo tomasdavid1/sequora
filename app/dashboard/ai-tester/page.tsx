@@ -1230,9 +1230,9 @@ export default function AITesterPage() {
               {protocolProfile?.protocolConfig && (
                 <div className="space-y-6">
                   {/* Active Protocol Rules - MOST IMPORTANT! */}
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <h3 className="font-semibold text-base mb-3 flex items-center gap-2">
-                      <Zap className="w-5 h-5 text-yellow-700" />
+                      <Zap className="w-5 h-5 text-blue-700" />
                       Active Detection Rules for {protocolProfile.episode.risk_level} Risk
                     </h3>
                     <p className="text-xs text-gray-600 mb-3">These patterns trigger AI actions. To edit, go to /dashboard/protocol-config.</p>
