@@ -65,8 +65,8 @@ export async function POST(request: NextRequest) {
     // 4. Generate response for patient
     const patientResponse = await generatePatientResponse(condition, analysis, channel);
 
-    // 5. Determine next actions
-    const nextActions = determineNextActions(analysis, escalationTaskId);
+    // 5. Determine next actions from database
+    const nextActions = await determineNextActions(condition, analysis, escalationTaskId);
 
     const result: CheckInResult = {
       success: true,
@@ -344,21 +344,38 @@ async function generatePatientResponse(
   return response;
 }
 
-function determineNextActions(analysis: Record<string, unknown>, escalationTaskId?: string): string[] {
+async function determineNextActions(
+  condition: string,
+  analysis: Record<string, unknown>, 
+  escalationTaskId?: string
+): Promise<string[]> {
   const actions = [];
   
   if (escalationTaskId) {
     actions.push(`Escalation task created: ${escalationTaskId}`);
   }
   
-  if (analysis.severity === 'CRITICAL') {
-    actions.push('Immediate nurse callback required');
-    actions.push('Consider ED referral');
-  } else if (analysis.severity === 'HIGH') {
-    actions.push('Nurse callback within 2 hours');
-    actions.push('Schedule follow-up appointment');
-  } else if (analysis.severity === 'MODERATE') {
-    actions.push('Nurse callback within 4 hours');
+  // Fetch the matched red flag rule to get database-driven action hint
+  if (analysis.redFlagCode && analysis.redFlagCode !== 'NONE') {
+    const supabase = getSupabaseAdmin();
+    const { data: rule } = await supabase
+      .from('RedFlagRule')
+      .select('action_hint, description')
+      .eq('condition_code', condition as any)
+      .eq('rule_code', String(analysis.redFlagCode))
+      .single();
+    
+    if (rule?.action_hint) {
+      actions.push(`Action: ${rule.action_hint}`);
+      actions.push(`Rule: ${rule.description}`);
+    }
+  }
+  
+  // Add severity-based SLA guidance
+  const slaMinutes = getSLAMinutesFromSeverity(analysis.severity as SeverityType);
+  if (slaMinutes > 0) {
+    const hours = slaMinutes / 60;
+    actions.push(`Response due within ${hours < 1 ? `${slaMinutes} minutes` : `${hours} hours`}`);
   } else {
     actions.push('Continue routine monitoring');
   }
