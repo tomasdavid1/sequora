@@ -378,8 +378,14 @@ export async function POST(request: NextRequest) {
     const toolResults = await handleToolCalls(aiResponse.toolCalls, patientId, episodeId, supabase, activeInteractionId);
 
     // 10. Check if interaction should end and generate summary
+    // End when: escalation happens (handoff/raise_flag) OR patient is doing well (log_checkin)
     const shouldEndInteraction = decisionHint.action === 'FLAG' || 
-                                  aiResponse.toolCalls?.some((t: any) => t.name === 'handoff_to_nurse' || t.name === 'log_checkin');
+                                  decisionHint.action === 'CLOSE' ||
+                                  aiResponse.toolCalls?.some((t: any) => 
+                                    t.name === 'handoff_to_nurse' || 
+                                    t.name === 'raise_flag' || 
+                                    t.name === 'log_checkin'
+                                  );
     
     if (shouldEndInteraction && activeInteractionId) {
       console.log('📝 [Interaction] Generating summary - interaction ending');
@@ -393,8 +399,15 @@ export async function POST(request: NextRequest) {
         supabase
       );
       
+      // Determine final status based on action type
+      let finalStatus: 'COMPLETED' | 'ESCALATED' = 'COMPLETED';
+      if (decisionHint.action === 'FLAG') {
+        finalStatus = 'ESCALATED'; // Any escalation (handoff or raise_flag)
+      } else if (decisionHint.action === 'CLOSE') {
+        finalStatus = 'COMPLETED'; // Patient doing well
+      }
+      
       // Update interaction with summary and status
-      const finalStatus = decisionHint.action === 'FLAG' ? 'ESCALATED' : 'COMPLETED';
       await supabase
         .from('AgentInteraction')
         .update({
@@ -405,7 +418,7 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', activeInteractionId);
       
-      console.log(`✅ [Interaction] Marked as ${finalStatus} with summary`);
+      console.log(`✅ [Interaction] Marked as ${finalStatus} with summary: "${summary.substring(0, 50)}..."`);
     }
 
     return NextResponse.json({
