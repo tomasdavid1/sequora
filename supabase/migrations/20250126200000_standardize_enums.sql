@@ -32,31 +32,13 @@ EXCEPTION
 END $$;
 
 -- ============================================================================
--- STEP 2: Update Data to Match Enum Casing (lowercase → UPPERCASE)
--- ============================================================================
-
--- Fix ProtocolContentPack severity (critical → CRITICAL, etc.)
-UPDATE "ProtocolContentPack"
-SET severity = UPPER(severity)
-WHERE severity IN ('critical', 'high', 'moderate', 'low', 'none');
-
--- Fix any lowercase severity in EscalationTask
-UPDATE "EscalationTask"
-SET severity = UPPER(severity)
-WHERE severity IN ('critical', 'high', 'moderate', 'low', 'none');
-
--- Fix any lowercase severity in RedFlagRule
-UPDATE "RedFlagRule"
-SET severity = UPPER(severity)
-WHERE severity IN ('critical', 'high', 'moderate', 'low', 'none');
-
--- ============================================================================
--- STEP 3: Drop Existing Check Constraints Before Enum Conversion
+-- STEP 2: Drop Existing Check Constraints FIRST (before updating data!)
 -- ============================================================================
 
 -- Drop check constraint on ProtocolContentPack.severity (if exists)
 DO $$ BEGIN
   ALTER TABLE "ProtocolContentPack" DROP CONSTRAINT IF EXISTS "ProtocolContentPack_severity_check";
+  RAISE NOTICE 'Dropped ProtocolContentPack_severity_check constraint';
 EXCEPTION
   WHEN OTHERS THEN 
     RAISE NOTICE 'Could not drop ProtocolContentPack_severity_check constraint: %', SQLERRM;
@@ -65,15 +47,41 @@ END $$;
 -- Drop any other severity-related check constraints
 DO $$ BEGIN
   ALTER TABLE "RedFlagRule" DROP CONSTRAINT IF EXISTS "RedFlagRule_severity_check";
+  RAISE NOTICE 'Dropped RedFlagRule_severity_check constraint';
 EXCEPTION
   WHEN OTHERS THEN null;
 END $$;
 
 DO $$ BEGIN
   ALTER TABLE "EscalationTask" DROP CONSTRAINT IF EXISTS "EscalationTask_severity_check";
+  RAISE NOTICE 'Dropped EscalationTask_severity_check constraint';
 EXCEPTION
   WHEN OTHERS THEN null;
 END $$;
+
+-- ============================================================================
+-- STEP 3: Update Data to Match Enum Casing (lowercase → UPPERCASE)
+-- ============================================================================
+-- Now safe to update because check constraints are removed
+-- Note: Column is still TEXT at this point, so we check against TEXT values
+
+-- Fix ProtocolContentPack severity (critical → CRITICAL, etc.)
+UPDATE "ProtocolContentPack"
+SET severity = UPPER(severity::TEXT)
+WHERE severity IS NOT NULL 
+  AND severity != UPPER(severity::TEXT);
+
+-- Fix any lowercase severity in EscalationTask
+UPDATE "EscalationTask"
+SET severity = UPPER(severity::TEXT)
+WHERE severity IS NOT NULL 
+  AND severity != UPPER(severity::TEXT);
+
+-- Fix any lowercase severity in RedFlagRule
+UPDATE "RedFlagRule"
+SET severity = UPPER(severity::TEXT)
+WHERE severity IS NOT NULL 
+  AND severity != UPPER(severity::TEXT);
 
 -- ============================================================================
 -- STEP 4: Convert TEXT Columns to Enums
