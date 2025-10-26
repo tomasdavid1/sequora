@@ -852,6 +852,12 @@ async function generateAIResponseWithTools(
     
     
     
+    // Build context from database-driven system prompt
+    const basePrompt = protocolConfig.system_prompt || 
+      `You are a post-discharge nurse assistant for a ${protocolAssignment.condition_code} patient with ${(protocolAssignment.Episode as any)?.Patient?.education_level || 'MEDIUM'} education level.`;
+    
+    const fullContext = `${basePrompt} ${conversationContext} Use the decision hint to guide your response and call appropriate tools.`;
+    
     const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -862,7 +868,7 @@ async function generateAIResponseWithTools(
             educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level || 'MEDIUM',
             patientResponses: parsedResponse.rawInput,
             decisionHint: decisionHint,
-            context: `You are a post-discharge nurse assistant for a ${protocolAssignment.condition_code} patient with ${(protocolAssignment.Episode as any)?.Patient?.education_level || 'MEDIUM'} education level. ${conversationContext} Use the decision hint to guide your response and call appropriate tools.`,
+            context: fullContext,
             responseType: 'patient_response_with_tools',
             isFirstMessageInCurrentChat: isFirstMessageInCurrentChat,
             hasBeenContactedBefore: hasBeenContactedBefore
