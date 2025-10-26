@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { EscalationRepository } from '@/lib/toc/repositories/escalation';
+import { SeverityType, TaskPriorityType, TaskStatusType } from '@/lib/enums';
 
 // GET /api/toc/tasks - Get escalation tasks
 export async function GET(request: Request) {
@@ -51,9 +52,9 @@ export async function POST(request: Request) {
     const task = await EscalationRepository.create({
       episode_id,
       reason_codes,
-      severity: severity as any,
-      priority: (priority || 'NORMAL') as any,
-      status: 'OPEN' as any,
+      severity: severity as SeverityType,
+      priority: (priority || 'NORMAL') as TaskPriorityType,
+      status: 'OPEN' as TaskStatusType,
       sla_due_at: slaDueAt.toISOString(),
       agent_interaction_id: null,
       assigned_to_user_id: null,

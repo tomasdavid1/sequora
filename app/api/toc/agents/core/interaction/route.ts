@@ -91,8 +91,8 @@ export async function POST(request: NextRequest) {
       episodeId, 
       patientInput, 
       condition, 
-      interactionType = 'TEXT', // TEXT, VOICE, or APP
-      interactionId = null // Existing interaction to continue
+      interactionType = 'TEXT', 
+      interactionId = null 
     } = await request.json();
 
     if (!patientId || !episodeId || !patientInput) {
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
     // 3. Load protocol configuration (AI decision parameters)
     const protocolConfig = await getProtocolConfig(
       protocolAssignment.condition_code,
-      protocolAssignment.risk_level || 'MEDIUM',
+      protocolAssignment.risk_level as RiskLevelType,
       supabase
     );
     
@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
       // Get active protocol rules for snapshot
       const protocolRules = await getProtocolRules(
         protocolAssignment.condition_code,
-        protocolAssignment.risk_level || 'MEDIUM',
+        protocolAssignment.risk_level as RiskLevelType,
         supabase
       );
       
@@ -411,7 +411,7 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
     .insert({
       episode_id: episodeId,
       condition_code: episode.condition_code,
-      risk_level: episode.risk_level || 'MEDIUM',
+      risk_level: episode.risk_level,
       is_active: true
     })
     .select(`
@@ -468,7 +468,7 @@ async function getProtocolConfig(conditionCode: ConditionCode, riskLevel: RiskLe
 }
 
 // Query protocol rules from ProtocolContentPack based on condition and risk level
-async function getProtocolRules(conditionCode: string, riskLevel: string, supabase: SupabaseAdmin) {
+async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLevelType, supabase: SupabaseAdmin) {
   // Use the centralized severity filter from enums
   const severityFilter = getSeverityFilterForRiskLevel(riskLevel as RiskLevelType);
 
@@ -476,9 +476,9 @@ async function getProtocolRules(conditionCode: string, riskLevel: string, supaba
   const { data: redFlagData, error: redFlagError } = await supabase
     .from('ProtocolContentPack')
     .select('rule_code, text_patterns, action_type, severity, message')
-    .eq('condition_code', conditionCode as any)
+    .eq('condition_code', conditionCode)
     .eq('rule_type', 'RED_FLAG')
-    .in('severity', severityFilter as any)
+    .in('severity', severityFilter)
     .eq('active', true);
 
   if (redFlagError) {
@@ -594,7 +594,7 @@ async function parsePatientInputWithProtocol(
   return {
     ...result.parsed,
     rawInput: input,
-    confidence: result.parsed.confidence || 0.85
+    confidence: result.parsed.confidence
   };
 }
 
@@ -935,9 +935,9 @@ async function handleRaiseFlag(parameters: Record<string, unknown>, patientId: s
       episode_id: episodeId,
       agent_interaction_id: interactionId || null,
       reason_codes: [flagTypeStr],
-      severity: severityStr.toUpperCase() as any,
-      priority: getPriorityFromSeverity(severityStr.toUpperCase() as SeverityType) as any,
-      status: 'OPEN' as any,
+      severity: severityStr.toUpperCase() as SeverityType,
+      priority: getPriorityFromSeverity(severityStr.toUpperCase() as SeverityType),
+      status: 'OPEN',
       sla_due_at: new Date(Date.now() + getSLAMinutesFromSeverity(severityStr.toUpperCase() as SeverityType) * 60 * 1000).toISOString(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()

@@ -292,9 +292,9 @@ async function createEscalationTask(
       episode_id: episode.id,
       source_attempt_id: sessionId,
       reason_codes: [String(analysis.redFlagCode)],
-      severity: analysis.severity as any,
-      priority: getPriorityFromSeverity(analysis.severity as SeverityType) as any,
-      status: 'OPEN' as any,
+      severity: analysis.severity as SeverityType,
+      priority: getPriorityFromSeverity(analysis.severity as SeverityType),
+      status: 'OPEN',
       sla_due_at: getSLADueTime(analysis.severity as SeverityType),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
