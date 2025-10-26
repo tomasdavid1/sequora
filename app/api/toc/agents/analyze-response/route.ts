@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
           Episode!inner (
             id,
             condition_code,
+            risk_level,
             Patient!inner (
               id,
               first_name,
@@ -59,6 +60,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Outreach attempt not found' },
         { status: 404 }
+      );
+    }
+
+    // Get protocol config for this episode's condition + risk level
+    const episode = (attempt as any).OutreachPlan?.Episode;
+    const { data: protocolConfig, error: configError } = await supabase
+      .from('ProtocolConfig')
+      .select('*')
+      .eq('condition_code', episode.condition_code)
+      .eq('risk_level', episode.risk_level || 'MEDIUM')
+      .single();
+
+    if (configError || !protocolConfig) {
+      console.error('❌ [Analysis] Failed to fetch protocol config:', configError);
+      return NextResponse.json(
+        { error: `No protocol configuration found for ${episode.condition_code} ${episode.risk_level || 'MEDIUM'} risk` },
+        { status: 500 }
       );
     }
 
@@ -119,12 +137,13 @@ ${getConditionFullName(condition)} Red Flags:
 ${redFlagRules.map(rule => `- ${rule.description} (Severity: ${rule.severity})`).join('\n')}
 `;
 
-    // Analyze responses using LLM
+    // Analyze responses using LLM with database-driven prompt
     const analysisResult = await analyzeResponsesWithLLM(
       responses, 
       condition, 
       redFlagRules,
-      conditionContext // Pass dynamic context from DB
+      conditionContext,
+      protocolConfig // Pass protocol config for system prompt
     );
 
     // Save outreach responses
@@ -234,17 +253,21 @@ async function analyzeResponsesWithLLM(
   responses:  unknown[], 
   condition: string, 
   redFlagRules:  unknown[],
-  conditionContext: string
+  conditionContext: string,
+  protocolConfig: any
 ): Promise<{
   severity: SeverityType;
   redFlagCode: string;
   reasoning: string;
 }> {
   
+  // Use database-driven system prompt for analysis (risk-level specific)
+  const systemPrompt = protocolConfig.system_prompt || 
+    `You are a medical AI assistant analyzing patient responses for ${condition} (${getConditionFullName(condition)}) in a Transition of Care program. Your job is to identify potential red flags that require nurse escalation.`;
+  
   // Prepare context for LLM
   const context = `
-You are a medical AI assistant analyzing patient responses for ${condition} (${getConditionFullName(condition)}) 
-in a Transition of Care program. Your job is to identify potential red flags that require nurse escalation.
+${systemPrompt}
 
 CONDITION CONTEXT:
 ${conditionContext}
@@ -281,7 +304,7 @@ Respond in JSON format:
       messages: [
         {
           role: "system",
-          content: "You are a medical AI assistant specializing in Transition of Care analysis. Always respond with valid JSON."
+          content: "You are a medical AI assistant specializing in Transition of Care analysis. Analyze patient questionnaire responses to identify red flags. Always respond with valid JSON."
         },
         {
           role: "user",
