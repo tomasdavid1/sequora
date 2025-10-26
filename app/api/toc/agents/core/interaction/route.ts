@@ -869,26 +869,35 @@ async function generateAIResponseWithTools(
         })
       });
 
+    if (!response.ok) {
+      console.error('❌ [AI Generation] AI API returned error status:', response.status);
+      throw new Error(`AI response generation failed: HTTP ${response.status}. Please try again.`);
+    }
+
     const result = await response.json();
     
     console.log(`🤖 [AI Generation] Response received. Success: ${result.success}`);
     console.log(`🤖 [AI Generation] Tool calls:`, result.toolCalls || []);
     
-    if (result.success) {
-      return {
-        response: result.response,
-        toolCalls: result.toolCalls || []
-      };
+    if (!result.success) {
+      console.error('❌ [AI Generation] AI returned unsuccessful response:', result);
+      throw new Error(`AI response generation failed: ${result.error || 'Unknown error'}`);
     }
-  } catch (error) {
-    console.error('Error generating AI response with tools:', error);
-  }
 
-  // Fallback response
-  return {
-    response: generateFallbackResponse(decisionHint, protocolAssignment),
-    toolCalls: []
-  };
+    if (!result.response) {
+      console.error('❌ [AI Generation] AI returned success but no response text');
+      throw new Error('AI response generation failed: No response text returned');
+    }
+
+    return {
+      response: result.response,
+      toolCalls: result.toolCalls || []
+    };
+
+  } catch (error) {
+    console.error('❌ [AI Generation] Error generating AI response with tools:', error);
+    throw new Error(`Failed to generate AI response: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
 // Handle tool calls from AI response
@@ -1018,23 +1027,6 @@ async function handleHandoffToNurse(parameters: Record<string, unknown>, patient
 
   console.log('✅ [Handoff] Escalation task created:', task.id);
   return { success: true, taskId: task.id };
-}
-
-// Generate fallback response
-function generateFallbackResponse(decisionHint: DecisionHint, protocolAssignment: ProtocolAssignment) {
-  if (decisionHint.action === 'FLAG') {
-    return `I understand your concern. Based on what you've shared, I'm connecting you with a nurse who will call you within the next few hours to discuss your symptoms and provide guidance. Please don't hesitate to call 911 if you feel you need immediate medical attention.`;
-  }
-  
-  if (decisionHint.action === 'ASK_MORE') {
-    return `I'd like to ask you a few more questions to better understand how you're doing. ${decisionHint.questions?.join(' ') || ''}`;
-  }
-  
-  if (decisionHint.action === 'CLOSE') {
-    return `Thank you for checking in! It sounds like you're doing well with your ${protocolAssignment.condition_code} management. Remember to take your medications as prescribed and call your doctor if you have any concerns. Take care!`;
-  }
-  
-  return `Thank you for checking in. How are you feeling today?`;
 }
 
 // Parse AI response to extract structured data
