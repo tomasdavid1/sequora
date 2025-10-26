@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   AgentInteraction, 
@@ -766,8 +765,8 @@ export default function AITesterPage() {
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      <Sheet>
-                        <SheetTrigger asChild>
+                      <Dialog>
+                        <DialogTrigger asChild>
                           <Button 
                             variant="outline" 
                             size="sm"
@@ -777,18 +776,18 @@ export default function AITesterPage() {
                             <FileText className="w-4 h-4 mr-2" />
                             Profile
                           </Button>
-                        </SheetTrigger>
-                        <SheetContent side="right" className="w-[500px] overflow-y-auto">
-                          <SheetHeader>
-                            <SheetTitle>Protocol Profile</SheetTitle>
-                          </SheetHeader>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                          <DialogHeader>
+                            <DialogTitle>Protocol Profile</DialogTitle>
+                          </DialogHeader>
                           
                           {loadingProfile ? (
                             <div className="flex items-center justify-center py-8">
                               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
                             </div>
                           ) : protocolProfile ? (
-                            <div className="space-y-6 mt-6">
+                            <div className="space-y-6">
                               {/* Patient Info */}
                               <div>
                                 <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
@@ -883,8 +882,8 @@ export default function AITesterPage() {
                               <p>Click "Profile" to load protocol information</p>
                             </div>
                           )}
-                        </SheetContent>
-                      </Sheet>
+                        </DialogContent>
+                      </Dialog>
                       
                       <Button 
                         variant={showMetadata ? "default" : "outline"} 
