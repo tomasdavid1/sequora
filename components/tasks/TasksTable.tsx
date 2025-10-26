@@ -7,6 +7,7 @@ import { DataTable, Column } from '@/components/ui/data-table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
 import { Phone, MessageSquare, FileText, CheckCircle } from 'lucide-react';
 
 interface TasksTableProps {
@@ -24,6 +25,7 @@ export function TasksTable({
   onPatientClick,
   onConversationClick
 }: TasksTableProps) {
+  const { toast } = useToast();
   const [showResolveModal, setShowResolveModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [resolutionNotes, setResolutionNotes] = useState('');
@@ -44,10 +46,28 @@ export function TasksTable({
         setShowResolveModal(false);
         setResolutionNotes('');
         setSelectedTask(null);
+        
+        toast({
+          title: "Task Resolved",
+          description: "Patient contact documented successfully",
+        });
+        
         onTaskResolved?.();
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: "Failed to resolve task",
+          description: errorData.error || "Please try again",
+          variant: "destructive"
+        });
       }
     } catch (error) {
       console.error('Error resolving task:', error);
+      toast({
+        title: "Error",
+        description: "Failed to resolve task - please try again",
+        variant: "destructive"
+      });
     }
   };
 
