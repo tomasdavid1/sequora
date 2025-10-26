@@ -41,6 +41,17 @@ interface DecisionHint {
   questions?: string[];
 }
 
+// Extended type for ProtocolAssignment with nested relationships
+type ProtocolAssignmentWithRelations = ProtocolAssignment & {
+  Episode?: {
+    condition_code: string;
+    risk_level: string | null;
+    Patient?: {
+      education_level: string | null;
+    };
+  };
+};
+
 interface AIResponse {
   response: string;
   toolCalls?: ToolCall[];
@@ -465,7 +476,7 @@ async function getProtocolRules(conditionCode: string, riskLevel: string, supaba
 // Parse patient input with protocol context
 async function parsePatientInputWithProtocol(
   input: string, 
-  protocolAssignment: ProtocolAssignment,
+  protocolAssignment: ProtocolAssignmentWithRelations,
   conversationHistory: Array<{role: string, content: string}> = []
 ) {
   try {
@@ -480,7 +491,7 @@ async function parsePatientInputWithProtocol(
         operation: 'parse_patient_input',
         input: {
           condition: protocolAssignment.condition_code,
-          educationLevel: protocolAssignment.education_level,
+          educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level || 'medium',
           patientInput: input,
           conversationHistory: conversationHistory,
           requestStructuredOutput: true
@@ -683,7 +694,7 @@ function evaluateRuleCondition(condition: Record<string, unknown>, parsedRespons
 // Generate AI response with tool calling
 async function generateAIResponseWithTools(
   parsedResponse: ParsedResponse, 
-  protocolAssignment: ProtocolAssignment, 
+  protocolAssignment: ProtocolAssignmentWithRelations, 
   decisionHint: DecisionHint,
   patientId: string,
   episodeId: string,
@@ -705,11 +716,7 @@ async function generateAIResponseWithTools(
       conversationContext = `You are continuing an ONGOING conversation with this patient in their current check-in. Continue naturally from the previous messages.`;
     }
     
-    // Call OpenAI with tool calling enabled
-    console.log(`🤖 [AI Generation] Calling OpenAI with tools for ${protocolAssignment.condition_code} patient`);
-    console.log(`🤖 [AI Generation] First message in chat: ${isFirstMessageInCurrentChat}`);
-    console.log(`🤖 [AI Generation] Patient contacted before: ${hasBeenContactedBefore}`);
-    console.log(`🤖 [AI Generation] Decision hint:`, decisionHint);
+    
     
     const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
         method: 'POST',
@@ -718,10 +725,10 @@ async function generateAIResponseWithTools(
           operation: 'generate_response_with_tools',
           input: {
             condition: protocolAssignment.condition_code,
-            educationLevel: protocolAssignment.education_level,
+            educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level || 'medium',
             patientResponses: parsedResponse.rawInput,
             decisionHint: decisionHint,
-            context: `You are a post-discharge nurse assistant for a ${protocolAssignment.condition_code} patient with ${protocolAssignment.education_level} education level. ${conversationContext} Use the decision hint to guide your response and call appropriate tools.`,
+            context: `You are a post-discharge nurse assistant for a ${protocolAssignment.condition_code} patient with ${(protocolAssignment.Episode as any)?.Patient?.education_level || 'medium'} education level. ${conversationContext} Use the decision hint to guide your response and call appropriate tools.`,
             responseType: 'patient_response_with_tools',
             isFirstMessageInCurrentChat: isFirstMessageInCurrentChat,
             hasBeenContactedBefore: hasBeenContactedBefore

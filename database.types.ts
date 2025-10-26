@@ -674,7 +674,6 @@ export type Database = {
           discharge_spo2: number | null
           discharge_systolic_bp: number | null
           discharge_weight_kg: number | null
-          education_level: string | null
           ejection_fraction_pct: number | null
           elixhauser_score: number | null
           facility_id: string | null
@@ -702,7 +701,6 @@ export type Database = {
           discharge_spo2?: number | null
           discharge_systolic_bp?: number | null
           discharge_weight_kg?: number | null
-          education_level?: string | null
           ejection_fraction_pct?: number | null
           elixhauser_score?: number | null
           facility_id?: string | null
@@ -730,7 +728,6 @@ export type Database = {
           discharge_spo2?: number | null
           discharge_systolic_bp?: number | null
           discharge_weight_kg?: number | null
-          education_level?: string | null
           ejection_fraction_pct?: number | null
           elixhauser_score?: number | null
           facility_id?: string | null
@@ -1260,6 +1257,7 @@ export type Database = {
           city: string | null
           created_at: string | null
           date_of_birth: string
+          education_level: string | null
           email: string | null
           first_name: string
           id: string
@@ -1287,6 +1285,7 @@ export type Database = {
           city?: string | null
           created_at?: string | null
           date_of_birth: string
+          education_level?: string | null
           email?: string | null
           first_name: string
           id?: string
@@ -1314,6 +1313,7 @@ export type Database = {
           city?: string | null
           created_at?: string | null
           date_of_birth?: string
+          education_level?: string | null
           email?: string | null
           first_name?: string
           id?: string
@@ -1394,7 +1394,6 @@ export type Database = {
           assigned_by_user_id: string | null
           condition_code: Database["public"]["Enums"]["condition_code"]
           created_at: string | null
-          education_level: string
           episode_id: string
           id: string
           is_active: boolean | null
@@ -1406,7 +1405,6 @@ export type Database = {
           assigned_by_user_id?: string | null
           condition_code: Database["public"]["Enums"]["condition_code"]
           created_at?: string | null
-          education_level: string
           episode_id: string
           id?: string
           is_active?: boolean | null
@@ -1418,7 +1416,6 @@ export type Database = {
           assigned_by_user_id?: string | null
           condition_code?: Database["public"]["Enums"]["condition_code"]
           created_at?: string | null
-          education_level?: string
           episode_id?: string
           id?: string
           is_active?: boolean | null

@@ -602,7 +602,7 @@ export default function AITesterPage() {
         patientId: interaction.patient.id,
         episodeId: interaction.episode.id,
         condition: interaction.episode.condition_code,
-        educationLevel: interaction.episode.education_level || 'medium'
+        educationLevel: interaction.patient.education_level || 'medium'
       });
     }
   };
@@ -724,7 +724,7 @@ export default function AITesterPage() {
                         )}
                         </div>
                         <div className="text-xs text-gray-600">
-                          {interaction.episode?.condition_code} • {interaction.episode?.education_level}
+                          {interaction.episode?.condition_code} • {interaction.patient?.education_level || 'medium'}
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
                           {new Date(interaction.started_at || interaction.created_at || Date.now()).toLocaleDateString()}
@@ -1110,7 +1110,7 @@ export default function AITesterPage() {
                       <SelectContent>
                         {episodes.map((episode) => (
                           <SelectItem key={episode.id} value={episode.id}>
-                            {episode.condition_code} • {episode.education_level}
+                            {episode.condition_code} • {episode.risk_level || 'MEDIUM'} risk
                           </SelectItem>
                         ))}
                       </SelectContent>
