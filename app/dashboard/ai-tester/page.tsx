@@ -1231,20 +1231,24 @@ export default function AITesterPage() {
                 <div className="space-y-6">
                   {/* System Prompt */}
                   <div>
-                    <Label className="text-base font-semibold mb-2 block">AI System Prompt</Label>
+                    <Label className="text-base font-semibold mb-3 block flex items-center gap-2">
+                      <Brain className="w-5 h-5" />
+                      AI System Prompt
+                    </Label>
                     <Textarea
                       value={editingConfig.system_prompt ?? protocolProfile.protocolConfig.system_prompt}
                       onChange={(e) => setEditingConfig({ ...editingConfig, system_prompt: e.target.value })}
-                      rows={5}
+                      rows={6}
                       className="font-mono text-sm"
+                      placeholder="Enter AI personality and behavior..."
                     />
-                    <p className="text-xs text-gray-500 mt-1">How AI interacts with this patient</p>
+                    <p className="text-xs text-gray-500 mt-1">Defines how AI interacts with patients of this condition and risk level</p>
                   </div>
 
-                  {/* Quick Threshold Tweaks */}
+                  {/* Decision Thresholds */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label>Critical Threshold</Label>
+                      <Label>Critical Confidence Threshold</Label>
                       <Input
                         type="number"
                         step="0.05"
@@ -1256,9 +1260,10 @@ export default function AITesterPage() {
                           critical_confidence_threshold: parseFloat(e.target.value)
                         })}
                       />
+                      <p className="text-xs text-gray-500 mt-1">AI escalates if confidence {'>'} this</p>
                     </div>
                     <div>
-                      <Label>Low Threshold</Label>
+                      <Label>Low Confidence Threshold</Label>
                       <Input
                         type="number"
                         step="0.05"
@@ -1270,7 +1275,77 @@ export default function AITesterPage() {
                           low_confidence_threshold: parseFloat(e.target.value)
                         })}
                       />
+                      <p className="text-xs text-gray-500 mt-1">AI asks more if confidence {'<'} this</p>
                     </div>
+                  </div>
+
+                  {/* Vague Symptoms */}
+                  <div>
+                    <Label>Vague Symptoms (comma-separated)</Label>
+                    <Input
+                      value={
+                        editingConfig.vague_symptoms 
+                          ? editingConfig.vague_symptoms.join(', ')
+                          : protocolProfile.protocolConfig.vague_symptoms?.join(', ') || ''
+                      }
+                      onChange={(e) => setEditingConfig({
+                        ...editingConfig,
+                        vague_symptoms: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                      })}
+                      placeholder="discomfort, off, tired, weird..."
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Words that trigger clarifying questions</p>
+                  </div>
+
+                  {/* Sentiment Boost */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Enable Sentiment Boost</Label>
+                        <p className="text-xs text-gray-500">Upgrade severity when patient is distressed</p>
+                      </div>
+                      <Switch
+                        checked={editingConfig.enable_sentiment_boost ?? protocolProfile.protocolConfig.enable_sentiment_boost}
+                        onCheckedChange={(checked) => setEditingConfig({
+                          ...editingConfig,
+                          enable_sentiment_boost: checked
+                        })}
+                      />
+                    </div>
+                    
+                    {(editingConfig.enable_sentiment_boost ?? protocolProfile.protocolConfig.enable_sentiment_boost) && (
+                      <div>
+                        <Label>Distressed Severity Upgrade</Label>
+                        <Select
+                          value={editingConfig.distressed_severity_upgrade ?? protocolProfile.protocolConfig.distressed_severity_upgrade}
+                          onValueChange={(value) => setEditingConfig({
+                            ...editingConfig,
+                            distressed_severity_upgrade: value
+                          })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="CRITICAL">CRITICAL</SelectItem>
+                            <SelectItem value="HIGH">HIGH</SelectItem>
+                            <SelectItem value="MODERATE">MODERATE</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-gray-500 mt-1">Severity when patient is distressed</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Notes */}
+                  <div>
+                    <Label>Internal Notes</Label>
+                    <Textarea
+                      value={editingConfig.notes ?? protocolProfile.protocolConfig.notes ?? ''}
+                      onChange={(e) => setEditingConfig({ ...editingConfig, notes: e.target.value })}
+                      rows={3}
+                      placeholder="Internal notes about this configuration..."
+                    />
                   </div>
 
                   {/* Actions */}
