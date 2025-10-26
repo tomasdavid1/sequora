@@ -4,6 +4,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { OutreachResponse, RedFlagRule, ConditionCode } from '@/types';
 import OpenAI from 'openai';
+import { 
+  SeverityType,
+  VALID_SEVERITIES,
+  getPriorityFromSeverity,
+  getSLAMinutesFromSeverity
+} from '@/lib/enums';
 
 const openai = new OpenAI({
   apiKey: process.env.OPEN_API_KEY || process.env.OPENAI_API_KEY,
@@ -222,7 +228,7 @@ async function analyzeResponsesWithLLM(
   condition: string, 
   redFlagRules:  unknown[]
 ): Promise<{
-  severity: 'NONE' | 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
+  severity: SeverityType;
   redFlagCode: string;
   reasoning: string;
 }> {
@@ -309,10 +315,9 @@ Respond in JSON format:
     }
 
     // Validate severity is valid
-    const validSeverities = ['NONE', 'LOW', 'MODERATE', 'HIGH', 'CRITICAL'];
-    if (!validSeverities.includes(analysis.severity)) {
+    if (!VALID_SEVERITIES.includes(analysis.severity)) {
       console.error('❌ [Analysis] AI returned invalid severity:', analysis.severity);
-      throw new Error(`AI analysis failed: Invalid severity "${analysis.severity}". Must be one of: ${validSeverities.join(', ')}`);
+      throw new Error(`AI analysis failed: Invalid severity "${analysis.severity}". Must be one of: ${VALID_SEVERITIES.join(', ')}`);
     }
 
     return {
@@ -388,28 +393,8 @@ Pneumonia Recovery Red Flags:
   }
 }
 
-function getPriorityFromSeverity(severity: string): 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' {
-  switch (severity) {
-    case 'CRITICAL': return 'URGENT';
-    case 'HIGH': return 'HIGH';
-    case 'MODERATE': return 'NORMAL';
-    case 'LOW': return 'LOW';
-    default: return 'NORMAL';
-  }
-}
-
-function getSLADueTime(severity: string): string {
+function getSLADueTime(severity: SeverityType): string {
   const now = new Date();
-  switch (severity) {
-    case 'CRITICAL': 
-      return new Date(now.getTime() + 30 * 60 * 1000).toISOString(); // 30 minutes
-    case 'HIGH': 
-      return new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString(); // 2 hours
-    case 'MODERATE': 
-      return new Date(now.getTime() + 4 * 60 * 60 * 1000).toISOString(); // 4 hours
-    case 'LOW': 
-      return new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
-    default: 
-      return new Date(now.getTime() + 4 * 60 * 60 * 1000).toISOString(); // 4 hours
-  }
+  const minutes = getSLAMinutesFromSeverity(severity);
+  return new Date(now.getTime() + minutes * 60 * 1000).toISOString();
 }
