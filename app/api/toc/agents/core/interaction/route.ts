@@ -209,6 +209,7 @@ export async function POST(request: NextRequest) {
         decisionHint,
         patientId,
         episodeId,
+        protocolConfig,
         isFirstMessageInCurrentChat,
         hasBeenContactedBefore
       );
@@ -832,6 +833,7 @@ async function generateAIResponseWithTools(
   decisionHint: DecisionHint,
   patientId: string,
   episodeId: string,
+  protocolConfig: any,
   isFirstMessageInCurrentChat: boolean = false,
   hasBeenContactedBefore: boolean = false
 ) {

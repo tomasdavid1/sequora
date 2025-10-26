@@ -1467,6 +1467,7 @@ export type Database = {
           risk_level: Database["public"]["Enums"]["risk_level"]
           route_general_questions_to_info: boolean
           route_medication_questions_to_info: boolean
+          system_prompt: string | null
           updated_at: string
           vague_symptoms: string[]
         }
@@ -1484,6 +1485,7 @@ export type Database = {
           risk_level: Database["public"]["Enums"]["risk_level"]
           route_general_questions_to_info?: boolean
           route_medication_questions_to_info?: boolean
+          system_prompt?: string | null
           updated_at?: string
           vague_symptoms?: string[]
         }
@@ -1501,6 +1503,7 @@ export type Database = {
           risk_level?: Database["public"]["Enums"]["risk_level"]
           route_general_questions_to_info?: boolean
           route_medication_questions_to_info?: boolean
+          system_prompt?: string | null
           updated_at?: string
           vague_symptoms?: string[]
         }
