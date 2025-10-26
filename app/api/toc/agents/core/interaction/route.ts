@@ -845,7 +845,7 @@ async function generateAIResponseWithTools(
           operation: 'generate_response_with_tools',
           input: {
             condition: protocolAssignment.condition_code,
-            educationLevel: (protocolAssignment.Episode as Episode)?.Patient?.education_level,
+            educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level,
             patientResponses: parsedResponse.rawInput,
             decisionHint: decisionHint,
             context: fullContext,
