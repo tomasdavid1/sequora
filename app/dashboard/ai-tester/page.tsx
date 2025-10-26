@@ -112,6 +112,9 @@ export default function AITesterPage() {
   const [editingRules, setEditingRules] = useState<Record<string, any>>({});
   const [editingEpisode, setEditingEpisode] = useState<any>({});
   const [editingPatient, setEditingPatient] = useState<any>({});
+  const [showPatientSelector, setShowPatientSelector] = useState(false);
+  const [selectedPatientForChat, setSelectedPatientForChat] = useState<any>(null);
+  const [availableEpisodes, setAvailableEpisodes] = useState<any[]>([]);
   const renderCountRef = React.useRef(0);
   
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
@@ -748,24 +751,36 @@ export default function AITesterPage() {
   };
 
   const createNewChat = () => {
+    // Open patient selector instead of immediately creating chat
+    setShowPatientSelector(true);
+  };
+
+  const handlePatientSelected = (patient: any) => {
+    setSelectedPatientForChat(patient);
+    // Fetch episodes for this patient
+    const patientEpisodes = episodes.filter(e => e.patient_id === patient.id);
+    setAvailableEpisodes(patientEpisodes);
+  };
+
+  const handleEpisodeSelected = (episode: any) => {
     setMessages([]);
     setCurrentInput('');
     
-    // Reset to default test configuration
-    const defaultConfig = {
-      patientId: patients.length > 0 ? patients[0].id : '',
-      episodeId: episodes.length > 0 ? episodes[0].id : '',
-      condition: 'HF',
-      educationLevel: 'MEDIUM'
+    // Set test config with selected patient/episode
+    const selectedConfig = {
+      patientId: selectedPatientForChat.id,
+      episodeId: episode.id,
+      condition: episode.condition_code,
+      educationLevel: selectedPatientForChat.education_level || 'MEDIUM'
     };
-    setTestConfig(defaultConfig);
+    setTestConfig(selectedConfig);
     
     // Create optimistic placeholder interaction
     const tempId = `temp-${Date.now()}`;
     const placeholderInteraction = {
       id: tempId,
-      patient_id: defaultConfig.patientId,
-      episode_id: defaultConfig.episodeId,
+      patient_id: selectedConfig.patientId,
+      episode_id: selectedConfig.episodeId,
       agent_config_id: null,
       summary: null,
       outreach_attempt_id: null,
@@ -784,15 +799,20 @@ export default function AITesterPage() {
       protocol_snapshot_at: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      patient: patients.find(p => p.id === defaultConfig.patientId),
-      episode: episodes.find(e => e.id === defaultConfig.episodeId),
+      patient: selectedPatientForChat,
+      episode: episode,
       messages: []
     } as InteractionWithRelations;
     
-    console.log('✨ [AITester] Creating new chat with placeholder:', tempId);
+    console.log('✨ [AITester] Creating new chat with selected patient:', selectedPatientForChat.first_name);
     setCurrentInteractionId(tempId);
     setSelectedInteraction(placeholderInteraction);
     setInteractions(prev => [placeholderInteraction, ...prev]);
+    
+    // Close selector
+    setShowPatientSelector(false);
+    setSelectedPatientForChat(null);
+    setAvailableEpisodes([]);
   };
 
   const loadConversation = (interaction: InteractionWithRelations) => {
@@ -1301,6 +1321,83 @@ export default function AITesterPage() {
               </Card>
             </div>
           </div>
+
+          {/* Patient Selector Modal */}
+          <Dialog open={showPatientSelector} onOpenChange={setShowPatientSelector}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Select Patient for New Chat</DialogTitle>
+              </DialogHeader>
+              
+              <div className="space-y-4">
+                {!selectedPatientForChat ? (
+                  <>
+                    <p className="text-sm text-gray-600">Choose a patient to start a conversation:</p>
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {patients.map((patient: any) => (
+                        <button
+                          key={patient.id}
+                          onClick={() => handlePatientSelected(patient)}
+                          className="w-full p-4 border rounded-lg hover:bg-blue-50 hover:border-blue-300 text-left transition-colors"
+                        >
+                          <div className="font-medium">{patient.first_name} {patient.last_name}</div>
+                          <div className="text-sm text-gray-600 mt-1">
+                            {patient.email} • {patient.education_level}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <div className="font-medium">Selected: {selectedPatientForChat.first_name} {selectedPatientForChat.last_name}</div>
+                      <div className="text-sm text-gray-600">{selectedPatientForChat.education_level} Education Level</div>
+                    </div>
+                    
+                    <div>
+                      <Label className="mb-2 block">Select Episode:</Label>
+                      <div className="space-y-2">
+                        {availableEpisodes.length > 0 ? (
+                          availableEpisodes.map((episode: any) => (
+                            <button
+                              key={episode.id}
+                              onClick={() => handleEpisodeSelected(episode)}
+                              className="w-full p-4 border rounded-lg hover:bg-green-50 hover:border-green-300 text-left transition-colors"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Badge>{episode.condition_code}</Badge>
+                                <Badge variant="outline">{episode.risk_level}</Badge>
+                              </div>
+                              <div className="text-sm text-gray-600 mt-1">
+                                Discharged: {new Date(episode.discharge_at).toLocaleDateString()}
+                              </div>
+                            </button>
+                          ))
+                        ) : (
+                          <Alert>
+                            <AlertDescription>
+                              No episodes found for this patient. Create one first.
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        setSelectedPatientForChat(null);
+                        setAvailableEpisodes([]);
+                      }}
+                    >
+                      ← Back to Patient Selection
+                    </Button>
+                  </>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Patient Config Modal */}
           <Dialog open={showPatientConfigModal} onOpenChange={setShowPatientConfigModal}>
