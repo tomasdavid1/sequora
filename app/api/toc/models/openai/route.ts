@@ -222,6 +222,11 @@ async function handleGenerateResponseWithTools(input: Record<string, unknown>, o
     // Build system prompt with protocol context
     const systemPrompt = `${context}
 
+PATIENT EDUCATION LEVEL: ${educationLevel}
+- LOW: Use very simple words (5th grade level). Short sentences. Avoid medical terms. Lots of reassurance.
+- MEDIUM: Use clear, everyday language. Some medical terms OK if explained. Standard sentences.
+- HIGH: Can use medical terminology. Patients understand more complex explanations. Professional tone.
+
 CRITICAL INSTRUCTIONS:
 - Provide a natural, conversational response to the patient
 - Do NOT include function call syntax in your response text
