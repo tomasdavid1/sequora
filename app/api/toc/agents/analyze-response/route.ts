@@ -1,8 +1,5 @@
-import { SupabaseClient } from '@supabase/supabase-js';
-import { Database } from '@/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { OutreachResponse, RedFlagRule, ConditionCode } from '@/types';
 import OpenAI from 'openai';
 import { 
   SeverityType,
@@ -273,8 +270,12 @@ async function analyzeResponsesWithLLM(
 }> {
   
   // Use database-driven system prompt for analysis (risk-level specific)
-  const systemPrompt = protocolConfig.system_prompt || 
-    `You are a medical AI assistant analyzing patient responses for ${condition} (${conditionFullName}) in a Transition of Care program. Your job is to identify potential red flags that require nurse escalation.`;
+  if (!protocolConfig.system_prompt) {
+    console.error('❌ [Analysis] ProtocolConfig missing system_prompt for:', condition, protocolConfig.risk_level);
+    throw new Error(`ProtocolConfig for ${condition} ${protocolConfig.risk_level} is missing system_prompt. Please configure in admin dashboard.`);
+  }
+  
+  const systemPrompt = protocolConfig.system_prompt;
   
   // Prepare context for LLM
   const context = `

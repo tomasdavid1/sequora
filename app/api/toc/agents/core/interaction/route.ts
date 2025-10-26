@@ -855,10 +855,15 @@ async function generateAIResponseWithTools(
     
     
     // Build context from database-driven system prompt
-    const basePrompt = protocolConfig.system_prompt || 
-      `You are a post-discharge nurse assistant for a ${protocolAssignment.condition_code} patient with ${(protocolAssignment.Episode as any)?.Patient?.education_level || 'MEDIUM'} education level.`;
+    if (!protocolConfig.system_prompt) {
+      console.error('❌ [Interaction] ProtocolConfig missing system_prompt:', {
+        condition: protocolAssignment.condition_code,
+        risk_level: protocolConfig.risk_level
+      });
+      throw new Error(`ProtocolConfig for ${protocolAssignment.condition_code} ${protocolConfig.risk_level} is missing system_prompt. Please configure in admin dashboard.`);
+    }
     
-    const fullContext = `${basePrompt} ${conversationContext} Use the decision hint to guide your response and call appropriate tools.`;
+    const fullContext = `${protocolConfig.system_prompt} ${conversationContext} Use the decision hint to guide your response and call appropriate tools.`;
     
     const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
         method: 'POST',
