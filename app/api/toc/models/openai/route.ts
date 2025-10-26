@@ -55,8 +55,31 @@ async function handleGenerateResponse(input: Record<string, unknown>, options: R
       condition, 
       patientResponses, 
       context, 
-      responseType = 'patient_response' 
+      responseType = 'patient_response',
+      messages // For custom message arrays
     } = input;
+
+    // Handle custom messages array (for summaries, etc.)
+    if (messages && Array.isArray(messages)) {
+      console.log('📝 [OpenAI] Using custom messages array for generation');
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4",
+        messages: messages as any,
+        temperature: (options.temperature as number) ?? 0.7,
+        max_tokens: (options.max_tokens as number) ?? 500
+      });
+
+      const response = completion.choices[0]?.message?.content;
+      if (!response) {
+        throw new Error('No response from OpenAI');
+      }
+
+      return NextResponse.json({
+        success: true,
+        response: response,
+        type: 'custom'
+      });
+    }
 
     let systemPrompt = '';
     let userPrompt = '';
@@ -498,10 +521,11 @@ NORMALIZATION INSTRUCTIONS:
 
 ⚠️ CRITICAL - NUMERIC PATTERNS:
 Some patterns contain numbers (e.g., "gained 3 pounds", "temperature 101"). 
-- If patient mentions a SPECIFIC number → use the numeric pattern that matches
-- If patient is VAGUE (e.g., "some weight", "a bit", "a little") → use the GENERIC pattern WITHOUT numbers
+- If patient mentions a SPECIFIC number → use the numeric pattern that matches EXACTLY
+- If patient is VAGUE (e.g., "some weight", "a bit", "a little", "noticed weight gain") → use the GENERIC pattern WITHOUT numbers (e.g., "gained weight")
 - NEVER invent or assume numbers the patient didn't say!
 - When unsure about amount → choose generic pattern to trigger follow-up question
+- DO NOT match "gained 3 pounds" unless patient actually says a number like "3" or "three"
 
 Multiple patterns can match one input (e.g., "chest pain and can't breathe" → "chest pain, cant breathe")
 

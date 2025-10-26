@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
     // 6. Check if this patient has been contacted before and fetch summaries
     const { data: allInteractions } = await supabase
       .from('AgentInteraction')
-      .select('id, started_at, status') // Note: 'summary' added in migration 20250126260000
+      .select('id, started_at, status, summary') // Include summary for conversation context
       .eq('episode_id', episodeId)
       .order('started_at', { ascending: false })
       .limit(10);
@@ -196,8 +196,9 @@ export async function POST(request: NextRequest) {
     const completedInteractions = (allInteractions || []).filter((i: any) => 
       i.status === 'COMPLETED' || i.status === 'ESCALATED'
     );
-    const previousSummaries = completedInteractions
-      .filter((i: any) => i.summary) // Only interactions with summaries (column may not exist yet)
+    
+    const interactionsWithSummaries = completedInteractions.filter((i: any) => i.summary);
+    const previousSummaries = interactionsWithSummaries
       .map((i: any) => `[${new Date(i.started_at).toLocaleDateString()}] ${i.summary}`)
       .join('\n');
     
@@ -205,9 +206,11 @@ export async function POST(request: NextRequest) {
       episodeId,
       totalInteractions: allInteractions?.length || 0,
       completedInteractions: completedInteractions.length,
+      interactionsWithSummaries: interactionsWithSummaries.length,
       hasBeenContactedBefore,
       isFirstMessageInCurrentChat,
       hasSummaries: previousSummaries.length > 0,
+      previousSummariesPreview: previousSummaries.substring(0, 300) + '...',
       currentInteractionId: interactionId
     });
     
@@ -359,6 +362,12 @@ export async function POST(request: NextRequest) {
 
     // 10. Check if interaction should end and generate summary
     // End when: escalation happens (handoff/raise_flag) OR patient is doing well (log_checkin)
+    console.log('🔍 [Interaction] Checking if should end:', {
+      decisionHintAction: decisionHint.action,
+      toolCalls: aiResponse.toolCalls?.map((t: any) => t.name),
+      activeInteractionId
+    });
+    
     const shouldEndInteraction = decisionHint.action === 'FLAG' || 
                                   decisionHint.action === 'CLOSE' ||
                                   aiResponse.toolCalls?.some((t: any) => 
@@ -367,38 +376,60 @@ export async function POST(request: NextRequest) {
                                     t.name === 'log_checkin'
                                   );
     
+    console.log('🔍 [Interaction] Should end interaction?', shouldEndInteraction);
+    
     if (shouldEndInteraction && activeInteractionId) {
       console.log('📝 [Interaction] Generating summary - interaction ending');
       
-      // Generate AI summary of the conversation
-      const summary = await generateInteractionSummary(
-        activeInteractionId,
-        patientInput,
-        aiResponse.response,
-        decisionHint,
-        supabase
-      );
-      
-      // Determine final status based on action type
-      let finalStatus: 'COMPLETED' | 'ESCALATED' = 'COMPLETED';
-      if (decisionHint.action === 'FLAG') {
-        finalStatus = 'ESCALATED'; // Any escalation (handoff or raise_flag)
-      } else if (decisionHint.action === 'CLOSE') {
-        finalStatus = 'COMPLETED'; // Patient doing well
+      try {
+        // Generate AI summary of the conversation
+        const summary = await generateInteractionSummary(
+          activeInteractionId,
+          patientInput,
+          aiResponse.response,
+          decisionHint,
+          supabase
+        );
+        
+        console.log('📝 [Interaction] Summary generated:', summary);
+        
+        // Determine final status based on action type
+        let finalStatus: 'COMPLETED' | 'ESCALATED' = 'COMPLETED';
+        if (decisionHint.action === 'FLAG') {
+          finalStatus = 'ESCALATED'; // Any escalation (handoff or raise_flag)
+        } else if (decisionHint.action === 'CLOSE') {
+          finalStatus = 'COMPLETED'; // Patient doing well
+        }
+        
+        console.log('📝 [Interaction] Updating interaction to status:', finalStatus);
+        
+        // Update interaction with summary and status
+        const { error: updateError } = await supabase
+          .from('AgentInteraction')
+          .update({
+            status: finalStatus,
+            summary: summary,
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', activeInteractionId);
+        
+        if (updateError) {
+          console.error('❌ [Interaction] Failed to update interaction:', updateError);
+        } else {
+          console.log(`✅ [Interaction] Marked as ${finalStatus} with summary: "${summary.substring(0, 50)}..."`);
+        }
+      } catch (summaryError) {
+        console.error('❌ [Interaction] Error generating/saving summary:', summaryError);
+        // Still try to mark as completed even if summary fails
+        await supabase
+          .from('AgentInteraction')
+          .update({
+            status: decisionHint.action === 'FLAG' ? 'ESCALATED' : 'COMPLETED',
+            summary: `Error generating summary: ${summaryError}`,
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', activeInteractionId);
       }
-      
-      // Update interaction with summary and status
-      await supabase
-        .from('AgentInteraction')
-        .update({
-          status: finalStatus,
-          summary: summary,
-          completed_at: new Date().toISOString(),
-          ended_at: new Date().toISOString()
-        })
-        .eq('id', activeInteractionId);
-      
-      console.log(`✅ [Interaction] Marked as ${finalStatus} with summary: "${summary.substring(0, 50)}..."`);
     }
 
     return NextResponse.json({
@@ -1148,14 +1179,20 @@ async function generateInteractionSummary(
           messages: [
             {
               role: 'system',
-              content: `Summarize this patient interaction in 2-3 concise sentences. Focus on: 1) Key symptoms/concerns mentioned, 2) Outcome/action taken. Be factual and clinical.
+              content: `You are summarizing a patient interaction. Write ONLY a 2-3 sentence clinical summary. DO NOT give advice or instructions.
+
+Format: "Patient reported [symptoms]. [What happened/action taken]."
 
 Conversation:
 ${messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n')}
 
-Outcome: ${decisionHint.action === 'FLAG' ? `Escalated - ${decisionHint.reason}` : decisionHint.action === 'CLOSE' ? 'Patient doing well' : 'Ongoing monitoring'}`
+Outcome: ${decisionHint.action === 'FLAG' ? `Escalated - ${decisionHint.reason}` : decisionHint.action === 'CLOSE' ? 'Patient doing well' : 'Ongoing monitoring'}
+
+Write the summary now (2-3 sentences only):`
             }
-          ],
+          ]
+        },
+        options: {
           temperature: 0.3,
           max_tokens: 150
         }
@@ -1163,6 +1200,7 @@ Outcome: ${decisionHint.action === 'FLAG' ? `Escalated - ${decisionHint.reason}`
     });
 
     const result = await response.json();
+    console.log('📝 [Summary] Raw API response:', result);
     return result.response || `Patient interaction. ${decisionHint.action === 'FLAG' ? 'Escalated.' : 'Completed.'}`;
   } catch (error) {
     console.error('Failed to generate summary:', error);
