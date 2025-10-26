@@ -616,7 +616,7 @@ async function evaluateRulesDSL(
   // Query rules directly from ProtocolContentPack (single source of truth)
   const rulesDSL = await getProtocolRules(
     protocolAssignment.condition_code, 
-    protocolAssignment.risk_level || 'MEDIUM',
+    protocolAssignment.risk_level as RiskLevelType,
     supabase
   );
   

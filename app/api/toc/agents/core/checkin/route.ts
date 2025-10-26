@@ -314,34 +314,24 @@ async function generatePatientResponse(
   analysis: Record<string, unknown>, 
   channel: 'SMS' | 'VOICE' | 'WHATSAPP'
 ): Promise<string> {
+  const severity = analysis.severity as SeverityType;
   
-  if (analysis.severity === 'CRITICAL') {
-    return "Thank you for your responses. A nurse will call you within 30 minutes to discuss your care.";
+  // Generate response dynamically based on severity and SLA times from enums
+  if (severity === 'CRITICAL' || severity === 'HIGH' || severity === 'MODERATE') {
+    const slaMinutes = getSLAMinutesFromSeverity(severity);
+    const timeframe = slaMinutes < 60 
+      ? `${slaMinutes} minutes` 
+      : `${Math.round(slaMinutes / 60)} hours`;
+    
+    const urgencyNote = severity === 'CRITICAL' 
+      ? ' If your symptoms worsen or you feel you need immediate help, please call 911 or go to the emergency room.'
+      : ' If your symptoms worsen, please contact us right away.';
+    
+    return `Thank you for your responses. A nurse will call you within ${timeframe} to discuss your care.${urgencyNote}`;
   }
   
-  if (analysis.severity === 'HIGH') {
-    return "Thank you for your responses. A nurse will call you within 2 hours to follow up on your care.";
-  }
-  
-  if (analysis.severity === 'MODERATE') {
-    return "Thank you for your responses. A nurse will call you within 4 hours to discuss your care.";
-  }
-  
-  // For LOW or NONE severity
-  const responses: Record<string, string> = {
-    HF: "Thank you for your responses. Continue taking your medications as prescribed and monitor your weight daily. Contact us if you have any concerns.",
-    COPD: "Thank you for your responses. Continue using your inhalers as prescribed and avoid triggers. Contact us if you have breathing difficulties.",
-    AMI: "Thank you for your responses. Continue following your heart-healthy diet and taking medications as prescribed. Contact us if you have chest pain.",
-    PNA: "Thank you for your responses. Continue resting and taking your antibiotics as prescribed. Contact us if your symptoms worsen."
-  };
-  
-  const response = responses[condition];
-  if (!response) {
-    console.error(`❌ [Check-in] Unknown condition code: ${condition}`);
-    throw new Error(`Unable to generate patient response: Unknown condition "${condition}". Supported conditions: HF, COPD, AMI, PNA.`);
-  }
-  
-  return response;
+  // For LOW or NONE severity - generic wellness message
+  return "Thank you for your responses. You're doing well! Continue following your care plan and taking your medications as prescribed. Contact us if you have any concerns or if your symptoms change.";
 }
 
 async function determineNextActions(
