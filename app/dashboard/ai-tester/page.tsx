@@ -130,6 +130,42 @@ export default function AITesterPage() {
     messagesLength: messages.length
   });
 
+  // Group interactions based on selected grouping
+  const groupedInteractions = React.useMemo(() => {
+    if (chatGroupBy === 'none') {
+      return { 'All Chats': interactions };
+    }
+
+    const groups: Record<string, typeof interactions> = {};
+
+    interactions.forEach(interaction => {
+      let groupKey = '';
+      
+      switch (chatGroupBy) {
+        case 'condition':
+          groupKey = interaction.episode?.condition_code || 'Unknown';
+          break;
+        case 'patient':
+          groupKey = interaction.patient 
+            ? `${interaction.patient.first_name} ${interaction.patient.last_name}`
+            : 'Unknown Patient';
+          break;
+        case 'risk':
+          groupKey = interaction.episode?.risk_level || 'Unknown';
+          break;
+        default:
+          groupKey = 'All Chats';
+      }
+
+      if (!groups[groupKey]) {
+        groups[groupKey] = [];
+      }
+      groups[groupKey].push(interaction);
+    });
+
+    return groups;
+  }, [interactions, chatGroupBy]);
+
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -850,42 +886,6 @@ export default function AITesterPage() {
     }
   };
 
-  // Group interactions based on selected grouping
-  const groupedInteractions = React.useMemo(() => {
-    if (chatGroupBy === 'none') {
-      return { 'All Chats': interactions };
-    }
-
-    const groups: Record<string, typeof interactions> = {};
-
-    interactions.forEach(interaction => {
-      let groupKey = '';
-      
-      switch (chatGroupBy) {
-        case 'condition':
-          groupKey = interaction.episode?.condition_code || 'Unknown';
-          break;
-        case 'patient':
-          groupKey = interaction.patient 
-            ? `${interaction.patient.first_name} ${interaction.patient.last_name}`
-            : 'Unknown Patient';
-          break;
-        case 'risk':
-          groupKey = interaction.episode?.risk_level || 'Unknown';
-          break;
-        default:
-          groupKey = 'All Chats';
-      }
-
-      if (!groups[groupKey]) {
-        groups[groupKey] = [];
-      }
-      groups[groupKey].push(interaction);
-    });
-
-    return groups;
-  }, [interactions, chatGroupBy]);
-
   const toggleGroup = (groupName: string) => {
     const newExpanded = new Set(expandedGroups);
     if (newExpanded.has(groupName)) {
@@ -1424,29 +1424,41 @@ export default function AITesterPage() {
                   <>
                     <p className="text-sm text-gray-600">Choose a patient to start a conversation:</p>
                     <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {patients.map((patient: any) => (
-                        <button
-                          key={patient.id}
-                          onClick={() => handlePatientSelected(patient)}
-                          className="w-full p-4 border rounded-lg hover:bg-blue-50 hover:border-blue-300 text-left transition-colors"
-                        >
-                          <div className="font-medium">{patient.first_name} {patient.last_name}</div>
-                          <div className="text-sm text-gray-600 mt-1">
-                            {patient.email} • {patient.education_level}
-                          </div>
-                        </button>
-                      ))}
+                      {patients.map((patient: any) => {
+                        // Get patient's episodes to show their conditions
+                        const patientEpisodes = episodes.filter(e => e.patient_id === patient.id);
+                        const conditions = [...new Set(patientEpisodes.map(ep => ep.condition_code))];
+                        const riskLevels = [...new Set(patientEpisodes.map(ep => ep.risk_level))];
+                        
+                        return (
+                          <button
+                            key={patient.id}
+                            onClick={() => handlePatientSelected(patient)}
+                            className="w-full p-4 border rounded-lg hover:bg-blue-50 hover:border-blue-300 text-left transition-colors"
+                          >
+                            <div className="font-medium">{patient.first_name} {patient.last_name}</div>
+                            <div className="text-sm text-gray-600 mt-1">
+                              {patient.email} • {conditions.length > 0 ? (
+                                <span className="font-semibold">{conditions.join(', ')}</span>
+                              ) : 'No episodes'} {riskLevels.length > 0 && `• ${riskLevels.join(', ')} Risk`}
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </>
                 ) : (
                   <>
                     <div className="bg-blue-50 p-4 rounded-lg">
                       <div className="font-medium">Selected: {selectedPatientForChat.first_name} {selectedPatientForChat.last_name}</div>
-                      <div className="text-sm text-gray-600">{selectedPatientForChat.education_level} Education Level</div>
+                      <div className="text-sm text-gray-600">
+                        {availableEpisodes.length} episode{availableEpisodes.length !== 1 ? 's' : ''} available •{' '}
+                        {selectedPatientForChat.education_level} Education Level
+                      </div>
                     </div>
                     
                     <div>
-                      <Label className="mb-2 block">Select Episode:</Label>
+                      <Label className="mb-2 block">Select Episode (Protocol):</Label>
                       <div className="space-y-2">
                         {availableEpisodes.length > 0 ? (
                           availableEpisodes.map((episode: any) => (
@@ -1456,8 +1468,10 @@ export default function AITesterPage() {
                               className="w-full p-4 border rounded-lg hover:bg-green-50 hover:border-green-300 text-left transition-colors"
                             >
                               <div className="flex items-center gap-2">
-                                <Badge>{episode.condition_code}</Badge>
-                                <Badge variant="outline">{episode.risk_level}</Badge>
+                                <Badge className={getConditionColor(episode.condition_code)}>
+                                  {episode.condition_code} Protocol
+                                </Badge>
+                                <Badge variant="outline">{episode.risk_level} Risk</Badge>
                               </div>
                               <div className="text-sm text-gray-600 mt-1">
                                 Discharged: {new Date(episode.discharge_at).toLocaleDateString()}

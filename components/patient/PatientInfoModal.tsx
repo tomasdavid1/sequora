@@ -2,7 +2,8 @@ import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { User, Activity, Calendar, Phone, Mail } from 'lucide-react';
+import { User, Activity, Calendar, Phone, Mail, Pill } from 'lucide-react';
+import { Medication } from '@/types';
 
 interface PatientInfoModalProps {
   open: boolean;
@@ -88,6 +89,36 @@ export function PatientInfoModal({ open, onOpenChange, patient, episode }: Patie
                     </span>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Medications (if provided) */}
+          {episode?.medications && Array.isArray(episode.medications) && episode.medications.length > 0 && (
+            <div>
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <Pill className="w-4 h-4" />
+                Medications
+              </h3>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="space-y-2">
+                  {episode.medications.map((med: Medication, index: number) => (
+                    <div key={index} className="flex items-start gap-2 p-2 bg-white rounded border">
+                      <Pill className="w-4 h-4 text-blue-600 mt-0.5" />
+                      <div className="flex-1">
+                        <div className="font-medium">{med.name}</div>
+                        <div className="text-sm text-gray-600 space-x-2">
+                          {med.dosage && <span>{med.dosage}</span>}
+                          {med.frequency && <span>• {med.frequency}</span>}
+                          {med.timing && <span>• {med.timing}</span>}
+                        </div>
+                        {med.notes && (
+                          <div className="text-xs text-gray-500 mt-1">{med.notes}</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}

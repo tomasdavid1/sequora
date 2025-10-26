@@ -4,6 +4,15 @@ export type { Database, Tables, TablesInsert, TablesUpdate, Enums } from '../dat
 // Common type aliases for easier use
 import { Database } from '../database.types';
 
+// Medication structure stored in Episode.medications JSONB field
+export interface Medication {
+  name: string;
+  dosage?: string;
+  frequency?: string;
+  timing?: string;
+  notes?: string;
+}
+
 export type Patient = Database['public']['Tables']['Patient']['Row'];
 export type PatientInsert = Database['public']['Tables']['Patient']['Insert'];
 export type PatientUpdate = Database['public']['Tables']['Patient']['Update'];

@@ -57,6 +57,7 @@ type ProtocolAssignmentWithRelations = ProtocolAssignment & {
   Episode?: {
     condition_code: ConditionCodeType;
     risk_level: RiskLevelType | null;
+    medications?: any; // JSONB array of medications
     Patient?: {
       education_level: EducationLevelType | null;
     };
@@ -100,7 +101,7 @@ const MESSAGE_GUIDANCE = {
     `CLOSURE MESSAGE: Patient showed "${matchedPattern}". Acknowledge it gently. Say "Thank you for letting me know. We're keeping track of this." Keep it light and reassuring. This ends the interaction.`,
   
   DOING_WELL: () => 
-    `CLOSURE MESSAGE: Patient is doing well! Acknowledge their positive status. Provide brief encouragement to continue their care plan. Remind them to contact if anything changes. This ends the interaction on a positive note.`
+    `⚠️ IMPORTANT: Patient says they're doing well, BUT this is NOT enough to close yet! You MUST ask at least 2-3 specific follow-up questions about DIFFERENT areas (symptoms, medications, concerns) before ending. Acknowledge their response positively ("Glad to hear!"), then immediately ask about a specific symptom relevant to their condition. Only after confirming multiple specific areas should you conclude.`
 } as const;
 
 // Core interaction agent that handles patient responses and determines next actions
@@ -152,8 +153,10 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // 2. Get conversation history if continuing an existing interaction
+    // 2. Get conversation history and wellness confirmation count if continuing an existing interaction
     let conversationHistory: Array<{role: string, content: string}> = [];
+    let wellnessConfirmationCount = 0;
+    
     if (interactionId) {
       const { data: messages } = await supabase
         .from('AgentMessage')
@@ -164,6 +167,16 @@ export async function POST(request: NextRequest) {
       
       conversationHistory = messages || [];
       console.log('💬 [Interaction] Loaded conversation history:', conversationHistory.length, 'messages');
+      
+      // Get wellness confirmation count from existing interaction
+      const { data: existing } = await supabase
+        .from('AgentInteraction')
+        .select('metadata')
+        .eq('id', interactionId)
+        .single();
+        
+      wellnessConfirmationCount = (existing?.metadata as any)?.wellnessConfirmationCount || 0;
+      console.log('📊 [Interaction] Current wellness confirmation count:', wellnessConfirmationCount);
     }
     
     // 3. Validate risk_level exists
@@ -214,7 +227,8 @@ export async function POST(request: NextRequest) {
     );
     
     // 6. Evaluate rules DSL to get decision hint (using protocol config)
-    const decisionHint = await evaluateRulesDSL(parsedResponse, protocolAssignment, protocolConfig, supabase);
+    // Pass wellness confirmation count to allow closure after sufficient verification
+    const decisionHint = await evaluateRulesDSL(parsedResponse, protocolAssignment, protocolConfig, supabase, wellnessConfirmationCount);
     
     // 6. Check if this patient has been contacted before and fetch summaries
     const { data: allInteractions } = await supabase
@@ -262,7 +276,8 @@ export async function POST(request: NextRequest) {
       protocolConfig,
       previousSummaries,
       isFirstMessageInCurrentChat,
-      hasBeenContactedBefore
+      hasBeenContactedBefore,
+      wellnessConfirmationCount
     );
     
     // The AI naturally generates appropriate messages based on decisionHint:
@@ -307,7 +322,8 @@ export async function POST(request: NextRequest) {
           metadata: {
             condition,
             decisionHint: decisionHint as any,
-            protocolAssignment: protocolAssignment?.id
+            protocolAssignment: protocolAssignment?.id,
+            wellnessConfirmationCount: 0 // Track how many times patient confirmed they're doing well
           } as any
         })
         .select()
@@ -496,6 +512,7 @@ async function loadProtocolAssignment(episodeId: string, supabase: SupabaseAdmin
       Episode!inner(
         condition_code, 
         risk_level,
+        medications,
         Patient!inner(education_level)
       )
     `)
@@ -520,9 +537,9 @@ async function loadProtocolAssignment(episodeId: string, supabase: SupabaseAdmin
 // Create protocol assignment for an episode
 async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdmin) {
     // First, get the episode details
-    const { data: episode, error: episodeError } = await supabase
+    const { data: episode, error: episodeError} = await supabase
       .from('Episode')
-    .select('condition_code, risk_level, Patient!inner(education_level)')
+    .select('condition_code, risk_level, medications, Patient!inner(education_level)')
       .eq('id', episodeId)
       .single();
 
@@ -748,14 +765,16 @@ async function evaluateRulesDSL(
   parsedResponse: ParsedResponse, 
   protocolAssignment: ProtocolAssignment, 
   protocolConfig: any, // From ProtocolConfig table
-  supabase: SupabaseAdmin
+  supabase: SupabaseAdmin,
+  wellnessConfirmationCount: number = 0 // Number of times patient has specifically confirmed they're doing well
 ): Promise<DecisionHint> {
   console.log('🧠 [Rules Engine] Evaluating with AI insights:', {
     symptoms: parsedResponse.symptoms,
     severity: parsedResponse.severity,
     confidence: parsedResponse.confidence,
     intent: parsedResponse.intent,
-    sentiment: parsedResponse.sentiment
+    sentiment: parsedResponse.sentiment,
+    wellnessConfirmationCount: wellnessConfirmationCount
   });
   
   // Query rules directly from ProtocolContentPack (single source of truth)
@@ -782,7 +801,7 @@ async function evaluateRulesDSL(
     sentiment_boost: protocolConfig.enable_sentiment_boost
   });
   
-  // ENHANCEMENT 1: AI Severity Override
+  // ENHANCEMENT 1: AI Severity Override - CRITICAL
   // If AI is very confident about critical severity, escalate immediately
   if (parsedResponse.severity === 'CRITICAL' && (parsedResponse.confidence || 0) > CRITICAL_CONFIDENCE_THRESHOLD) {
     console.log('🚨 [Rules Engine] AI detected CRITICAL severity with high confidence');
@@ -790,8 +809,57 @@ async function evaluateRulesDSL(
       action: 'FLAG' as const,
       flagType: 'AI_CRITICAL_ASSESSMENT',
       severity: 'CRITICAL',
-      reason: `AI assessed as critical with ${Math.round((parsedResponse.confidence || 0) * 100)}% confidence`,
+      reason: `AI assessed as critical with ${Math.round((parsedResponse.confidence || 0) * 100)}% confidence. Symptoms: ${parsedResponse.symptoms.join(', ')}`,
       messageGuidance: 'CLOSURE MESSAGE: Acknowledge the critical symptoms detected. Explain briefly why this is concerning for their condition. Let them know a nurse will contact them urgently. Be calm but clear about the seriousness.',
+      followUp: []
+    };
+  }
+  
+  // ENHANCEMENT 1.5: AI Severity Override - HIGH with good confidence
+  // Safety net: If AI detects HIGH severity with decent confidence, flag it even without pattern match
+  if (parsedResponse.severity === 'HIGH' && (parsedResponse.confidence || 0) > LOW_CONFIDENCE_THRESHOLD) {
+    console.log('⚠️ [Rules Engine] AI detected HIGH severity - escalating as safety net');
+    return {
+      action: 'FLAG' as const,
+      flagType: 'AI_HIGH_SEVERITY_ASSESSMENT',
+      severity: 'HIGH',
+      reason: `AI identified concerning symptoms requiring follow-up: ${parsedResponse.symptoms.join(', ')}`,
+      messageGuidance: 'CLOSURE MESSAGE: Acknowledge the symptoms. Explain that we want to follow up on this to ensure they\'re okay. Say "We\'re noting this and will follow up with you soon." Keep it reassuring.',
+      followUp: []
+    };
+  }
+  
+  // ENHANCEMENT 1.75: Multiple concerning symptoms safety net
+  // If patient reports 2+ symptoms AND moderate+ severity, escalate
+  const symptomCount = (parsedResponse.symptoms || []).length;
+  const hasMultipleSymptoms = symptomCount >= 2;
+  const hasConcerningSeverity = ['MODERATE', 'HIGH', 'CRITICAL'].includes(parsedResponse.severity);
+  const hasConcernedSentiment = ['concerned', 'distressed'].includes(parsedResponse.sentiment);
+  
+  if (hasMultipleSymptoms && hasConcerningSeverity && (parsedResponse.confidence || 0) > LOW_CONFIDENCE_THRESHOLD) {
+    console.log(`⚠️ [Rules Engine] Multiple symptoms (${symptomCount}) + ${parsedResponse.severity} severity - escalating as safety net`);
+    return {
+      action: 'FLAG' as const,
+      flagType: 'MULTIPLE_SYMPTOMS_MODERATE',
+      severity: hasConcernedSentiment ? 'HIGH' : 'MODERATE',
+      reason: `Patient reported multiple concerning symptoms: ${parsedResponse.symptoms.join(', ')}`,
+      messageGuidance: hasConcernedSentiment 
+        ? 'CLOSURE MESSAGE: Acknowledge all the symptoms they mentioned. Explain that we want to follow up on these. Say "We\'re noting this and will follow up with you soon." Be reassuring.'
+        : 'CLOSURE MESSAGE: Acknowledge the symptoms. Thank them for letting you know. Say "We\'re keeping track of this." Keep it light but attentive.',
+      followUp: []
+    };
+  }
+  
+  // ENHANCEMENT 1.8: MODERATE severity with concerning sentiment
+  // If AI assesses MODERATE severity AND patient sounds concerned/distressed, flag it
+  if (parsedResponse.severity === 'MODERATE' && hasConcernedSentiment && (parsedResponse.confidence || 0) > LOW_CONFIDENCE_THRESHOLD) {
+    console.log(`⚠️ [Rules Engine] MODERATE severity + ${parsedResponse.sentiment} sentiment - escalating due to patient concern`);
+    return {
+      action: 'FLAG' as const,
+      flagType: 'MODERATE_WITH_CONCERN',
+      severity: 'MODERATE',
+      reason: `Patient expressed concern about symptoms: ${parsedResponse.symptoms.join(', ')}`,
+      messageGuidance: 'CLOSURE MESSAGE: Acknowledge their concerns. Thank them for letting you know. Say "We\'re noting this and will keep track of how you\'re doing." Be empathetic and reassuring.',
       followUp: []
     };
   }
@@ -925,10 +993,23 @@ async function evaluateRulesDSL(
   for (const closure of closures) {
     const closureMatch = evaluateRuleCondition(closure.if, parsedResponse);
     if (closureMatch.matched) {
-      console.log('✅ [Rules Engine] Patient doing well - closure condition met. Pattern:', closureMatch.matchedPattern);
+      // Check wellness confirmation count (tracked by AI via count_wellness_confirmation tool)
+      // After 3+ confirmations, we can safely close
+      if (wellnessConfirmationCount >= 3) {
+        console.log('✅ [Rules Engine] Patient consistently reports doing well after', wellnessConfirmationCount, 'specific confirmations - safe to close. Pattern:', closureMatch.matchedPattern);
+        return {
+          action: 'CLOSE' as const,
+          reason: 'Patient is doing well - verified with 3+ specific confirmations',
+          matchedPattern: closureMatch.matchedPattern,
+          messageGuidance: 'CLOSURE MESSAGE: Patient has confirmed they are doing well through multiple specific health questions (breathing, medications, symptoms). Provide brief positive encouragement and remind them to reach out if anything changes. This ends the interaction on a positive note.'
+        };
+      }
+      
+      console.log('✅ [Rules Engine] Patient says doing well but only', wellnessConfirmationCount, '/3 confirmations so far - need to verify with more specific questions. Pattern:', closureMatch.matchedPattern);
+      // DON'T CLOSE YET - Patient saying "fine" is not enough. Ask specific questions first.
       return {
-        action: 'CLOSE' as const,
-        reason: 'Patient is doing well',
+        action: 'ASK_MORE' as const,
+        reason: `Patient reports feeling well - verifying with specific questions (${wellnessConfirmationCount}/3 confirmations)`,
         matchedPattern: closureMatch.matchedPattern,
         messageGuidance: MESSAGE_GUIDANCE.DOING_WELL()
       };
@@ -945,6 +1026,39 @@ async function evaluateRulesDSL(
   };
 }
 
+// Helper function to check if a pattern is negated in the text
+function isPatternNegated(text: string, pattern: string): boolean {
+  const lowerText = text.toLowerCase();
+  const lowerPattern = pattern.toLowerCase();
+  
+  // Find the position of the pattern
+  const patternIndex = lowerText.indexOf(lowerPattern);
+  if (patternIndex === -1) return false;
+  
+  // Look at the 5 words before the pattern for negation words
+  const beforeText = lowerText.substring(Math.max(0, patternIndex - 50), patternIndex);
+  
+  // Common negation patterns
+  const negationWords = ['no', 'not', 'never', 'none', 'without', "don't", "doesnt", "didn't", "havent", "hasn't", "won't", "cant", "can\'t"];
+  
+  // Check if any negation word appears right before the pattern (within ~5 words)
+  for (const negation of negationWords) {
+    // Use word boundaries to avoid false matches (e.g., "now" containing "no")
+    const negationRegex = new RegExp(`\\b${negation}\\b`, 'i');
+    if (negationRegex.test(beforeText)) {
+      // Additional check: make sure negation is close (not separated by sentence boundaries)
+      const textBetween = beforeText.substring(beforeText.lastIndexOf(negation));
+      // If there's a period or question mark between negation and pattern, it's likely a different sentence
+      if (!/[.?!]/.test(textBetween)) {
+        console.log(`🚫 [Rule Match] Pattern "${pattern}" is NEGATED by "${negation}" in context: "${beforeText}${lowerPattern}"`);
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
 // Evaluate a single rule condition
 function evaluateRuleCondition(condition: Record<string, unknown>, parsedResponse: any): { matched: boolean; matchedPattern?: string } {
   if (condition.any_text && Array.isArray(condition.any_text)) {
@@ -955,9 +1069,22 @@ function evaluateRuleCondition(condition: Record<string, unknown>, parsedRespons
     const combinedText = `${normalizedText} ${extractedSymptoms} ${inputText}`;
     
     // Check if any pattern matches and capture which one
-    const matchedPattern = (condition.any_text as string[]).find((text: string) => 
-      combinedText.includes(text.toLowerCase())
-    );
+    const matchedPattern = (condition.any_text as string[]).find((text: string) => {
+      const patternLower = text.toLowerCase();
+      
+      // First check if pattern exists
+      if (!combinedText.includes(patternLower)) {
+        return false;
+      }
+      
+      // Then check if it's negated
+      if (isPatternNegated(combinedText, text)) {
+        console.log(`⏭️  [Rule Match] Skipping pattern "${text}" - negated by patient`);
+        return false;
+      }
+      
+      return true;
+    });
     
     if (matchedPattern) {
       console.log('✅ [Rule Match] Pattern matched:', matchedPattern);
@@ -981,7 +1108,8 @@ async function generateAIResponseWithTools(
   protocolConfig: any,
   previousSummaries: string = '',
   isFirstMessageInCurrentChat: boolean = false,
-  hasBeenContactedBefore: boolean = false
+  hasBeenContactedBefore: boolean = false,
+  wellnessConfirmationCount: number = 0
 ) {
   try {
     // Build context based on patient contact history
@@ -1012,6 +1140,8 @@ async function generateAIResponseWithTools(
     
     const fullContext = `${protocolConfig.system_prompt} ${conversationContext} Use the decision hint to guide your response and call appropriate tools.`;
     
+      const medications = (protocolAssignment.Episode as any)?.medications || [];
+      
       const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1020,12 +1150,14 @@ async function generateAIResponseWithTools(
           input: {
             condition: protocolAssignment.condition_code,
             educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level, // NOT NULL in DB
+            medications: medications, // Pass medications for AI to reference
             patientResponses: parsedResponse.rawInput,
             decisionHint: decisionHint,
             context: fullContext,
             responseType: 'patient_response_with_tools',
             isFirstMessageInCurrentChat: isFirstMessageInCurrentChat,
-            hasBeenContactedBefore: hasBeenContactedBefore
+            hasBeenContactedBefore: hasBeenContactedBefore,
+            wellnessConfirmationCount: wellnessConfirmationCount
           }
         })
       });
@@ -1074,6 +1206,9 @@ async function handleToolCalls(toolCalls: ToolCall[] | undefined, patientId: str
       let result;
       
       switch (toolCall.name) {
+        case 'count_wellness_confirmation':
+          result = await handleWellnessConfirmation(toolCall.parameters, interactionId, supabase);
+          break;
         case 'raise_flag':
           result = await handleRaiseFlag(toolCall.parameters, patientId, episodeId, supabase, interactionId);
           break;
@@ -1109,6 +1244,67 @@ async function handleToolCalls(toolCalls: ToolCall[] | undefined, patientId: str
 }
 
 // Tool handlers
+// Handle wellness confirmation counting
+async function handleWellnessConfirmation(parameters: Record<string, unknown>, interactionId?: string, supabase?: SupabaseAdmin) {
+  const { isConfirmation, areaConfirmed } = parameters;
+  
+  if (!interactionId || !supabase) {
+    console.log('📊 [Wellness Confirmation] No interaction ID - skipping count update');
+    return { success: true, message: 'No interaction to update' };
+  }
+  
+  // Get current interaction
+  const { data: interaction, error: fetchError } = await supabase
+    .from('AgentInteraction')
+    .select('metadata')
+    .eq('id', interactionId)
+    .single();
+    
+  if (fetchError || !interaction) {
+    console.error('❌ [Wellness Confirmation] Error fetching interaction:', fetchError);
+    return { success: false, error: 'Could not fetch interaction' };
+  }
+  
+  const metadata = (interaction.metadata as any) || {};
+  const currentCount = metadata.wellnessConfirmationCount || 0;
+  
+  if (isConfirmation) {
+    const newCount = currentCount + 1;
+    console.log(`📊 [Wellness Confirmation] Incrementing count: ${currentCount} → ${newCount}. Area: ${areaConfirmed || 'unspecified'}`);
+    
+    // Update metadata
+    const { error: updateError } = await supabase
+      .from('AgentInteraction')
+      .update({
+        metadata: {
+          ...metadata,
+          wellnessConfirmationCount: newCount,
+          lastConfirmedArea: areaConfirmed || null,
+          lastConfirmedAt: new Date().toISOString()
+        }
+      })
+      .eq('id', interactionId);
+      
+    if (updateError) {
+      console.error('❌ [Wellness Confirmation] Error updating metadata:', updateError);
+      return { success: false, error: 'Could not update count' };
+    }
+    
+    return { 
+      success: true, 
+      newCount: newCount,
+      message: `Wellness confirmation recorded. Total: ${newCount}/3` 
+    };
+  } else {
+    console.log(`📊 [Wellness Confirmation] Response does NOT count as confirmation. Current count remains: ${currentCount}/3`);
+    return { 
+      success: true, 
+      newCount: currentCount,
+      message: `Not a wellness confirmation. Count remains: ${currentCount}/3` 
+    };
+  }
+}
+
 async function handleRaiseFlag(parameters: Record<string, unknown>, patientId: string, episodeId: string, supabase: SupabaseAdmin, interactionId?: string) {
   const { flagType, severity, rationale } = parameters;
   const severityStr = String(severity);

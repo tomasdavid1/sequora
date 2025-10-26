@@ -738,6 +738,7 @@ export type Database = {
           hospital_course_summary: string | null
           hospital_id: string | null
           id: string
+          medications: Json | null
           patient_id: string
           risk_level: Database["public"]["Enums"]["risk_level"]
           risk_scores: Json | null
@@ -765,6 +766,7 @@ export type Database = {
           hospital_course_summary?: string | null
           hospital_id?: string | null
           id?: string
+          medications?: Json | null
           patient_id: string
           risk_level?: Database["public"]["Enums"]["risk_level"]
           risk_scores?: Json | null
@@ -792,6 +794,7 @@ export type Database = {
           hospital_course_summary?: string | null
           hospital_id?: string | null
           id?: string
+          medications?: Json | null
           patient_id?: string
           risk_level?: Database["public"]["Enums"]["risk_level"]
           risk_scores?: Json | null

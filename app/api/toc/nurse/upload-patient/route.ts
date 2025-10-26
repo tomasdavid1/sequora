@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
           discharge_at: patientData.dischargeDate || new Date().toISOString(),
           discharge_location: 'HOME',
           discharge_diagnosis_codes: patientData.diagnosisCode ? [patientData.diagnosisCode] : [],
+          medications: patientData.medications || [], // Store medications as JSONB
           source_system: 'MANUAL_ENTRY',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -166,27 +167,9 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Add medications if provided
-      if (patientData.medications && typeof patientData.medications === 'string' && patientData.medications.trim()) {
-        // Split medications by newline and create records
-        const medicationList = patientData.medications.split('\n').filter((med: string) => med.trim());
-        const medicationInserts = medicationList.map((med: string) => ({
-          episode_id: episode.id,
-          name: med.trim(),
-          source: 'PATIENT_REPORTED' as any,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }));
-
-        const { error: medError } = await supabaseAdmin
-          .from('EpisodeMedication')
-          .insert(medicationInserts);
-
-        if (medError) {
-          console.error('Error creating medications:', medError);
-          // Don't fail the whole request for medication errors
-        }
-      }
+      // Note: Medications are now stored as JSONB directly on Episode.medications
+      // No need to create separate EpisodeMedication records
+      // Medications are already inserted above with the Episode record
 
       return NextResponse.json({
         success: true,

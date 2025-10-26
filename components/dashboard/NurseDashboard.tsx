@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { TasksTable } from '@/components/tasks/TasksTable';
@@ -470,6 +471,32 @@ export default function NurseDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="col-span-2">
+                <Label>Medications</Label>
+                <Textarea
+                  placeholder="Enter medications (one per line, e.g. 'Furosemide 40mg once daily')"
+                  value={parsedData?.medications?.map((m: any) => 
+                    typeof m === 'string' ? m : `${m.name}${m.dosage ? ' ' + m.dosage : ''}${m.frequency ? ' ' + m.frequency : ''}`
+                  ).join('\n') || ''}
+                  onChange={(e) => {
+                    const lines = e.target.value.split('\n').filter(line => line.trim());
+                    const medications = lines.map(line => {
+                      const parts = line.trim().split(' ');
+                      return {
+                        name: parts[0] || '',
+                        dosage: parts[1] || '',
+                        frequency: parts.slice(2).join(' ') || ''
+                      };
+                    });
+                    setParsedData({ ...parsedData, medications });
+                  }}
+                  className="min-h-[100px]"
+                />
+                <p className="text-sm text-gray-500 mt-1">
+                  Enter each medication on a new line. Format: Name Dosage Frequency (e.g., "Furosemide 40mg once daily")
+                </p>
               </div>
 
             <div className="flex justify-between gap-2 pt-4 border-t">

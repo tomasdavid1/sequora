@@ -57,7 +57,16 @@ Return ONLY valid JSON with these exact fields (use null for missing data):
   "address": string | null,
   "city": string | null,
   "state": string | null,
-  "zip": string | null
+  "zip": string | null,
+  "medications": [
+    {
+      "name": string,
+      "dosage": string | null,
+      "frequency": string | null,
+      "timing": string | null,
+      "notes": string | null
+    }
+  ]
 }
 
 Extraction guidelines:
@@ -69,7 +78,16 @@ Extraction guidelines:
 - dischargeDate: When patient was discharged from hospital
 - riskLevel: Assess as LOW/MEDIUM/HIGH based on comorbidities, severity, readmission risk
 - educationLevel: Assess as LOW/MEDIUM/HIGH based on document language complexity, patient demographics
-- address/city/state/zip: Mailing address if mentioned`
+- address/city/state/zip: Mailing address if mentioned
+- medications: Extract ALL discharge medications from the document
+  * Look for sections like "Discharge Medications", "Medications on Discharge", "Home Medications"
+  * name: Medication name (generic or brand)
+  * dosage: Strength/amount (e.g., "40mg", "25mg")
+  * frequency: How often (e.g., "once daily", "twice daily", "every 12 hours")
+  * timing: When to take (e.g., "morning", "with meals", "at bedtime")
+  * notes: Special instructions (e.g., "take with food", "do not crush")
+  * If medication details are incomplete, extract what's available
+  * Return empty array [] if no medications found`
         },
         {
           role: "user",
@@ -82,7 +100,19 @@ Extraction guidelines:
 
     const extractedData = JSON.parse(completion.choices[0]?.message?.content || '{}');
 
-    console.log('✅ [PDF Parse] Extracted data:', extractedData);
+    // Ensure medications is an array
+    if (!extractedData.medications) {
+      extractedData.medications = [];
+    } else if (!Array.isArray(extractedData.medications)) {
+      console.warn('⚠️ [PDF Parse] Medications was not an array, converting to array');
+      extractedData.medications = [];
+    }
+
+    console.log('✅ [PDF Parse] Extracted data:', {
+      ...extractedData,
+      medications: `${extractedData.medications.length} medication(s)`
+    });
+    console.log('💊 [PDF Parse] Medications extracted:', extractedData.medications);
 
     return NextResponse.json({
       success: true,
