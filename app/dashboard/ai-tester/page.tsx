@@ -107,6 +107,8 @@ export default function AITesterPage() {
   const [protocolProfile, setProtocolProfile] = useState<any>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [showPatientConfigModal, setShowPatientConfigModal] = useState(false);
+  const [editingConfig, setEditingConfig] = useState<any>({});
   const renderCountRef = React.useRef(0);
   
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
@@ -145,6 +147,39 @@ export default function AITesterPage() {
       setInteractions([]);
     } finally {
       if (showLoader) setLoadingInteractions(false);
+    }
+  };
+
+  // Fetch and open patient config modal for editing
+  const openPatientConfigModal = async () => {
+    await fetchProtocolProfile();
+    if (protocolProfile?.protocolConfig) {
+      setEditingConfig(protocolProfile.protocolConfig);
+      setShowPatientConfigModal(true);
+    }
+  };
+
+  // Save patient config changes
+  const savePatientConfig = async () => {
+    if (!editingConfig?.id) return;
+
+    try {
+      const response = await fetch(`/api/admin/protocol-config/${editingConfig.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingConfig)
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast({ title: 'Config updated!', description: 'Changes apply immediately.' });
+        setShowPatientConfigModal(false);
+        setEditingConfig({});
+      } else {
+        toast({ title: 'Error', description: data.error, variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Error', description: 'Failed to save', variant: 'destructive' });
     }
   };
 
@@ -769,17 +804,11 @@ export default function AITesterPage() {
                       <Button 
                         variant="outline" 
                         size="sm"
-                        onClick={() => {
-                          if (protocolProfile?.episode) {
-                            window.open(`/dashboard/protocol-config?condition=${protocolProfile.episode.condition_code}&risk=${protocolProfile.episode.risk_level}`, '_blank');
-                          } else {
-                            toast({ title: "Load profile first", description: "Click Profile to load config first" });
-                          }
-                        }}
+                        onClick={openPatientConfigModal}
                         disabled={!testConfig.episodeId}
                       >
                         <Settings className="w-4 h-4 mr-2" />
-                        Edit Config
+                        Patient Config
                       </Button>
                       <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
                         <DialogTrigger asChild>
@@ -1182,6 +1211,85 @@ export default function AITesterPage() {
               </Card>
             </div>
           </div>
+
+          {/* Patient Config Modal */}
+          <Dialog open={showPatientConfigModal} onOpenChange={setShowPatientConfigModal}>
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Brain className="w-5 h-5" />
+                  Patient Protocol Configuration
+                </DialogTitle>
+                {protocolProfile?.protocolConfig && (
+                  <p className="text-sm text-gray-600">
+                    {protocolProfile.protocolConfig.condition_code} • {protocolProfile.protocolConfig.risk_level} Risk
+                  </p>
+                )}
+              </DialogHeader>
+              
+              {protocolProfile?.protocolConfig && (
+                <div className="space-y-6">
+                  {/* System Prompt */}
+                  <div>
+                    <Label className="text-base font-semibold mb-2 block">AI System Prompt</Label>
+                    <Textarea
+                      value={editingConfig.system_prompt ?? protocolProfile.protocolConfig.system_prompt}
+                      onChange={(e) => setEditingConfig({ ...editingConfig, system_prompt: e.target.value })}
+                      rows={5}
+                      className="font-mono text-sm"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">How AI interacts with this patient</p>
+                  </div>
+
+                  {/* Quick Threshold Tweaks */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Critical Threshold</Label>
+                      <Input
+                        type="number"
+                        step="0.05"
+                        min="0"
+                        max="1"
+                        value={editingConfig.critical_confidence_threshold ?? protocolProfile.protocolConfig.critical_confidence_threshold}
+                        onChange={(e) => setEditingConfig({
+                          ...editingConfig,
+                          critical_confidence_threshold: parseFloat(e.target.value)
+                        })}
+                      />
+                    </div>
+                    <div>
+                      <Label>Low Threshold</Label>
+                      <Input
+                        type="number"
+                        step="0.05"
+                        min="0"
+                        max="1"
+                        value={editingConfig.low_confidence_threshold ?? protocolProfile.protocolConfig.low_confidence_threshold}
+                        onChange={(e) => setEditingConfig({
+                          ...editingConfig,
+                          low_confidence_threshold: parseFloat(e.target.value)
+                        })}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex justify-end gap-2 pt-4 border-t">
+                    <Button variant="outline" onClick={() => {
+                      setShowPatientConfigModal(false);
+                      setEditingConfig({});
+                    }}>
+                      Cancel
+                    </Button>
+                    <Button onClick={savePatientConfig}>
+                      <Save className="w-4 h-4 mr-2" />
+                      Save & Test
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
 
           {/* Delete Confirmation Modal */}
           <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
