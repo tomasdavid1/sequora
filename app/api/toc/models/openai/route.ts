@@ -480,18 +480,18 @@ Example:
 - Patient: "it's pain for sure" + Previous context: "off in my chest"
 - Combined understanding: chest pain
 
-PROTOCOL PATTERNS (from database):
-These are the canonical symptom phrases we're monitoring for. If the patient describes symptoms using different words, 
-interpret their meaning and normalize to the closest matching pattern below.
+PROTOCOL PATTERNS TO DETECT (from database):
+These are the symptoms/phrases we're actively monitoring for this patient's condition and risk level.
+If the patient describes symptoms using different words, interpret their meaning and normalize to match these patterns.
 
 ${patterns.length > 0 ? patterns.map(p => `- ${p}`).join('\n') : 'No patterns configured'}
 
-NORMALIZATION GUIDANCE EXAMPLES:
-- "put on weight" / "gained weight" / "weight up" → normalized_text: "gained X pounds" or "weight gain"
-- "chest hurts" / "chest pain" / "chest pressure" → normalized_text: "chest pain"
-- "can't breathe" / "short of breath" / "trouble breathing" → normalized_text: "breathing difficulty"
-- Always preserve numbers (3 lbs → 3 pounds, 5 lbs → 5 pounds)
-- Use the EXACT phrasing from the patterns list above in your normalized_text
+NORMALIZATION INSTRUCTIONS:
+- If patient input matches the MEANING of any pattern above, include that pattern in normalized_text
+- Use EXACT phrasing from the patterns list (don't paraphrase)
+- Always convert "lbs" → "pounds" and preserve numbers (3 lbs → 3 pounds)
+- Be liberal in matching - if it's close, include it
+- Multiple patterns can match one input (e.g., "chest pain and can't breathe" → "chest pain, cant breathe")
 
 Extract the following in JSON format:
 {
