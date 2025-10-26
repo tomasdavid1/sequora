@@ -40,7 +40,6 @@ export default function ProtocolConfigPage() {
   const { toast } = useToast();
   const [configs, setConfigs] = useState<ProtocolConfig[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [editedConfig, setEditedConfig] = useState<Partial<ProtocolConfig>>({});
   const [filterCondition, setFilterCondition] = useState<string>('ALL');
   const [filterRiskLevel, setFilterRiskLevel] = useState<string>('ALL');
@@ -84,16 +83,6 @@ export default function ProtocolConfigPage() {
     }
   };
 
-  const startEditing = (config: ProtocolConfig) => {
-    setEditingId(config.id);
-    setEditedConfig(config);
-  };
-
-  const cancelEditing = () => {
-    setEditingId(null);
-    setEditedConfig({});
-  };
-
   const saveConfig = async (id: string) => {
     try {
       const response = await fetch(`/api/admin/protocol-config/${id}`, {
@@ -109,7 +98,6 @@ export default function ProtocolConfigPage() {
           title: 'Success',
           description: 'Protocol config updated successfully',
         });
-        setEditingId(null);
         setEditedConfig({});
         fetchConfigs();
       } else {
@@ -359,44 +347,14 @@ export default function ProtocolConfigPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {editingId === config.id ? (
-                            <Input
-                              type="number"
-                              step="0.05"
-                              min="0"
-                              max="1"
-                              value={editedConfig.critical_confidence_threshold || ''}
-                              onChange={(e) => setEditedConfig({
-                                ...editedConfig,
-                                critical_confidence_threshold: parseFloat(e.target.value)
-                              })}
-                              className="w-20"
-                            />
-                          ) : (
-                            <span className={getThresholdColor(config.critical_confidence_threshold)}>
-                              {config.critical_confidence_threshold.toFixed(2)}
-                            </span>
-                          )}
+                          <span className={getThresholdColor(config.critical_confidence_threshold)}>
+                            {config.critical_confidence_threshold.toFixed(2)}
+                          </span>
                         </TableCell>
                         <TableCell>
-                          {editingId === config.id ? (
-                            <Input
-                              type="number"
-                              step="0.05"
-                              min="0"
-                              max="1"
-                              value={editedConfig.low_confidence_threshold || ''}
-                              onChange={(e) => setEditedConfig({
-                                ...editedConfig,
-                                low_confidence_threshold: parseFloat(e.target.value)
-                              })}
-                              className="w-20"
-                            />
-                          ) : (
-                            <span className={getThresholdColor(config.low_confidence_threshold, true)}>
-                              {config.low_confidence_threshold.toFixed(2)}
-                            </span>
-                          )}
+                          <span className={getThresholdColor(config.low_confidence_threshold, true)}>
+                            {config.low_confidence_threshold.toFixed(2)}
+                          </span>
                         </TableCell>
                         <TableCell>
                           <span className="text-xs text-gray-600">
@@ -418,49 +376,19 @@ export default function ProtocolConfigPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="flex gap-2">
-                            {editingId === config.id ? (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="default"
-                                  onClick={() => saveConfig(config.id)}
-                                >
-                                  <Save className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={cancelEditing}
-                                >
-                                  <X className="w-4 h-4" />
-                                </Button>
-                              </>
-                            ) : (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => {
-                                    setSelectedConfig(config);
-                                    setEditedConfig(config); // Pre-populate for editing
-                                    setDetailsModalOpen(true);
-                                  }}
-                                  title="View/Edit Details"
-                                >
-                                  <Eye className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => startEditing(config)}
-                                  title="Quick Edit"
-                                >
-                                  <Pencil className="w-4 h-4" />
-                                </Button>
-                              </>
-                            )}
-                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setSelectedConfig(config);
+                              setEditedConfig(config); // Pre-populate for editing
+                              setDetailsModalOpen(true);
+                            }}
+                            title="View/Edit Configuration"
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            View/Edit
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}

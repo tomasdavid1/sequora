@@ -777,7 +777,22 @@ export default function AITesterPage() {
                         </DialogTrigger>
                         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
                           <DialogHeader>
-                            <DialogTitle>Protocol Profile</DialogTitle>
+                            <div className="flex items-center justify-between">
+                              <DialogTitle>Protocol Profile</DialogTitle>
+                              {protocolProfile?.protocolConfig && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    // Navigate to protocol config page filtered to this specific config
+                                    window.location.href = `/dashboard/protocol-config?condition=${protocolProfile.episode.condition_code}&risk=${protocolProfile.episode.risk_level}`;
+                                  }}
+                                >
+                                  <Settings className="w-4 h-4 mr-2" />
+                                  Edit Config
+                                </Button>
+                              )}
+                            </div>
                           </DialogHeader>
                           
                           {loadingProfile ? (
