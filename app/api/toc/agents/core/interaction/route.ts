@@ -565,7 +565,7 @@ async function parsePatientInputWithProtocol(
       operation: 'parse_patient_input',
       input: {
         condition: protocolAssignment.condition_code,
-        educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level || 'medium',
+        educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level || 'MEDIUM',
         patientInput: input,
         conversationHistory: conversationHistory,
         requestStructuredOutput: true
@@ -859,10 +859,10 @@ async function generateAIResponseWithTools(
           operation: 'generate_response_with_tools',
           input: {
             condition: protocolAssignment.condition_code,
-            educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level || 'medium',
+            educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level || 'MEDIUM',
             patientResponses: parsedResponse.rawInput,
             decisionHint: decisionHint,
-            context: `You are a post-discharge nurse assistant for a ${protocolAssignment.condition_code} patient with ${(protocolAssignment.Episode as any)?.Patient?.education_level || 'medium'} education level. ${conversationContext} Use the decision hint to guide your response and call appropriate tools.`,
+            context: `You are a post-discharge nurse assistant for a ${protocolAssignment.condition_code} patient with ${(protocolAssignment.Episode as any)?.Patient?.education_level || 'MEDIUM'} education level. ${conversationContext} Use the decision hint to guide your response and call appropriate tools.`,
             responseType: 'patient_response_with_tools',
             isFirstMessageInCurrentChat: isFirstMessageInCurrentChat,
             hasBeenContactedBefore: hasBeenContactedBefore

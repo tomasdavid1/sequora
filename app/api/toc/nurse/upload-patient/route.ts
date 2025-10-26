@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { PatientInsert, EpisodeInsert } from '@/types';
+import { EducationLevelType } from '@/lib/enums';
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
           city: patientData.city || null,
           state: patientData.state || null,
           zip: patientData.zip || null,
-          education_level: patientData.educationLevel || 'medium', // Patient attribute
+          education_level: patientData.educationLevel as EducationLevelType, // Patient attribute
           preferred_channel: 'SMS', // Default to SMS
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()

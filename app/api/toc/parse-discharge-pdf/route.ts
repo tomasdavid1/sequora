@@ -68,7 +68,7 @@ Return ONLY valid JSON with these exact fields (use null for missing data):
   "phone": string or null,
   "email": string or null,
   "condition": "HF" | "COPD" | "AMI" | "PNA" | "OTHER" or null,
-  "educationLevel": "low" | "medium" | "high" or null,
+  "educationLevel": "LOW" | "MEDIUM" | "HIGH" or null,
   "dischargeDate": "YYYY-MM-DD" or null,
   "admitDate": "YYYY-MM-DD" or null,
   "diagnosisCodes": string[] or null,
@@ -86,7 +86,7 @@ Common condition codes:
 - AMI = Acute Myocardial Infarction, Heart Attack, STEMI, NSTEMI
 - PNA = Pneumonia
 
-For educationLevel, infer from context if available (default to "medium" if unsure).
+For educationLevel, infer from context if available (default to "MEDIUM" if unsure).
 For medications, list each on a new line with dosage and frequency.`
           },
           {
