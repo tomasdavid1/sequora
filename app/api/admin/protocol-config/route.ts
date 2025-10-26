@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,10 +65,38 @@ export async function POST(request: NextRequest) {
       notes
     } = body;
 
-    // Validation
+    // Validation - require ALL critical fields
     if (!condition_code || !risk_level) {
       return NextResponse.json(
         { success: false, error: 'condition_code and risk_level are required' },
+        { status: 400 }
+      );
+    }
+
+    if (critical_confidence_threshold === undefined || critical_confidence_threshold === null) {
+      return NextResponse.json(
+        { success: false, error: 'critical_confidence_threshold is required (must be 0-1)' },
+        { status: 400 }
+      );
+    }
+
+    if (low_confidence_threshold === undefined || low_confidence_threshold === null) {
+      return NextResponse.json(
+        { success: false, error: 'low_confidence_threshold is required (must be 0-1)' },
+        { status: 400 }
+      );
+    }
+
+    if (!Array.isArray(vague_symptoms)) {
+      return NextResponse.json(
+        { success: false, error: 'vague_symptoms is required and must be an array' },
+        { status: 400 }
+      );
+    }
+
+    if (!distressed_severity_upgrade) {
+      return NextResponse.json(
+        { success: false, error: 'distressed_severity_upgrade is required' },
         { status: 400 }
       );
     }
@@ -78,15 +106,15 @@ export async function POST(request: NextRequest) {
       .insert({
         condition_code,
         risk_level,
-        critical_confidence_threshold: critical_confidence_threshold || 0.80,
-        low_confidence_threshold: low_confidence_threshold || 0.60,
-        vague_symptoms: vague_symptoms || [],
+        critical_confidence_threshold, // No fallback - validated above
+        low_confidence_threshold, // No fallback - validated above
+        vague_symptoms, // No fallback - validated above
         enable_sentiment_boost: enable_sentiment_boost ?? true,
-        distressed_severity_upgrade: distressed_severity_upgrade || 'high',
+        distressed_severity_upgrade, // No fallback - validated above
         route_medication_questions_to_info: route_medication_questions_to_info ?? true,
         route_general_questions_to_info: route_general_questions_to_info ?? true,
         detect_multiple_symptoms: detect_multiple_symptoms ?? false,
-        notes: notes || null,
+        notes: notes ?? null, // Only notes can be null (it's optional)
         active: true
       })
       .select()

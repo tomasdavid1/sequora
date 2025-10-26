@@ -209,7 +209,7 @@ ${redFlagRules.map((rule: any) => `
 PATIENT RESPONSES:
 ${responses.map((r: any) => `
 Question: ${r.questionText}
-Response: ${r.valueText || r.valueNumber || r.valueChoice || 'No response'}
+Response: ${r.valueText || r.valueNumber || r.valueChoice}
 `).join('\n')}
 
 Analyze these responses and determine:

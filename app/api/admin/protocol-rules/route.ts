@@ -51,9 +51,9 @@ export async function POST(request: NextRequest) {
         description,
         condition_code,
         severity,
-        logic_spec: logic_spec || null,
-        action_hint: action_hint || null,
-        education_level: education_level || null,
+        logic_spec: logic_spec ?? null, // Optional field
+        action_hint: action_hint ?? null, // Optional field
+        education_level: education_level ?? null, // Optional field
         active: true
       })
       .select()

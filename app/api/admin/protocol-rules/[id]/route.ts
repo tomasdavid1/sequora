@@ -19,16 +19,30 @@ export async function PUT(
 
     const supabase = getSupabaseAdmin();
     
+    // Validate rules_dsl if provided
+    if (rules_dsl !== undefined && typeof rules_dsl !== 'object') {
+      return NextResponse.json(
+        { error: 'rules_dsl must be an object if provided' },
+        { status: 400 }
+      );
+    }
+
+    const updateData: any = {
+      name,
+      description,
+      condition_specific: condition_specific,
+      education_level: education_level,
+      updated_at: new Date().toISOString()
+    };
+
+    // Only update rules_dsl if explicitly provided
+    if (rules_dsl !== undefined) {
+      updateData.rules_dsl = rules_dsl;
+    }
+
     const { data: rule, error } = await supabase
       .from('RedFlagRule')
-      .update({
-        name,
-        description,
-        condition_specific: condition_specific || false,
-        education_level: education_level || 'all',
-        rules_dsl: rules_dsl || { red_flags: [], closures: [] },
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', params.id)
       .select()
       .single();
