@@ -4,17 +4,16 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DataTable, Column } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Pencil, Save, X, Settings2, TrendingUp, AlertCircle, Eye, Brain, HelpCircle } from 'lucide-react';
+import { Save, Brain, Eye } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 
 interface ProtocolConfig {
   id: string;
@@ -37,29 +36,114 @@ interface ProtocolConfig {
 
 export default function ProtocolConfigPage() {
   const router = useRouter();
-  const { toast } = useToast();
+  const { toast} = useToast();
   const [configs, setConfigs] = useState<ProtocolConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [editedConfig, setEditedConfig] = useState<Partial<ProtocolConfig>>({});
-  const [filterCondition, setFilterCondition] = useState<string>('ALL');
-  const [filterRiskLevel, setFilterRiskLevel] = useState<string>('ALL');
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [selectedConfig, setSelectedConfig] = useState<ProtocolConfig | null>(null);
+  
+  // Define table columns
+  const columns: Column<ProtocolConfig>[] = [
+    {
+      header: 'Condition',
+      accessor: 'condition_code',
+      filterable: 'select',
+      filterOptions: [
+        { label: 'HF', value: 'HF' },
+        { label: 'COPD', value: 'COPD' },
+        { label: 'AMI', value: 'AMI' },
+        { label: 'PNA', value: 'PNA' }
+      ],
+      cell: (value) => <Badge>{value}</Badge>
+    },
+    {
+      header: 'Risk',
+      accessor: 'risk_level',
+      filterable: 'select',
+      filterOptions: [
+        { label: 'HIGH', value: 'HIGH' },
+        { label: 'MEDIUM', value: 'MEDIUM' },
+        { label: 'LOW', value: 'LOW' }
+      ],
+      cell: (value) => (
+        <Badge variant={
+          value === 'HIGH' ? 'destructive' : 
+          value === 'MEDIUM' ? 'default' : 
+          'outline'
+        }>
+          {value}
+        </Badge>
+      )
+    },
+    {
+      header: 'Critical',
+      accessor: 'critical_confidence_threshold',
+      cell: (value) => (
+        <span className={getThresholdColor(value)}>
+          {(value * 100).toFixed(0)}%
+        </span>
+      )
+    },
+    {
+      header: 'Low',
+      accessor: 'low_confidence_threshold',
+      cell: (value) => (
+        <span className={getThresholdColor(value, true)}>
+          {(value * 100).toFixed(0)}%
+        </span>
+      )
+    },
+    {
+      header: 'Sentiment',
+      accessor: 'enable_sentiment_boost',
+      cell: (value, row) => value ? (
+        <Badge variant="outline" className="text-emerald-600">
+          {row.distressed_severity_upgrade}
+        </Badge>
+      ) : (
+        <Badge variant="outline">OFF</Badge>
+      )
+    },
+    {
+      header: 'Status',
+      accessor: 'active',
+      cell: (value) => (
+        <Badge variant={value ? 'default' : 'destructive'}>
+          {value ? 'Active' : 'Inactive'}
+        </Badge>
+      )
+    },
+    {
+      header: 'Actions',
+      accessor: 'id',
+      headerClassName: 'text-right',
+      className: 'text-right',
+      cell: (value, row) => (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            setSelectedConfig(row);
+            setEditedConfig(row);
+            setDetailsModalOpen(true);
+          }}
+        >
+          <Eye className="w-4 h-4 mr-1" />
+          View/Edit
+        </Button>
+      )
+    }
+  ];
 
   useEffect(() => {
     fetchConfigs();
-  }, [filterCondition, filterRiskLevel]);
+  }, []);
 
   const fetchConfigs = async () => {
     setLoading(true);
     try {
-      let url = '/api/admin/protocol-config';
-      const params = new URLSearchParams();
-      if (filterCondition && filterCondition !== 'ALL') params.append('condition', filterCondition);
-      if (filterRiskLevel && filterRiskLevel !== 'ALL') params.append('riskLevel', filterRiskLevel);
-      if (params.toString()) url += `?${params.toString()}`;
-
-      const response = await fetch(url);
+      const response = await fetch('/api/admin/protocol-config');
       const data = await response.json();
 
       if (data.success) {
@@ -141,221 +225,37 @@ export default function ProtocolConfigPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Protocol Configuration</h1>
-              <p className="text-gray-600">AI decision parameters for each condition + risk level</p>
-            </div>
-            <Button variant="outline" onClick={() => router.back()}>
-              ← Back
-            </Button>
-          </div>
+    <div className="container mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Protocol Configuration</h1>
+          <p className="text-gray-600">AI decision parameters for each condition + risk level</p>
         </div>
+        <Button variant="outline" onClick={() => router.back()}>
+          ← Back
+        </Button>
+      </div>
 
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-lg">Filters</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="filter-condition">Condition</Label>
-                <Select value={filterCondition} onValueChange={setFilterCondition}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Conditions" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All Conditions</SelectItem>
-                    <SelectItem value="HF">HF - Heart Failure</SelectItem>
-                    <SelectItem value="COPD">COPD</SelectItem>
-                    <SelectItem value="PNA">PNA - Pneumonia</SelectItem>
-                    <SelectItem value="AMI">AMI - Acute MI</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="filter-risk">Risk Level</Label>
-                <Select value={filterRiskLevel} onValueChange={setFilterRiskLevel}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Risk Levels" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All Risk Levels</SelectItem>
-                    <SelectItem value="HIGH">High</SelectItem>
-                    <SelectItem value="MEDIUM">Medium</SelectItem>
-                    <SelectItem value="LOW">Low</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Info Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Critical Threshold</CardTitle>
-              <AlertCircle className="w-4 h-4 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xs text-gray-500">
-                Lower = more sensitive. AI confidence above this → escalate immediately.
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Low Threshold</CardTitle>
-              <Settings2 className="w-4 h-4 text-yellow-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xs text-gray-500">
-                Higher = asks more questions. AI confidence below this → clarify.
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Sentiment Boost</CardTitle>
-              <TrendingUp className="w-4 h-4 text-emerald-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xs text-gray-500">
-                Upgrades severity when patient is distressed + has symptoms.
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Table */}
+      {/* Table */}
         <Card>
           <CardHeader>
             <CardTitle>Configurations ({configs.length})</CardTitle>
             <CardDescription>
-              Click <Pencil className="w-3 h-3 inline" /> to edit. Changes take effect immediately.
+              Click View/Edit to modify. Changes take effect immediately.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
-              </div>
-            ) : configs.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                No configurations found. Try adjusting your filters.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>
-                        <div className="flex items-center gap-1">
-                          Condition
-                          <HoverCard>
-                            <HoverCardTrigger><HelpCircle className="w-3 h-3 text-gray-400" /></HoverCardTrigger>
-                            <HoverCardContent className="w-80">
-                              <p className="text-sm">Medical condition this configuration applies to (HF, COPD, AMI, PNA)</p>
-                            </HoverCardContent>
-                          </HoverCard>
-                        </div>
-                      </TableHead>
-                      <TableHead>
-                        <div className="flex items-center gap-1">
-                          Risk
-                          <HoverCard>
-                            <HoverCardTrigger><HelpCircle className="w-3 h-3 text-gray-400" /></HoverCardTrigger>
-                            <HoverCardContent className="w-80">
-                              <p className="text-sm">Patient's risk of readmission (LOW/MEDIUM/HIGH). Higher risk → more sensitive AI detection.</p>
-                            </HoverCardContent>
-                          </HoverCard>
-                        </div>
-                      </TableHead>
-                      <TableHead>Critical Threshold</TableHead>
-                      <TableHead>Low Threshold</TableHead>
-                      <TableHead>Vague Symptoms</TableHead>
-                      <TableHead>Sentiment Boost</TableHead>
-                      <TableHead>
-                        <div className="flex items-center gap-1">
-                          Status
-                          <HoverCard>
-                            <HoverCardTrigger><HelpCircle className="w-3 h-3 text-gray-400" /></HoverCardTrigger>
-                            <HoverCardContent className="w-80">
-                              <p className="text-sm">Whether this configuration is currently active and being used by the AI.</p>
-                            </HoverCardContent>
-                          </HoverCard>
-                        </div>
-                      </TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {configs.map((config) => (
-                      <TableRow key={config.id}>
-                        <TableCell>
-                          <Badge>{config.condition_code}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getRiskBadgeVariant(config.risk_level)}>
-                            {config.risk_level}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <span className={getThresholdColor(config.critical_confidence_threshold)}>
-                            {config.critical_confidence_threshold.toFixed(2)}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <span className={getThresholdColor(config.low_confidence_threshold, true)}>
-                            {config.low_confidence_threshold.toFixed(2)}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-xs text-gray-600">
-                            {config.vague_symptoms?.length || 0} words
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {config.enable_sentiment_boost ? (
-                            <Badge variant="outline" className="text-emerald-600">
-                              {config.distressed_severity_upgrade}
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline">OFF</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={config.active ? 'default' : 'destructive'}>
-                            {config.active ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setSelectedConfig(config);
-                              setEditedConfig(config); // Pre-populate for editing
-                              setDetailsModalOpen(true);
-                            }}
-                            title="View/Edit Configuration"
-                          >
-                            <Eye className="w-4 h-4 mr-1" />
-                            View/Edit
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+            <DataTable
+              data={configs}
+              columns={columns}
+              loading={loading}
+              emptyMessage="No configurations found. Try adjusting your filters."
+              hoverable={true}
+              searchable={true}
+              searchPlaceholder="Search by condition, risk level, notes..."
+              searchKeys={['condition_code', 'risk_level', 'notes', 'system_prompt']}
+            />
           </CardContent>
         </Card>
 
@@ -364,7 +264,7 @@ export default function ProtocolConfigPage() {
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Settings2 className="w-5 h-5" />
+                <Brain className="w-5 h-5" />
                 Protocol Configuration Details
               </DialogTitle>
               <DialogDescription>
@@ -526,7 +426,6 @@ export default function ProtocolConfigPage() {
             )}
           </DialogContent>
         </Dialog>
-      </div>
     </div>
   );
 }

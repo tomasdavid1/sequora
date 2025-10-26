@@ -5,13 +5,15 @@ import { EscalationTask, Episode, Patient } from '@/types';
 export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
+    const { searchParams } = new URL(request.url);
+    const includeResolved = searchParams.get('includeResolved') === 'true';
     
-    const { data: tasks, error } = await supabase
+    let query = supabase
       .from('EscalationTask')
       .select(`
         id,
         episode_id,
-        source_attempt_id,
+        agent_interaction_id,
         reason_codes,
         severity,
         priority,
@@ -26,6 +28,7 @@ export async function GET(request: NextRequest) {
         Episode (
           id,
           condition_code,
+          risk_level,
           Patient (
             id,
             first_name,
@@ -34,8 +37,14 @@ export async function GET(request: NextRequest) {
             primary_phone
           )
         )
-      `)
-      .order('sla_due_at', { ascending: true });
+      `);
+    
+    // By default, only show OPEN tasks
+    if (!includeResolved) {
+      query = query.eq('status', 'OPEN');
+    }
+    
+    const { data: tasks, error } = await query.order('sla_due_at', { ascending: true });
 
     if (error) {
       console.error('Error fetching escalation tasks:', error);
@@ -48,6 +57,11 @@ export async function GET(request: NextRequest) {
     // Transform data for the frontend
     const transformedTasks = tasks.map(task => {
       const patient = task.Episode?.Patient;
+      
+      if (!patient) {
+        console.error(`❌ Task ${task.id} has no patient - data integrity issue`);
+      }
+      
       const timeToBreach = Math.floor(
         (new Date(task.sla_due_at).getTime() - new Date().getTime()) / (1000 * 60)
       );
@@ -56,9 +70,18 @@ export async function GET(request: NextRequest) {
         ...task,
         id: task.id,
         episode_id: task.Episode?.id,
+        agent_interaction_id: task.agent_interaction_id,
         patientId: patient?.id,
         patientName: patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown Patient',
+        patient: {
+          id: patient?.id,
+          first_name: patient?.first_name,
+          last_name: patient?.last_name,
+          email: patient?.email,
+          primary_phone: patient?.primary_phone
+        },
         condition: task.Episode?.condition_code || 'Unknown',
+        risk_level: task.Episode?.risk_level,
         severity: task.severity,
         priority: task.priority,
         reason_codes: task.reason_codes,

@@ -68,7 +68,7 @@ healthx2/
 - `/signup` - Patient registration (requires existing patient record)
 - `/dashboard` - Role-based unified dashboard
 - `/dashboard/patients` - Patient management (Admin)
-- `/dashboard/protocols` - Protocol configuration (Admin)
+- `/dashboard/protocol-config` - Protocol configuration (Admin)
 - `/dashboard/ai-tester` - AI interaction testing (Admin/Staff)
 
 ## License

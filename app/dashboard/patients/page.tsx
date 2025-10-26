@@ -24,6 +24,7 @@ export default function PatientsPage() {
   const { user, loading: authLoading } = useAuth();
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
   const [conversationData, setConversationData] = useState<any[]>([]);
   const [showConversationModal, setShowConversationModal] = useState(false);
@@ -35,13 +36,28 @@ export default function PatientsPage() {
   const fetchPatients = async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await fetch('/api/toc/nurse/patients');
-      if (response.ok) {
-        const data = await response.json();
-        setPatients(data.patients || []);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ Failed to fetch patients:', response.status, errorData);
+        setError(errorData.error || `API returned status ${response.status}`);
+        return;
       }
+      
+      const data = await response.json();
+      
+      if (!data.patients) {
+        console.error('❌ Patients API returned no data:', data);
+        setError('Invalid response from server - missing patients data');
+        return;
+      }
+      
+      setPatients(data.patients);
     } catch (error) {
-      console.error('Error fetching patients:', error);
+      console.error('❌ [PatientsPage] Error fetching patients:', error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch patients');
     } finally {
       setLoading(false);
     }
@@ -87,15 +103,32 @@ export default function PatientsPage() {
     );
   }
 
-  // Calculate analytics
+  // Calculate analytics (only if patients loaded successfully)
   const activePatients = patients.filter(p => {
+    if (!p.dischargeDate) {
+      console.error(`❌ Patient ${p.id} missing dischargeDate`);
+      return false;
+    }
     const daysSince = Math.floor((Date.now() - new Date(p.dischargeDate).getTime()) / (1000 * 60 * 60 * 24));
     return daysSince <= 30;
   });
   
-  const patientsWithFlags = patients.filter(p => p.flags > 0);
+  const patientsWithFlags = patients.filter(p => {
+    if (p.flags === undefined || p.flags === null) {
+      console.error(`❌ Patient ${p.id} missing flags count`);
+      return false;
+    }
+    return p.flags > 0;
+  });
+  
   const avgDaysSinceDischarge = patients.length > 0
-    ? Math.round(patients.reduce((sum, p) => sum + p.daysSinceDischarge, 0) / patients.length)
+    ? Math.round(patients.reduce((sum, p) => {
+        if (p.daysSinceDischarge === undefined || p.daysSinceDischarge === null) {
+          console.error(`❌ Patient ${p.id} missing daysSinceDischarge`);
+          return sum;
+        }
+        return sum + p.daysSinceDischarge;
+      }, 0) / patients.length)
     : 0;
 
   return (
@@ -186,7 +219,23 @@ export default function PatientsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {error ? (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <div className="font-semibold mb-1">Failed to load patients</div>
+                  <div className="text-sm">{error}</div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-3"
+                    onClick={fetchPatients}
+                  >
+                    Retry
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            ) : loading ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                 <p className="mt-2 text-gray-600">Loading patients...</p>

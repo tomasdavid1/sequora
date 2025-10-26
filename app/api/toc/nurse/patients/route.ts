@@ -59,9 +59,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Transform data for the frontend
+    // Transform data for the frontend with strict validation
     const patients = episodes.map(episode => {
       const patient = episode.Patient;
+      
+      // Strict validation - patient should ALWAYS exist for an episode
+      if (!patient) {
+        console.error(`❌ Episode ${episode.id} has no associated Patient - data integrity issue!`);
+        throw new Error(`Episode ${episode.id} missing Patient relationship. Check foreign key constraints.`);
+      }
+      
+      if (!patient.first_name || !patient.last_name) {
+        console.error(`❌ Patient ${patient.id} missing required fields:`, {
+          has_first_name: !!patient.first_name,
+          has_last_name: !!patient.last_name
+        });
+        throw new Error(`Patient ${patient.id} missing required name fields. Run data validation.`);
+      }
+      
       const daysSinceDischarge = Math.floor(
         (new Date().getTime() - new Date(episode.discharge_at).getTime()) / (1000 * 60 * 60 * 24)
       );
@@ -92,12 +107,12 @@ export async function GET(request: NextRequest) {
 
       return {
         id: episode.id,
-        patientId: patient?.id || '',
-        first_name: patient?.first_name || '',
-        last_name: patient?.last_name || '',
-        email: patient?.email || '',
-        primary_phone: patient?.primary_phone || '',
-        name: `${patient?.first_name || ''} ${patient?.last_name || ''}`,
+        patientId: patient.id,
+        first_name: patient.first_name,
+        last_name: patient.last_name,
+        email: patient.email || null, // Email can be null
+        primary_phone: patient.primary_phone || null, // Phone can be null
+        name: `${patient.first_name} ${patient.last_name}`,
         condition_code: episode.condition_code,
         condition: episode.condition_code,
         discharge_at: episode.discharge_at,

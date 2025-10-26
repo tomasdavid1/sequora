@@ -39,12 +39,20 @@ export async function GET(request: NextRequest) {
       `)
       .eq('episode_id', episodeId)
       .eq('is_active', true)
-      .single();
+      .maybeSingle(); // Use maybeSingle() - returns null instead of error when 0 rows
 
     if (protocolError) {
-      console.error('Error fetching protocol:', protocolError);
+      console.error('❌ [Protocol Profile] Database error:', protocolError);
       return NextResponse.json(
-        { success: false, error: 'Protocol not found' },
+        { success: false, error: protocolError.message },
+        { status: 500 }
+      );
+    }
+    
+    if (!protocol) {
+      console.log('📝 [Protocol Profile] No active protocol assignment for episode:', episodeId);
+      return NextResponse.json(
+        { success: false, error: 'No active protocol assignment. Send a message to create one, or change Episode condition/risk in Profile modal.' },
         { status: 404 }
       );
     }

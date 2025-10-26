@@ -259,15 +259,50 @@ CRITICAL INSTRUCTIONS:
 - Call tools separately using the function calling feature
 - Your text response should ONLY contain what the patient will read/hear
 
+🚫 OUT OF SCOPE - DO NOT:
+- Give medical advice (medication dosages, treatment changes, etc.)
+- Provide pharmacy/prescription information
+- Answer general health questions unrelated to their post-discharge condition
+- Provide emotional counseling or therapy
+- Make any promises about care you cannot fulfill
+
+⚠️ EDGE CASES - HANDLE CAREFULLY:
+
+1. OFF-TOPIC QUESTIONS ( pharmacy, insurance, unrelated health, etc):
+   - Acknowledge briefly: "I understand your concern"
+   - Redirect immediately: "Let me first check on your recovery. How are you feeling?"
+   - DO NOT provide factual answers to off-topic questions
+
+2. FOLLOW-UP PERSISTENCE (when patient is vague or uncertain):
+   - If you asked about a symptom and patient says "I don't know" or is vague → DON'T give up
+   - Stay focused on the SAME symptom - try alternative approaches:
+     * Ask for comparison: "Is it worse than yesterday/last week?"
+     * Ask for scale: "On a scale of 1-10, how bad is it?"
+     * Ask for impact: "Is it affecting your daily activities?"
+     * Ask for specifics: "When did you first notice it?"
+   - Don't jump to asking about OTHER symptoms when patient is uncertain about the current one
+   - Exhaust 2-3 different angles before moving on
+
+✅ BEFORE USING log_checkin:
+- "Fine/good/okay" alone is NOT enough
+- Verify at least 2 specific symptoms are all normal
+- Only call log_checkin if patient confirms NO issues with multiple symptoms
+- Can infer from context if patient clearly has no problems
+
 Decision Hint: ${JSON.stringify(hint)}
 
 ${hint.messageGuidance ? `\n📋 MESSAGE GUIDANCE:\n${hint.messageGuidance}\n` : ''}
 
 Tool Usage (NOTE: patientId is already known - you don't need to provide it):
-- raise_flag: When symptoms are concerning
-- ask_more: When you need more information  
-- log_checkin: When you've determined the patient is doing well
-- handoff_to_nurse: When immediate attention needed
+- raise_flag: For HIGH/MODERATE/LOW severity concerns that need follow-up (but not urgent)
+- handoff_to_nurse: ONLY for CRITICAL emergencies (chest pain, severe breathing, life-threatening)
+- ask_more: When you need more information before making a decision
+- log_checkin: ONLY after verifying multiple specific symptoms are all normal
+
+⚠️ TONE BASED ON SEVERITY:
+- CRITICAL (handoff_to_nurse): "A nurse will call you within [time]" - urgent but calm
+- HIGH (raise_flag): "We're noting this and will follow up soon" - reassuring, NO specific timeframe
+- MODERATE/LOW: "Thank you for letting me know" - very reassuring
 
 RESPONSE FORMAT:
 1. Write your message to the patient (conversational, empathetic)
@@ -335,9 +370,20 @@ Generate a response to the patient and use appropriate tools based on the decisi
     });
 
   } catch (error) {
-    console.error('Error in response generation with tools:', error);
+    console.error('❌ [OpenAI Tools] Error in response generation:', error);
+    
+    // Extract detailed error info from OpenAI
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorDetails = (error as any)?.response?.data || (error as any)?.error || error;
+    
+    console.error('❌ [OpenAI Tools] Error details:', JSON.stringify(errorDetails, null, 2));
+    
     return NextResponse.json(
-      { error: 'Response generation with tools failed' },
+      { 
+        error: 'Response generation with tools failed',
+        details: errorMessage,
+        openaiError: errorDetails
+      },
       { status: 500 }
     );
   }

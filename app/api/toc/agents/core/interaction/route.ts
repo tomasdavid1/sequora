@@ -85,6 +85,24 @@ interface ToolResult {
   };
 }
 
+// Message guidance templates for different severity levels
+const MESSAGE_GUIDANCE = {
+  CRITICAL: (matchedPattern: string, conditionCode: string, slaHours: number) => 
+    `URGENT CLOSURE: Patient showed "${matchedPattern}". Acknowledge the symptom. Explain briefly why this needs immediate attention for ${conditionCode}. Tell them a nurse will call within ${slaHours} hours. Stay calm but clear about the urgency. This ends the interaction.`,
+  
+  HIGH: (matchedPattern: string, conditionCode: string) => 
+    `CLOSURE MESSAGE: Patient showed "${matchedPattern}". Acknowledge the symptom calmly. Explain in 1 sentence why we monitor this for ${conditionCode}. Say "We're noting this and will follow up with you soon." DO NOT mention timeframes or "nurse will call" - keep it reassuring. This ends the interaction.`,
+  
+  MODERATE: (matchedPattern: string) => 
+    `CLOSURE MESSAGE: Patient showed "${matchedPattern}". Acknowledge it gently. Say "Thank you for letting me know. We're keeping track of this." Keep it light and reassuring. This ends the interaction.`,
+  
+  LOW: (matchedPattern: string) => 
+    `CLOSURE MESSAGE: Patient showed "${matchedPattern}". Acknowledge it gently. Say "Thank you for letting me know. We're keeping track of this." Keep it light and reassuring. This ends the interaction.`,
+  
+  DOING_WELL: () => 
+    `CLOSURE MESSAGE: Patient is doing well! Acknowledge their positive status. Provide brief encouragement to continue their care plan. Remind them to contact if anything changes. This ends the interaction on a positive note.`
+} as const;
+
 // Core interaction agent that handles patient responses and determines next actions
 // Enhanced with protocol system, rules DSL, and tool calling
 
@@ -114,6 +132,24 @@ export async function POST(request: NextRequest) {
     if (!protocolAssignment) {
       console.log('📝 [Interaction] No protocol assignment found - creating one now');
       protocolAssignment = await createProtocolAssignment(episodeId, supabase);
+    }
+    
+    // CRITICAL: Verify protocol assignment matches current episode condition/risk
+    // (Assignment can become stale if episode is edited in admin)
+    const episodeCondition = (protocolAssignment.Episode as any)?.condition_code;
+    const episodeRiskLevel = (protocolAssignment.Episode as any)?.risk_level;
+    
+    if (episodeCondition !== protocolAssignment.condition_code || episodeRiskLevel !== protocolAssignment.risk_level) {
+      console.error('❌ [Interaction] STALE PROTOCOL ASSIGNMENT DETECTED!', {
+        assignment_condition: protocolAssignment.condition_code,
+        assignment_risk: protocolAssignment.risk_level,
+        episode_condition: episodeCondition,
+        episode_risk: episodeRiskLevel
+      });
+      
+      return NextResponse.json({
+        error: `Stale protocol assignment! Episode is ${episodeCondition}/${episodeRiskLevel} but assignment is ${protocolAssignment.condition_code}/${protocolAssignment.risk_level}. Please update the episode in Profile modal or create new protocol assignment.`
+      }, { status: 400 });
     }
 
     // 2. Get conversation history if continuing an existing interaction
@@ -465,7 +501,7 @@ async function loadProtocolAssignment(episodeId: string, supabase: SupabaseAdmin
     `)
     .eq('episode_id', episodeId)
     .eq('is_active', true)
-    .single();
+    .maybeSingle(); // Use maybeSingle() instead of single() - returns null instead of error when 0 rows
 
   if (error) {
     console.error('❌ [Protocol Assignment] Database error loading assignment for episode:', episodeId, error);
@@ -473,9 +509,11 @@ async function loadProtocolAssignment(episodeId: string, supabase: SupabaseAdmin
   }
 
   if (!assignment) {
+    console.log('📝 [Protocol Assignment] No active assignment found for episode:', episodeId);
     return null; // This is OK - no assignment means we need to create one
   }
 
+  console.log('✅ [Protocol Assignment] Loaded:', assignment.condition_code, assignment.risk_level);
   return assignment;
 }
 
@@ -484,7 +522,7 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
     // First, get the episode details
     const { data: episode, error: episodeError } = await supabase
       .from('Episode')
-    .select('condition_code, risk_level')
+    .select('condition_code, risk_level, Patient!inner(education_level)')
       .eq('id', episodeId)
       .single();
 
@@ -497,8 +535,15 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
     console.error('❌ [Protocol Assignment] Episode not found:', episodeId);
     throw new Error(`Episode ${episodeId} not found. Cannot create protocol assignment.`);
   }
+  
+  console.log('📋 [Protocol Assignment] Creating assignment from Episode:', {
+    episodeId,
+    condition_code: episode.condition_code,
+    risk_level: episode.risk_level
+  });
 
   // Create the protocol assignment (just metadata, no rule duplication)
+  // Note: education_level is in Patient table, not ProtocolAssignment
     const { data: assignment, error: assignmentError } = await supabase
       .from('ProtocolAssignment')
       .insert({
@@ -848,6 +893,15 @@ async function evaluateRulesDSL(
         console.log(`⬆️ [Rules Engine] Severity upgraded to ${finalSeverity.toUpperCase()} (AI + distressed sentiment)`);
       }
       
+      // Use message guidance template based on severity
+      const messageGuidance = finalSeverity === 'CRITICAL' 
+        ? MESSAGE_GUIDANCE.CRITICAL(ruleMatch.matchedPattern || '', protocolAssignment.condition_code, getSLAMinutesFromSeverity(finalSeverity) / 60)
+        : finalSeverity === 'HIGH'
+        ? MESSAGE_GUIDANCE.HIGH(ruleMatch.matchedPattern || '', protocolAssignment.condition_code)
+        : finalSeverity === 'MODERATE'
+        ? MESSAGE_GUIDANCE.MODERATE(ruleMatch.matchedPattern || '')
+        : MESSAGE_GUIDANCE.LOW(ruleMatch.matchedPattern || '');
+      
       return {
         action: 'FLAG' as const,
         flagType: rule.flag.type,
@@ -855,7 +909,7 @@ async function evaluateRulesDSL(
         reason: rule.flag.message,
         matchedPattern: ruleMatch.matchedPattern,
         ruleDescription: rule.flag.message,
-        messageGuidance: `CLOSURE MESSAGE: Patient showed "${ruleMatch.matchedPattern}". Acknowledge this symptom specifically. Explain in 1-2 sentences why this matters for ${protocolAssignment.condition_code} patients (clinical reasoning). Let them know a nurse will call within ${getSLAMinutesFromSeverity(finalSeverity) / 60} hours. Be warm and reassuring while taking it seriously. This ends the interaction.`,
+        messageGuidance: messageGuidance,
         followUp: []
       };
     }
@@ -876,7 +930,7 @@ async function evaluateRulesDSL(
         action: 'CLOSE' as const,
         reason: 'Patient is doing well',
         matchedPattern: closureMatch.matchedPattern,
-        messageGuidance: 'CLOSURE MESSAGE: Patient is doing well! Acknowledge their positive status. Provide brief encouragement to continue their care plan. Remind them to contact if anything changes. This ends the interaction on a positive note.'
+        messageGuidance: MESSAGE_GUIDANCE.DOING_WELL()
       };
     }
   }
@@ -1060,12 +1114,18 @@ async function handleRaiseFlag(parameters: Record<string, unknown>, patientId: s
   const severityStr = String(severity);
   const flagTypeStr = String(flagType);
   
+  // Validate interactionId is present (required for cascade delete)
+  if (!interactionId) {
+    console.error('❌ [RaiseFlag] Missing interactionId - cannot create task without interaction context');
+    throw new Error('interactionId is required to create EscalationTask (needed for cascade delete)');
+  }
+  
   // Create escalation task
   const { data: task, error } = await supabase
     .from('EscalationTask')
     .insert({
       episode_id: episodeId,
-      agent_interaction_id: interactionId || null,
+      agent_interaction_id: interactionId, // Required - no null allowed
       reason_codes: [flagTypeStr],
       severity: severityStr.toUpperCase() as SeverityType,
       priority: getPriorityFromSeverity(severityStr.toUpperCase() as SeverityType),
@@ -1078,10 +1138,11 @@ async function handleRaiseFlag(parameters: Record<string, unknown>, patientId: s
     .single();
 
   if (error) {
-    console.error('Error creating escalation task:', error);
+    console.error('❌ [RaiseFlag] Error creating escalation task:', error);
     return { success: false, error: error.message };
   }
 
+  console.log('✅ [RaiseFlag] Task created:', task.id, 'linked to interaction:', interactionId);
   return { success: true, taskId: task.id };
 }
 
@@ -1118,6 +1179,11 @@ async function handleHandoffToNurse(parameters: Record<string, unknown>, patient
     throw new Error('handoff_to_nurse requires flagType parameter');
   }
   
+  if (!interactionId) {
+    console.error('❌ [Handoff] Missing interactionId - cannot create task without interaction context');
+    throw new Error('interactionId is required to create EscalationTask (needed for cascade delete)');
+  }
+  
   const reasonStr = String(reason);
   const flagTypeStr = String(flagType);
   
@@ -1126,7 +1192,7 @@ async function handleHandoffToNurse(parameters: Record<string, unknown>, patient
     .from('EscalationTask')
     .insert({
       episode_id: episodeId,
-      agent_interaction_id: interactionId || null,
+      agent_interaction_id: interactionId, // Required - no null allowed
       reason_codes: [flagTypeStr, reasonStr],
       severity: 'CRITICAL',
       priority: 'URGENT',
@@ -1139,11 +1205,11 @@ async function handleHandoffToNurse(parameters: Record<string, unknown>, patient
     .single();
 
   if (error) {
-    console.error('Error creating nurse handoff task:', error);
+    console.error('❌ [Handoff] Error creating nurse handoff task:', error);
     return { success: false, error: error.message };
   }
 
-  console.log('✅ [Handoff] Escalation task created:', task.id);
+  console.log('✅ [Handoff] Escalation task created:', task.id, 'linked to interaction:', interactionId);
   return { success: true, taskId: task.id };
 }
 

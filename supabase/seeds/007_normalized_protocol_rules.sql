@@ -94,8 +94,76 @@ INSERT INTO public."ProtocolContentPack" (
  NULL,
  true);
 
+-- ============================================================================
+-- COPD Rules
+-- ============================================================================
+
+DELETE FROM public."ProtocolContentPack" WHERE condition_code = 'COPD';
+
+INSERT INTO public."ProtocolContentPack" (
+  condition_code,
+  rule_code,
+  rule_type,
+  text_patterns,
+  action_type,
+  severity,
+  message,
+  numeric_follow_up_question,
+  active
+) VALUES
+-- Critical severity
+('COPD', 'COPD_BREATHING_SEVERE', 'RED_FLAG',
+ ARRAY['cant breathe', 'cannot breathe', 'gasping', 'choking', 'suffocating', 'breathing very bad'],
+ 'HANDOFF_TO_NURSE',
+ 'CRITICAL',
+ 'Severe breathing difficulty requiring immediate attention',
+ NULL,
+ true),
+
+('COPD', 'COPD_CHEST_TIGHTNESS', 'RED_FLAG',
+ ARRAY['chest tight', 'chest tightness', 'tight chest', 'chest feels tight', 'feel tight'],
+ 'RAISE_FLAG',
+ 'HIGH',
+ 'Chest tightness - possible exacerbation',
+ NULL,
+ true),
+
+('COPD', 'COPD_BREATHING_WORSE', 'RED_FLAG',
+ ARRAY['breathing worse', 'shortness of breath', 'short of breath', 'hard to breathe', 'trouble breathing', 'winded', 'out of breath'],
+ 'RAISE_FLAG',
+ 'HIGH',
+ 'Worsening breathing difficulty',
+ NULL,
+ true),
+
+('COPD', 'COPD_INHALER_OVERUSE', 'RED_FLAG',
+ ARRAY['using inhaler more', 'inhaler not helping', 'rescue inhaler', 'need inhaler often'],
+ 'RAISE_FLAG',
+ 'HIGH',
+ 'Increased rescue inhaler use',
+ 'How many times have you used your rescue inhaler today?',
+ true),
+
+('COPD', 'COPD_SPUTUM_CHANGE', 'RED_FLAG',
+ ARRAY['coughing up', 'phlegm color', 'mucus color', 'green mucus', 'yellow mucus', 'bloody mucus'],
+ 'RAISE_FLAG',
+ 'MODERATE',
+ 'Change in sputum color or consistency',
+ NULL,
+ true),
+
+-- Closures
+('COPD', 'COPD_DOING_WELL', 'CLOSURE',
+ ARRAY['breathing good', 'breathing fine', 'feeling good', 'doing well', 'no problems', 'all good', 'fine', 'good', 'better'],
+ 'LOG_CHECKIN',
+ NULL,
+ 'Patient stable and doing well',
+ NULL,
+ true);
+
 -- Verify data
 SELECT 
+  condition_code,
   rule_code,
   rule_type,
   severity,
@@ -103,8 +171,9 @@ SELECT
   array_length(text_patterns, 1) as pattern_count,
   text_patterns[1:3] as sample_patterns
 FROM public."ProtocolContentPack"
-WHERE condition_code = 'HF'
+WHERE condition_code IN ('HF', 'COPD')
 ORDER BY 
+  condition_code,
   CASE severity
     WHEN 'CRITICAL' THEN 1
     WHEN 'HIGH' THEN 2

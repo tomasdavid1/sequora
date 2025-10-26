@@ -161,18 +161,97 @@ export async function GET(request: NextRequest) {
       avgResponseTime = (totalResponseTime / responseTimeData.length) / (1000 * 60 * 60); // Convert to hours
     }
 
-    // Simulate patient satisfaction (in real implementation, this would come from surveys)
-    const patientSatisfaction = 4.2 + Math.random() * 0.6; // Random between 4.2-4.8
+    // Get total episodes in range
+    const { count: totalEpisodes } = await supabase
+      .from('Episode')
+      .select('*', { count: 'exact', head: true })
+      .gte('discharge_at', startDate.toISOString())
+      .lte('discharge_at', endDate.toISOString());
+
+    // Get 72h completion rate (episodes with first contact within 72h)
+    const { data: episodesWithAttempts } = await supabase
+      .from('Episode')
+      .select(`
+        id,
+        discharge_at,
+        OutreachPlan (
+          OutreachAttempt (
+            completed_at,
+            status
+          )
+        )
+      `)
+      .gte('discharge_at', startDate.toISOString())
+      .lte('discharge_at', endDate.toISOString());
+
+    let completion72h = 0;
+    if (episodesWithAttempts && episodesWithAttempts.length > 0) {
+      const completedWithin72h = episodesWithAttempts.filter(episode => {
+        const dischargeDate = new Date(episode.discharge_at);
+        const seventyTwoHoursLater = new Date(dischargeDate.getTime() + 72 * 60 * 60 * 1000);
+        
+        const firstAttempt = episode.OutreachPlan?.[0]?.OutreachAttempt?.find((attempt: any) => 
+          attempt.status === 'COMPLETED' && new Date(attempt.completed_at) <= seventyTwoHoursLater
+        );
+        
+        return !!firstAttempt;
+      }).length;
+      
+      completion72h = (completedWithin72h / episodesWithAttempts.length) * 100;
+    }
+
+    // Get connect rate (successful contacts / total attempts)
+    const { data: allAttempts } = await supabase
+      .from('OutreachAttempt')
+      .select('status, completed_at')
+      .gte('created_at', startDate.toISOString());
+
+    let connectRate = 0;
+    if (allAttempts && allAttempts.length > 0) {
+      const successful = allAttempts.filter(a => a.status === 'COMPLETED').length;
+      connectRate = (successful / allAttempts.length) * 100;
+    }
+
+    // Get open tasks
+    const { count: openTasks } = await supabase
+      .from('EscalationTask')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'OPEN');
+
+    // Get breached SLAs (tasks past due date with OPEN status)
+    const { count: breachedSLAs } = await supabase
+      .from('EscalationTask')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'OPEN')
+      .lt('sla_due_at', new Date().toISOString());
+
+    // Calculate SLA compliance
+    const { count: totalTasks } = await supabase
+      .from('EscalationTask')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', startDate.toISOString());
+
+    let slaCompliance = 100;
+    if (totalTasks && totalTasks > 0 && breachedSLAs) {
+      slaCompliance = ((totalTasks - breachedSLAs) / totalTasks) * 100;
+    }
 
     const stats = {
+      // Dashboard metrics
+      totalEpisodes: totalEpisodes || 0,
+      outreachCoverage: Math.round(outreachCoverage),
+      completion72h: Math.round(completion72h),
+      connectRate: Math.round(connectRate),
+      openTasks: openTasks || 0,
+      breachedSLAs: breachedSLAs || 0,
+      slaCompliance: Math.round(slaCompliance),
+      
+      // Additional metrics for future use
       totalPatients: totalPatients || 0,
       activePatients: activePatients || 0,
-      completedEpisodes: completedEpisodes || 0,
       readmissions: readmissions,
-      outreachCoverage: outreachCoverage,
-      escalationRate: escalationRate,
-      avgResponseTime: avgResponseTime,
-      patientSatisfaction: patientSatisfaction
+      escalationRate: Math.round(escalationRate),
+      avgResponseTime: Math.round(avgResponseTime * 10) / 10
     };
 
     return NextResponse.json({ stats });

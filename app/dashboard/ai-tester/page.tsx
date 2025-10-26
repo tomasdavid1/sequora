@@ -110,6 +110,8 @@ export default function AITesterPage() {
   const [showPatientConfigModal, setShowPatientConfigModal] = useState(false);
   const [editingConfig, setEditingConfig] = useState<any>({});
   const [editingRules, setEditingRules] = useState<Record<string, any>>({});
+  const [editingEpisode, setEditingEpisode] = useState<any>({});
+  const [editingPatient, setEditingPatient] = useState<any>({});
   const renderCountRef = React.useRef(0);
   
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
@@ -215,6 +217,144 @@ export default function AITesterPage() {
     }
   };
 
+  // Save patient changes (education_level)
+  const savePatientChanges = async () => {
+    if (!protocolProfile?.patient?.id || Object.keys(editingPatient).length === 0) return;
+
+    try {
+      const patientResponse = await fetch(`/api/toc/patient/${protocolProfile.patient.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingPatient)
+      });
+
+      if (!patientResponse.ok) {
+        const errorData = await patientResponse.json();
+        toast({ 
+          title: 'Error updating patient', 
+          description: errorData.error || 'Failed to update',
+          variant: 'destructive' 
+        });
+        return;
+      }
+
+      toast({ 
+        title: 'Patient Updated!', 
+        description: 'Patient education level updated successfully.'
+      });
+      
+      setEditingPatient({});
+      await fetchProtocolProfile();
+      
+    } catch (error) {
+      console.error('Error saving patient:', error);
+      toast({ title: 'Error', description: 'Failed to save patient changes', variant: 'destructive' });
+    }
+  };
+
+  // Save episode changes (condition_code and risk_level)
+  const saveEpisodeChanges = async () => {
+    if (!protocolProfile?.episode?.id || Object.keys(editingEpisode).length === 0) return;
+
+    try {
+      // Update episode
+      const episodeResponse = await fetch(`/api/toc/episodes/${protocolProfile.episode.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingEpisode)
+      });
+
+      if (!episodeResponse.ok) {
+        const errorData = await episodeResponse.json();
+        toast({ 
+          title: 'Error updating episode', 
+          description: errorData.error || 'Failed to update',
+          variant: 'destructive' 
+        });
+        return;
+      }
+      
+      // Get the updated episode from response
+      const episodeData = await episodeResponse.json();
+      const updatedEpisode = episodeData.episode;
+      
+      console.log('✅ Episode updated:', updatedEpisode);
+
+      // If condition_code or risk_level changed, protocol assignment needs updating
+      if (editingEpisode.condition_code || editingEpisode.risk_level) {
+        console.log('🔄 Recreating protocol assignment due to episode changes');
+        
+        // First, deactivate old protocol assignment
+        const deactivateResponse = await fetch(`/api/admin/protocol-assignments?episodeId=${protocolProfile.episode.id}`, {
+          method: 'DELETE'
+        });
+        
+        if (!deactivateResponse.ok) {
+          console.error('Failed to deactivate old protocol assignment');
+        }
+        
+        // Then create new protocol assignment with updated condition/risk
+        const assignmentResponse = await fetch('/api/admin/protocol-assignments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            episodeId: protocolProfile.episode.id
+          })
+        });
+
+        if (!assignmentResponse.ok) {
+          const errorData = await assignmentResponse.json();
+          console.error('❌ Failed to create new protocol assignment:', errorData);
+          toast({ 
+            title: 'Warning',
+            description: `Episode updated but protocol assignment failed: ${errorData.error}`,
+            variant: 'destructive'
+          });
+          // Don't throw - episode was updated successfully
+          return; // Exit early to prevent confusing success message
+        }
+        
+        const assignmentData = await assignmentResponse.json();
+        console.log('✅ New protocol assignment created:', assignmentData);
+      }
+
+      // Update test config with the ACTUAL updated episode values from API
+      setTestConfig(prev => ({ 
+        ...prev, 
+        condition: updatedEpisode.condition_code,
+        episodeId: updatedEpisode.id,
+        patientId: prev.patientId
+      }));
+      
+      setEditingEpisode({});
+      
+      // Close the modal
+      setShowConfigModal(false);
+      
+      toast({ 
+        title: 'Episode Updated!', 
+        description: `Now using ${updatedEpisode.condition_code} ${updatedEpisode.risk_level} protocol. Ready to test!`
+      });
+      
+      // Try to refresh profile (may fail if no assignment created yet - that's ok)
+      try {
+        await fetchProtocolProfile();
+      } catch (profileError) {
+        console.log('Profile refresh skipped - will load on next message');
+      }
+      
+    } catch (error) {
+      console.error('❌ [saveEpisodeChanges] Error:', error);
+      toast({ title: 'Error', description: 'Failed to save episode changes', variant: 'destructive' });
+    }
+  };
+  
+  // Save all profile changes (patient + episode)
+  const saveProfileChanges = async () => {
+    await savePatientChanges();
+    await saveEpisodeChanges();
+  };
+
   // Fetch protocol profile for current test config
   const fetchProtocolProfile = async () => {
     if (!testConfig.episodeId) {
@@ -234,11 +374,15 @@ export default function AITesterPage() {
         setProtocolProfile(data.profile);
         console.log('✅ [Profile] Loaded protocol profile:', data.profile);
       } else {
-        console.error('Failed to fetch protocol profile:', data.error);
+        console.log('📝 [Profile] No protocol available:', data.error);
+        // Show info alert instead of error for "no assignment" case
+        const isNoAssignment = data.error?.includes('No active protocol assignment');
         toast({
-          title: "Error loading profile",
-          description: data.error,
-          variant: "destructive"
+          title: isNoAssignment ? "No Protocol Assignment" : "Error loading profile",
+          description: isNoAssignment 
+            ? "Send a message to create a protocol assignment, or the system will auto-create one."
+            : data.error,
+          variant: isNoAssignment ? "default" : "destructive"
         });
       }
     } catch (error) {
@@ -878,170 +1022,84 @@ export default function AITesterPage() {
                                 </div>
                               </div>
 
-                              {/* Episode Info */}
+                              {/* Episode Info - Editable */}
                               <div>
                                 <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
                                   <Activity className="w-5 h-5" />
-                                  Episode Details
+                                  Episode Details (Editable)
                                 </h3>
-                                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                                  <div><span className="font-medium">Condition:</span> <Badge>{protocolProfile.episode.condition_code}</Badge></div>
+                                <div className="bg-gray-50 rounded-lg p-4 space-y-4">
                                   <div>
-                                    <span className="font-medium">Risk of Readmission:</span>{' '}
-                                    <Badge variant={
-                                      protocolProfile.episode.risk_level === 'HIGH' ? 'destructive' : 
-                                      protocolProfile.episode.risk_level === 'MEDIUM' ? 'default' : 
-                                      'outline'
-                                    }>
-                                      {protocolProfile.episode.risk_level || 'MEDIUM'}
-                                    </Badge>
-                                    <span className="ml-2 text-xs text-gray-600">(determines protocol intensity)</span>
+                                    <Label className="text-sm font-medium mb-2 block">Condition</Label>
+                                    <Select
+                                      value={editingEpisode.condition_code ?? protocolProfile.episode.condition_code}
+                                      onValueChange={(value) => setEditingEpisode({ ...editingEpisode, condition_code: value })}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="HF">Heart Failure (HF)</SelectItem>
+                                        <SelectItem value="COPD">COPD</SelectItem>
+                                        <SelectItem value="AMI">Acute MI (AMI)</SelectItem>
+                                        <SelectItem value="PNA">Pneumonia (PNA)</SelectItem>
+                                      </SelectContent>
+                                    </Select>
                                   </div>
+                                  
                                   <div>
-                                    <span className="font-medium">Education Level:</span>{' '}
-                                    <Badge variant="outline">{protocolProfile.patient.education_level}</Badge>
-                                    <span className="ml-2 text-xs text-gray-600">(patient's communication style)</span>
+                                    <Label className="text-sm font-medium mb-2 block">Risk of Readmission</Label>
+                                    <Select
+                                      value={editingEpisode.risk_level ?? protocolProfile.episode.risk_level}
+                                      onValueChange={(value) => setEditingEpisode({ ...editingEpisode, risk_level: value })}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="LOW">LOW</SelectItem>
+                                        <SelectItem value="MEDIUM">MEDIUM</SelectItem>
+                                        <SelectItem value="HIGH">HIGH</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-gray-600 mt-1">Determines protocol intensity and which rules are active</p>
                                   </div>
-                                  <div><span className="font-medium">Episode ID:</span> <span className="text-xs font-mono">{protocolProfile.episode.id}</span></div>
-                                </div>
-                              </div>
-
-                              {/* AI Decision Parameters */}
-                              {protocolProfile.protocolConfig && (
-                                <div>
-                                  <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                                    <Brain className="w-5 h-5" />
-                                    AI Decision Parameters
-                                  </h3>
-                                  <div className="bg-blue-50 rounded-lg p-4 space-y-3">
-                                    {/* System Prompt - Most important! */}
-                                    {protocolProfile.protocolConfig.system_prompt && (
-                                      <div className="bg-white rounded-lg p-3 border border-blue-200">
-                                        <div className="font-medium mb-2 text-sm flex items-center gap-2">
-                                          <Brain className="w-4 h-4" />
-                                          AI System Prompt
-                                        </div>
-                                        <p className="text-xs text-gray-700 italic leading-relaxed">
-                                          "{protocolProfile.protocolConfig.system_prompt}"
-                                        </p>
-                                      </div>
-                                    )}
-                                    
-                                    <div className="grid grid-cols-2 gap-4">
-                                      <div>
-                                        <div className="font-medium mb-1 text-sm">Critical Confidence</div>
-                                        <div className="text-2xl font-bold text-red-600">
-                                          {(protocolProfile.protocolConfig.critical_confidence_threshold * 100).toFixed(0)}%
-                                        </div>
-                                        <p className="text-xs text-gray-600 mt-1">
-                                          AI escalates if {'>'}  this
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <div className="font-medium mb-1 text-sm">Low Confidence</div>
-                                        <div className="text-2xl font-bold text-yellow-600">
-                                          {(protocolProfile.protocolConfig.low_confidence_threshold * 100).toFixed(0)}%
-                                        </div>
-                                        <p className="text-xs text-gray-600 mt-1">
-                                          AI asks more if {'<'} this
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className="border-t border-blue-200 pt-3">
-                                      <div className="font-medium mb-2 text-sm">Vague Symptoms ({protocolProfile.protocolConfig.vague_symptoms?.length || 0})</div>
-                                      <div className="flex flex-wrap gap-1">
-                                        {protocolProfile.protocolConfig.vague_symptoms?.slice(0, 6).map((symptom: string, idx: number) => (
-                                          <Badge key={idx} variant="outline" className="text-xs">{symptom}</Badge>
-                                        ))}
-                                        {(protocolProfile.protocolConfig.vague_symptoms?.length || 0) > 6 && (
-                                          <Badge variant="outline" className="text-xs">+{protocolProfile.protocolConfig.vague_symptoms.length - 6} more</Badge>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div className="border-t border-blue-200 pt-3">
-                                      <div className="font-medium mb-2 text-sm">Sentiment Boost</div>
-                                      <div className="flex items-center gap-2">
-                                        {protocolProfile.protocolConfig.enable_sentiment_boost ? (
-                                          <>
-                                            <Badge className="bg-emerald-500">Enabled</Badge>
-                                            <span className="text-xs text-gray-600">
-                                              Upgrades to <strong>{protocolProfile.protocolConfig.distressed_severity_upgrade}</strong> when distressed
-                                            </span>
-                                          </>
-                                        ) : (
-                                          <Badge variant="outline">Disabled</Badge>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div className="border-t border-blue-200 pt-2">
-                                      <div className="font-medium mb-1 text-sm">Check-in Frequency</div>
-                                      <div className="text-2xl font-bold text-blue-700">Every {protocolProfile.checkInFrequency}h</div>
-                                      <p className="text-xs text-gray-600 mt-1">
-                                        Based on {protocolProfile.episode.risk_level} risk level
-                                      </p>
-                                    </div>
+                                  
+                                  <div>
+                                    <Label className="text-sm font-medium mb-2 block">Education Level</Label>
+                                    <Select
+                                      value={editingPatient.education_level ?? protocolProfile.patient.education_level}
+                                      onValueChange={(value) => setEditingPatient({ ...editingPatient, education_level: value })}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="LOW">LOW (5th grade, simple language)</SelectItem>
+                                        <SelectItem value="MEDIUM">MEDIUM (everyday language)</SelectItem>
+                                        <SelectItem value="HIGH">HIGH (medical terminology OK)</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-gray-600 mt-1">Determines patient's communication style and AI language complexity</p>
                                   </div>
-                                </div>
-                              )}
-
-                              {/* Combined Protocol Rules - AI Detection + Clinical Action */}
-                              <div>
-                                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                                  <Zap className="w-5 h-5" />
-                                  Protocol Rules (Filtered by {protocolProfile.episode.risk_level} Risk)
-                                </h3>
-                                <div className="space-y-3">
-                                  {protocolProfile.activeProtocolRules?.filter((rule: any) => rule.rule_type === 'RED_FLAG').map((aiRule: any) => {
-                                    // Find matching clinical rule
-                                    const clinicalRule = protocolProfile.redFlagRules?.find((r: any) => r.rule_code === aiRule.rule_code);
-                                    
-                                    return (
-                                      <div key={aiRule.rule_code} className="border rounded-lg p-4 bg-white shadow-sm">
-                                        {/* Header */}
-                                        <div className="flex items-center justify-between mb-3">
-                                          <span className="font-semibold text-base">{aiRule.rule_code}</span>
-                                          <Badge variant={aiRule.severity === 'CRITICAL' ? 'destructive' : aiRule.severity === 'HIGH' ? 'default' : 'outline'}>
-                                            {aiRule.severity}
-                                          </Badge>
-                                        </div>
-                                        
-                                        {/* AI Detection Section */}
-                                        <div className="bg-blue-50 rounded p-3 mb-3">
-                                          <div className="text-xs font-semibold text-blue-900 mb-2 flex items-center gap-1">
-                                            <Brain className="w-3 h-3" />
-                                            AI Detection
-                                          </div>
-                                          <p className="text-sm text-gray-700 mb-2">{aiRule.message}</p>
-                                          <div className="text-xs text-gray-600">
-                                            <span className="font-medium">Patterns:</span> {aiRule.text_patterns?.join(', ') || 'N/A'}
-                                          </div>
-                                          <div className="text-xs text-blue-700 mt-1 font-medium">
-                                            AI Action: {aiRule.action_type}
-                                          </div>
-                                        </div>
-                                        
-                                        {/* Clinical Action Section */}
-                                        {clinicalRule && (
-                                          <div className="bg-emerald-50 rounded p-3">
-                                            <div className="text-xs font-semibold text-emerald-900 mb-2 flex items-center gap-1">
-                                              <Activity className="w-3 h-3" />
-                                              Clinical Response
-                                            </div>
-                                            <p className="text-xs text-gray-700 mb-1">{clinicalRule.description}</p>
-                                            <div className="text-xs text-emerald-700 font-medium mt-1">
-                                              → {clinicalRule.action_hint}
-                                            </div>
-                                          </div>
-                                        )}
-                                        
-                                        {!clinicalRule && (
-                                          <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded">
-                                            ⚠️ No matching clinical rule found
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  }) || <p className="text-sm text-gray-500">No red flag rules configured</p>}
+                                  
+                                  <div className="pt-3 border-t">
+                                    <span className="font-medium text-sm">Episode ID:</span>
+                                    <div className="text-xs font-mono mt-1">{protocolProfile.episode.id}</div>
+                                  </div>
+                                  
+                                  {(Object.keys(editingEpisode).length > 0 || Object.keys(editingPatient).length > 0) && (
+                                    <div className="pt-3 border-t">
+                                      <Button 
+                                        onClick={saveProfileChanges}
+                                        className="w-full"
+                                        size="sm"
+                                      >
+                                        <Save className="w-4 h-4 mr-2" />
+                                        Save Profile Changes & Update Protocol
+                                      </Button>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>

@@ -622,6 +622,10 @@ export type Database = {
           condition_code: Database["public"]["Enums"]["condition_code"]
           created_at: string | null
           description: string | null
+          education_content: string | null
+          education_level: string | null
+          education_title: string | null
+          education_topics: string[] | null
           full_name: string
           icd10_codes: string[] | null
           updated_at: string | null
@@ -632,6 +636,10 @@ export type Database = {
           condition_code: Database["public"]["Enums"]["condition_code"]
           created_at?: string | null
           description?: string | null
+          education_content?: string | null
+          education_level?: string | null
+          education_title?: string | null
+          education_topics?: string[] | null
           full_name: string
           icd10_codes?: string[] | null
           updated_at?: string | null
@@ -642,6 +650,10 @@ export type Database = {
           condition_code?: Database["public"]["Enums"]["condition_code"]
           created_at?: string | null
           description?: string | null
+          education_content?: string | null
+          education_level?: string | null
+          education_title?: string | null
+          education_topics?: string[] | null
           full_name?: string
           icd10_codes?: string[] | null
           updated_at?: string | null
