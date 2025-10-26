@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { 
   ProtocolAssignment, 
-  Episode,
+  Episode, 
   ConditionCode
 } from '@/types';
 import { SupabaseClient } from '@supabase/supabase-js';
@@ -198,64 +198,25 @@ export async function POST(request: NextRequest) {
       hasSummaries: previousSummaries.length > 0
     });
     
-    // 5. Check if decision hint requires immediate escalation
-    let aiResponse;
-    let forcedToolCalls: ToolCall[] = [];
+    // 5. Generate AI response with tools (AI handles escalation messages naturally via decisionHint)
+    console.log('🤖 [Interaction] Generating AI response with decision hint:', decisionHint.action);
     
-    if (decisionHint.action === 'FLAG') {
-      console.log('🚨 [Interaction] CRITICAL FLAG TRIGGERED - Forcing immediate escalation');
-      console.log('🚨 Flag Type:', decisionHint.flagType);
-      console.log('🚨 Severity:', decisionHint.severity);
-      
-      // Determine which tool to call based on severity
-      const toolName = decisionHint.severity === 'CRITICAL' ? 'handoff_to_nurse' : 'raise_flag';
-      
-      // Generate AI-powered, symptom-specific escalation message
-      const slaMinutes = getSLAMinutesFromSeverity(decisionHint.severity as SeverityType);
-      const timeframe = slaMinutes < 60 ? `${slaMinutes} minutes` : `${Math.round(slaMinutes / 60)} hours`;
-      const urgencyNote = decisionHint.severity === 'CRITICAL' 
-        ? ' If your symptoms get worse or you feel you need immediate help, please call 911 or go to the emergency room.'
-        : ' If anything gets worse, please contact us right away.';
-      
-      // Generate contextual escalation message using AI
-      const escalationMessage = await generateEscalationMessage(
-        parsedResponse.rawInput,
-        decisionHint,
-        timeframe,
-        urgencyNote,
-        protocolAssignment.condition_code
-      );
-      
-      forcedToolCalls = [{
-        name: toolName,
-        parameters: {
-          patientId: patientId,
-          reason: decisionHint.reason || `${decisionHint.flagType}: ${decisionHint.severity} severity`,
-          flagType: decisionHint.flagType,
-          severity: decisionHint.severity
-        }
-      }];
-      
-      aiResponse = {
-        response: escalationMessage,
-        toolCalls: forcedToolCalls
-      };
-      
-      console.log('🚨 [Interaction] Forced tool call:', toolName);
-    } else {
-      // Normal AI generation with tools
-      aiResponse = await generateAIResponseWithTools(
-        parsedResponse, 
-        protocolAssignment, 
-        decisionHint,
-        patientId,
-        episodeId,
-        protocolConfig,
-        previousSummaries,
-        isFirstMessageInCurrentChat,
-        hasBeenContactedBefore
-      );
-    }
+    const aiResponse = await generateAIResponseWithTools(
+      parsedResponse, 
+      protocolAssignment, 
+      decisionHint,
+      patientId,
+      episodeId,
+      protocolConfig,
+      previousSummaries,
+      isFirstMessageInCurrentChat,
+      hasBeenContactedBefore
+    );
+    
+    // The AI naturally generates appropriate messages based on decisionHint:
+    // - FLAG → Explains symptom concern + nurse callback
+    // - ASK_MORE → Asks clarifying questions
+    // - CLOSE → Positive reinforcement
     
     // 6. Get or create AgentInteraction record
     let existingInteractionId = interactionId;
@@ -476,12 +437,12 @@ async function loadProtocolAssignment(episodeId: string, supabase: SupabaseAdmin
 
 // Create protocol assignment for an episode
 async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdmin) {
-  // First, get the episode details
-  const { data: episode, error: episodeError } = await supabase
-    .from('Episode')
+    // First, get the episode details
+    const { data: episode, error: episodeError } = await supabase
+      .from('Episode')
     .select('condition_code, risk_level')
-    .eq('id', episodeId)
-    .single();
+      .eq('id', episodeId)
+      .single();
 
   if (episodeError) {
     console.error('❌ [Protocol Assignment] Database error fetching episode:', episodeId, episodeError);
@@ -494,25 +455,25 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
   }
 
   // Create the protocol assignment (just metadata, no rule duplication)
-  const { data: assignment, error: assignmentError } = await supabase
-    .from('ProtocolAssignment')
-    .insert({
-      episode_id: episodeId,
-      condition_code: episode.condition_code,
+    const { data: assignment, error: assignmentError } = await supabase
+      .from('ProtocolAssignment')
+      .insert({
+        episode_id: episodeId,
+        condition_code: episode.condition_code,
       risk_level: episode.risk_level,
-      is_active: true
-    })
-    .select(`
-      *,
+        is_active: true
+      })
+      .select(`
+        *,
       Episode!inner(
         condition_code, 
         risk_level,
         Patient!inner(education_level)
       )
-    `)
-    .single();
+      `)
+      .single();
 
-  if (assignmentError) {
+    if (assignmentError) {
     console.error('❌ [Protocol Assignment] Database error creating assignment:', assignmentError);
     throw new Error(`Failed to create protocol assignment: ${assignmentError.message}`);
   }
@@ -523,7 +484,7 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
   }
 
   console.log('✅ [Protocol Assignment] Created for episode:', episodeId);
-  return assignment;
+    return assignment;
 }
 
 // Query protocol configuration (AI decision parameters) from database
@@ -647,28 +608,28 @@ async function parsePatientInputWithProtocol(
   console.log('🎯 [Parser] Using', protocolPatterns.length, 'protocol patterns from database');
   
   // Call OpenAI directly with structured output request
-  const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
       operation: 'parse_patient_input',
-      input: {
-        condition: protocolAssignment.condition_code,
+        input: {
+          condition: protocolAssignment.condition_code,
         educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level, // NOT NULL in DB
         patientInput: input,
         conversationHistory: conversationHistory,
         protocolPatterns: protocolPatterns, // Database patterns for AI to match against
         requestStructuredOutput: true
-      }
-    })
-  });
+        }
+      })
+    });
 
   if (!response.ok) {
     console.error('❌ [Parser] AI API returned error status:', response.status);
     throw new Error(`AI parsing service unavailable (HTTP ${response.status}). Please try again.`);
   }
 
-  const result = await response.json();
+    const result = await response.json();
   console.log('📊 [Parser] AI extracted:', result.parsed);
   
   if (!result.success) {
@@ -732,7 +693,7 @@ async function evaluateRulesDSL(
   // If AI is very confident about critical severity, escalate immediately
   if (parsedResponse.severity === 'CRITICAL' && (parsedResponse.confidence || 0) > CRITICAL_CONFIDENCE_THRESHOLD) {
     console.log('🚨 [Rules Engine] AI detected CRITICAL severity with high confidence');
-    return {
+      return {
       action: 'FLAG' as const,
       flagType: 'AI_CRITICAL_ASSESSMENT',
       severity: 'CRITICAL',
@@ -744,16 +705,16 @@ async function evaluateRulesDSL(
   // ENHANCEMENT 2: Intent-based routing (configurable per protocol)
   if (protocolConfig.route_medication_questions_to_info && parsedResponse.intent === 'medication_question') {
     console.log('ℹ️ [Rules Engine] Medication question detected - routing to info');
-    return {
+      return {
       action: 'ASK_MORE' as const,
       questions: ['I can help with that. Can you tell me more about your medication question?'],
       reason: 'Routing to medication information'
-    };
+      };
   }
   
   if (protocolConfig.route_general_questions_to_info && parsedResponse.intent === 'question') {
     console.log('ℹ️ [Rules Engine] General question detected - routing to info');
-    return {
+  return {
       action: 'ASK_MORE' as const,
       questions: ['I can help with that. Can you tell me more about your question?'],
       reason: 'Routing to appropriate information'
@@ -769,8 +730,8 @@ async function evaluateRulesDSL(
     console.log('❓ [Rules Engine] Low confidence + vague symptoms - requesting clarification');
     return {
       action: 'ASK_MORE' as const,
-      questions: generateClarifyingQuestions(parsedResponse, protocolAssignment.condition_code),
-      reason: 'Need more specific information'
+      questions: [], // AI will generate appropriate clarifying questions based on context
+      reason: 'Need more specific information - vague symptoms detected'
     };
   }
   
@@ -866,11 +827,11 @@ async function evaluateRulesDSL(
     }
   }
   
-  // Default to ask more questions (with empathy based on sentiment)
-  const defaultQuestions = generateDefaultQuestions(parsedResponse, protocolAssignment.condition_code);
+  // Default to ask more questions
+  // Let AI generate appropriate questions based on system prompt - no hardcoded defaults!
   return {
     action: 'ASK_MORE' as const,
-    questions: defaultQuestions
+    questions: [] // AI will generate based on system prompt and decisionHint
   };
 }
 
@@ -941,7 +902,7 @@ async function generateAIResponseWithTools(
     
     const fullContext = `${protocolConfig.system_prompt} ${conversationContext} Use the decision hint to guide your response and call appropriate tools.`;
     
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -964,8 +925,8 @@ async function generateAIResponseWithTools(
       throw new Error(`AI response generation failed: HTTP ${response.status}. Please try again.`);
     }
 
-    const result = await response.json();
-    
+      const result = await response.json();
+      
     console.log(`🤖 [AI Generation] Response received. Success: ${result.success}`);
     console.log(`🤖 [AI Generation] Tool calls:`, result.toolCalls || []);
     
@@ -979,10 +940,10 @@ async function generateAIResponseWithTools(
       throw new Error('AI response generation failed: No response text returned');
     }
 
-    return {
-      response: result.response,
-      toolCalls: result.toolCalls || []
-    };
+        return {
+          response: result.response,
+          toolCalls: result.toolCalls || []
+        };
 
   } catch (error) {
     console.error('❌ [AI Generation] Error generating AI response with tools:', error);
@@ -1131,122 +1092,6 @@ async function handleHandoffToNurse(parameters: Record<string, unknown>, patient
 }
 
 
-// Generate clarifying questions based on vague symptoms
-function generateClarifyingQuestions(parsedResponse: any, condition: string): string[] {
-  const questions: string[] = [];
-  
-  // If they mentioned discomfort but unclear what kind
-  if (parsedResponse.symptoms?.some((s: string) => s.includes('discomfort'))) {
-    questions.push("Can you be more specific about the discomfort? Is it more like pain, pressure, tightness, or something else?");
-  }
-  
-  // If they said "off" or "weird"
-  if (parsedResponse.symptoms?.some((s: string) => s.includes('off') || s.includes('weird'))) {
-    questions.push("Can you describe what feels 'off'? Where do you feel it?");
-  }
-  
-  // Condition-specific follow-ups
-  if (condition === 'HF') {
-    if (!questions.length) {
-      questions.push("Can you tell me more about what you're experiencing? Is it related to breathing, swelling, or something else?");
-    }
-    questions.push("On a scale of 1-10, how severe is this feeling?");
-  }
-  
-  if (condition === 'COPD') {
-    questions.push("Is this affecting your breathing? Can you describe how?");
-  }
-  
-  // Always ask for severity if we don't know
-  if (!parsedResponse.painScore && questions.length < 2) {
-    questions.push("How severe would you rate this on a scale of 1-10?");
-  }
-  
-  return questions.slice(0, 3); // Max 3 questions at a time
-}
-
-// Generate default questions based on condition and sentiment
-function generateDefaultQuestions(parsedResponse: any, condition: string): string[] {
-  const sentiment = parsedResponse.sentiment || 'neutral';
-  const questions: string[] = [];
-  
-  // Adjust empathy based on sentiment
-  const prefix = sentiment === 'distressed' || sentiment === 'concerned' 
-    ? "I understand you're concerned. " 
-    : sentiment === 'positive' 
-    ? "That's good to hear. " 
-    : "";
-  
-  // Condition-specific questions
-  if (condition === 'HF') {
-    questions.push(`${prefix}How are you feeling today?`);
-    questions.push("Have you noticed any changes in your breathing, swelling, or weight?");
-  } else if (condition === 'COPD') {
-    questions.push(`${prefix}How is your breathing today?`);
-    questions.push("Have you needed to use your rescue inhaler more than usual?");
-  } else if (condition === 'AMI') {
-    questions.push(`${prefix}How are you feeling today?`);
-    questions.push("Any chest discomfort, shortness of breath, or unusual fatigue?");
-  } else if (condition === 'PNA') {
-    questions.push(`${prefix}How are you feeling today?`);
-    questions.push("How is your cough and breathing?");
-  } else {
-    questions.push(`${prefix}How are you feeling today?`);
-    questions.push("Any new symptoms since we last talked?");
-  }
-  
-  return questions;
-}
-
-// Generate symptom-specific escalation message
-async function generateEscalationMessage(
-  patientInput: string,
-  decisionHint: DecisionHint,
-  timeframe: string,
-  urgencyNote: string,
-  condition: string
-): Promise<string> {
-  try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        operation: 'generate_response',
-        input: {
-          messages: [
-            {
-              role: 'system',
-              content: `Generate a warm, empathetic escalation message for a ${condition} patient.
-
-Patient said: "${patientInput}"
-Red flag detected: ${decisionHint.reason}
-
-Your message should:
-1. Acknowledge their specific symptom (weight gain, chest pain, etc.)
-2. Briefly explain WHY this matters for their condition (1 sentence)
-3. Let them know a nurse will call within ${timeframe}
-4. Be reassuring but take it seriously
-
-Keep it concise (2-3 sentences). Be warm and supportive.`
-            }
-          ],
-          temperature: 0.7,
-          max_tokens: 150
-        }
-      })
-    });
-
-    const result = await response.json();
-    const aiMessage = result.response || '';
-    
-    // Append urgency note
-    return `${aiMessage}${urgencyNote}`;
-  } catch (error) {
-    console.error('Failed to generate escalation message:', error);
-    // Fallback
-    return `Thank you for letting me know about this. A nurse will call you within ${timeframe} to discuss your symptoms.${urgencyNote}`;
-  }
-}
 
 // Generate AI summary of interaction for future context
 async function generateInteractionSummary(
