@@ -17,7 +17,8 @@ import {
   AlertTriangle,
   Lock,
   MessageSquare,
-  BarChart3
+  BarChart3,
+  Phone
 } from 'lucide-react';
 import { Patient, Episode } from '@/types';
 
@@ -248,6 +249,8 @@ export default function PatientsPage() {
               <PatientsTable 
                 patients={patients}
                 loading={loading}
+                showAddPatient={true}
+                onPatientAdded={fetchPatients}
                 onPatientClick={(patient) => {
                   setSelectedPatient(patient);
                   setShowPatientModal(true);

@@ -123,11 +123,57 @@ export async function POST(request: NextRequest) {
 
         if (otpError) {
           console.error('Error sending invitation:', otpError);
-          // Continue anyway - patient can still sign up manually
+          
+          // Check if email already exists
+          const errorCode = (otpError as any)?.code || (otpError as any)?.error_code;
+          if (errorCode === 'email_exists') {
+            console.error('❌ [Upload Patient] Email already registered - rolling back patient and episode');
+            
+            // Rollback: Delete the patient (cascade deletes episode)
+            await supabaseAdmin
+              .from('Patient')
+              .delete()
+              .eq('id', patient.id);
+            
+            return NextResponse.json(
+              { 
+                error: 'Email already registered',
+                details: 'A user with this email address already exists in the system. Please use a different email or contact the existing patient.',
+                code: 'email_exists'
+              },
+              { status: 409 }
+            );
+          }
+          
+          // Other errors - continue anyway (patient can sign up manually)
+          console.warn('⚠️ [Upload Patient] Invitation failed but continuing - patient can sign up manually');
         }
       } catch (inviteError) {
         console.error('Error sending patient invitation:', inviteError);
-        // Non-fatal error - continue
+        
+        // Check if it's email_exists error
+        const errorCode = (inviteError as any)?.code || (inviteError as any)?.error_code;
+        if (errorCode === 'email_exists') {
+          console.error('❌ [Upload Patient] Email already registered - rolling back patient and episode');
+          
+          // Rollback: Delete the patient (cascade deletes episode)
+          await supabaseAdmin
+            .from('Patient')
+            .delete()
+            .eq('id', patient.id);
+          
+          return NextResponse.json(
+            { 
+              error: 'Email already registered',
+              details: 'A user with this email address already exists in the system. Please use a different email or contact the existing patient.',
+              code: 'email_exists'
+            },
+            { status: 409 }
+          );
+        }
+        
+        // Other errors - non-fatal, continue
+        console.warn('⚠️ [Upload Patient] Invitation error but continuing - patient can sign up manually');
       }
 
       // Create protocol assignment (this will be automatically created by the trigger)

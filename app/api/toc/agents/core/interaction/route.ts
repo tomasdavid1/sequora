@@ -574,6 +574,7 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
       Episode!inner(
         condition_code, 
         risk_level,
+        medications,
         Patient!inner(education_level)
       )
       `)

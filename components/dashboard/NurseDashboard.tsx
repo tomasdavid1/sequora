@@ -475,15 +475,15 @@ export default function NurseDashboard() {
 
               <div className="col-span-2">
                 <Label>Medications</Label>
-                <Textarea
-                  placeholder="Enter medications (one per line, e.g. 'Furosemide 40mg once daily')"
-                  value={parsedData?.medications?.map((m: any) => 
+                <Input
+                  placeholder="Enter medications separated by commas (e.g., 'Furosemide 40mg once daily, Metoprolol 25mg twice daily')"
+                  defaultValue={parsedData?.medications?.map((m: any) => 
                     typeof m === 'string' ? m : `${m.name}${m.dosage ? ' ' + m.dosage : ''}${m.frequency ? ' ' + m.frequency : ''}`
-                  ).join('\n') || ''}
-                  onChange={(e) => {
-                    const lines = e.target.value.split('\n').filter(line => line.trim());
-                    const medications = lines.map(line => {
-                      const parts = line.trim().split(' ');
+                  ).join(', ') || ''}
+                  onBlur={(e) => {
+                    const items = e.target.value.split(',').filter(item => item.trim());
+                    const medications = items.map(item => {
+                      const parts = item.trim().split(' ');
                       return {
                         name: parts[0] || '',
                         dosage: parts[1] || '',
@@ -492,10 +492,9 @@ export default function NurseDashboard() {
                     });
                     setParsedData({ ...parsedData, medications });
                   }}
-                  className="min-h-[100px]"
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  Enter each medication on a new line. Format: Name Dosage Frequency (e.g., "Furosemide 40mg once daily")
+                  Separate each medication with a comma. Format: Name Dosage Frequency
                 </p>
               </div>
 
