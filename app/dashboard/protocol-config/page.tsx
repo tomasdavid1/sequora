@@ -26,6 +26,7 @@ interface ProtocolConfig {
   route_medication_questions_to_info: boolean;
   route_general_questions_to_info: boolean;
   detect_multiple_symptoms: boolean;
+  system_prompt: string | null;
   active: boolean;
   notes: string | null;
   created_at: string;

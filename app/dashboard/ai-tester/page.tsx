@@ -846,6 +846,19 @@ export default function AITesterPage() {
                                     AI Decision Parameters
                                   </h3>
                                   <div className="bg-blue-50 rounded-lg p-4 space-y-3">
+                                    {/* System Prompt - Most important! */}
+                                    {protocolProfile.protocolConfig.system_prompt && (
+                                      <div className="bg-white rounded-lg p-3 border border-blue-200">
+                                        <div className="font-medium mb-2 text-sm flex items-center gap-2">
+                                          <Brain className="w-4 h-4" />
+                                          AI System Prompt
+                                        </div>
+                                        <p className="text-xs text-gray-700 italic leading-relaxed">
+                                          "{protocolProfile.protocolConfig.system_prompt}"
+                                        </p>
+                                      </div>
+                                    )}
+                                    
                                     <div className="grid grid-cols-2 gap-4">
                                       <div>
                                         <div className="font-medium mb-1 text-sm">Critical Confidence</div>
