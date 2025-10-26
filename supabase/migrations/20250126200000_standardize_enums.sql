@@ -51,23 +51,66 @@ SET severity = UPPER(severity)
 WHERE severity IN ('critical', 'high', 'moderate', 'low', 'none');
 
 -- ============================================================================
--- STEP 3: Convert TEXT Columns to Enums
+-- STEP 3: Drop Existing Check Constraints Before Enum Conversion
+-- ============================================================================
+
+-- Drop check constraint on ProtocolContentPack.severity (if exists)
+DO $$ BEGIN
+  ALTER TABLE "ProtocolContentPack" DROP CONSTRAINT IF EXISTS "ProtocolContentPack_severity_check";
+EXCEPTION
+  WHEN OTHERS THEN 
+    RAISE NOTICE 'Could not drop ProtocolContentPack_severity_check constraint: %', SQLERRM;
+END $$;
+
+-- Drop any other severity-related check constraints
+DO $$ BEGIN
+  ALTER TABLE "RedFlagRule" DROP CONSTRAINT IF EXISTS "RedFlagRule_severity_check";
+EXCEPTION
+  WHEN OTHERS THEN null;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "EscalationTask" DROP CONSTRAINT IF EXISTS "EscalationTask_severity_check";
+EXCEPTION
+  WHEN OTHERS THEN null;
+END $$;
+
+-- ============================================================================
+-- STEP 4: Convert TEXT Columns to Enums
 -- ============================================================================
 
 -- ProtocolContentPack.severity: TEXT → red_flag_severity
-ALTER TABLE "ProtocolContentPack"
-  ALTER COLUMN severity TYPE red_flag_severity 
-  USING severity::red_flag_severity;
+DO $$ BEGIN
+  ALTER TABLE "ProtocolContentPack"
+    ALTER COLUMN severity TYPE red_flag_severity 
+    USING severity::red_flag_severity;
+EXCEPTION
+  WHEN OTHERS THEN 
+    RAISE NOTICE 'ProtocolContentPack.severity conversion failed: %', SQLERRM;
+    RAISE;
+END $$;
 
 -- ProtocolContentPack.rule_type: TEXT → rule_type
-ALTER TABLE "ProtocolContentPack"
-  ALTER COLUMN rule_type TYPE rule_type 
-  USING rule_type::rule_type;
+DO $$ BEGIN
+  ALTER TABLE "ProtocolContentPack"
+    ALTER COLUMN rule_type TYPE rule_type 
+    USING rule_type::rule_type;
+EXCEPTION
+  WHEN OTHERS THEN 
+    RAISE NOTICE 'ProtocolContentPack.rule_type conversion failed: %', SQLERRM;
+    RAISE;
+END $$;
 
 -- Episode.risk_level: TEXT → risk_level
-ALTER TABLE "Episode"
-  ALTER COLUMN risk_level TYPE risk_level 
-  USING risk_level::risk_level;
+DO $$ BEGIN
+  ALTER TABLE "Episode"
+    ALTER COLUMN risk_level TYPE risk_level 
+    USING risk_level::risk_level;
+EXCEPTION
+  WHEN OTHERS THEN 
+    RAISE NOTICE 'Episode.risk_level conversion failed: %', SQLERRM;
+    RAISE;
+END $$;
 
 -- Episode.condition_code: TEXT → condition_code (if not already enum)
 DO $$ BEGIN
@@ -170,7 +213,7 @@ EXCEPTION
 END $$;
 
 -- ============================================================================
--- STEP 4: Drop Duplicate redflag_severity Enum (if exists)
+-- STEP 5: Drop Duplicate redflag_severity Enum (if exists)
 -- ============================================================================
 -- Note: This will fail if any columns still use it, which is expected
 -- We want red_flag_severity to be the canonical enum
