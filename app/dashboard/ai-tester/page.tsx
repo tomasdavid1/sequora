@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   AgentInteraction, 
@@ -37,7 +38,9 @@ import {
   Activity,
   ChevronDown,
   ChevronUp,
-  Trash2
+  Trash2,
+  FileText,
+  AlertCircle
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -99,6 +102,8 @@ export default function AITesterPage() {
   const [currentInteractionId, setCurrentInteractionId] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [loadingInteractions, setLoadingInteractions] = useState(true);
+  const [protocolProfile, setProtocolProfile] = useState<any>(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
   const renderCountRef = React.useRef(0);
   
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
@@ -137,6 +142,44 @@ export default function AITesterPage() {
       setInteractions([]);
     } finally {
       if (showLoader) setLoadingInteractions(false);
+    }
+  };
+
+  // Fetch protocol profile for current test config
+  const fetchProtocolProfile = async () => {
+    if (!testConfig.episodeId) {
+      console.log('No episode selected');
+      return;
+    }
+    
+    setLoadingProfile(true);
+    try {
+      console.log('🔍 [Profile] Fetching protocol for episode:', testConfig.episodeId);
+      
+      // Fetch protocol assignment and red flag rules
+      const response = await fetch(`/api/toc/protocol/profile?episodeId=${testConfig.episodeId}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setProtocolProfile(data.profile);
+        console.log('✅ [Profile] Loaded protocol profile:', data.profile);
+      } else {
+        console.error('Failed to fetch protocol profile:', data.error);
+        toast({
+          title: "Error loading profile",
+          description: data.error,
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching protocol profile:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load protocol profile",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingProfile(false);
     }
   };
 
@@ -723,6 +766,126 @@ export default function AITesterPage() {
                       </p>
                     </div>
                     <div className="flex gap-2">
+                      <Sheet>
+                        <SheetTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={fetchProtocolProfile}
+                            disabled={!testConfig.episodeId}
+                          >
+                            <FileText className="w-4 h-4 mr-2" />
+                            Profile
+                          </Button>
+                        </SheetTrigger>
+                        <SheetContent side="right" className="w-[500px] overflow-y-auto">
+                          <SheetHeader>
+                            <SheetTitle>Protocol Profile</SheetTitle>
+                          </SheetHeader>
+                          
+                          {loadingProfile ? (
+                            <div className="flex items-center justify-center py-8">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+                            </div>
+                          ) : protocolProfile ? (
+                            <div className="space-y-6 mt-6">
+                              {/* Patient Info */}
+                              <div>
+                                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                                  <User className="w-5 h-5" />
+                                  Patient Information
+                                </h3>
+                                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                                  <div><span className="font-medium">Name:</span> {protocolProfile.patient.first_name} {protocolProfile.patient.last_name}</div>
+                                  <div><span className="font-medium">Email:</span> {protocolProfile.patient.email}</div>
+                                  <div><span className="font-medium">DOB:</span> {protocolProfile.patient.date_of_birth ? new Date(protocolProfile.patient.date_of_birth).toLocaleDateString() : 'N/A'}</div>
+                                </div>
+                              </div>
+
+                              {/* Episode Info */}
+                              <div>
+                                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                                  <Activity className="w-5 h-5" />
+                                  Episode Details
+                                </h3>
+                                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                                  <div><span className="font-medium">Condition:</span> <Badge>{protocolProfile.episode.condition_code}</Badge></div>
+                                  <div><span className="font-medium">Education Level:</span> <Badge variant="outline">{protocolProfile.episode.education_level}</Badge></div>
+                                  <div><span className="font-medium">Episode ID:</span> <span className="text-xs font-mono">{protocolProfile.episode.id}</span></div>
+                                </div>
+                              </div>
+
+                              {/* AI Thresholds */}
+                              <div>
+                                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                                  <Brain className="w-5 h-5" />
+                                  AI Decision Thresholds
+                                </h3>
+                                <div className="bg-blue-50 rounded-lg p-4 space-y-2">
+                                  <div><span className="font-medium">Critical Confidence:</span> {protocolProfile.thresholds.critical_confidence * 100}%</div>
+                                  <div><span className="font-medium">Low Confidence:</span> {protocolProfile.thresholds.low_confidence * 100}%</div>
+                                  <p className="text-xs text-gray-600 mt-2">AI will force escalation if confidence {'>'} {protocolProfile.thresholds.critical_confidence * 100}% and severity is critical</p>
+                                </div>
+                              </div>
+
+                              {/* Protocol Rules */}
+                              <div>
+                                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                                  <Zap className="w-5 h-5" />
+                                  Active Protocol Rules
+                                </h3>
+                                <div className="space-y-3">
+                                  {protocolProfile.protocol.protocol_config?.rules?.red_flags?.map((rule: any, index: number) => (
+                                    <div key={index} className="border rounded-lg p-3 bg-white">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <span className="font-medium text-sm">{rule.flag.type}</span>
+                                        <Badge variant={rule.flag.severity === 'critical' ? 'destructive' : 'default'}>
+                                          {rule.flag.severity}
+                                        </Badge>
+                                      </div>
+                                      <p className="text-sm text-gray-600 mb-2">{rule.flag.message}</p>
+                                      <div className="text-xs text-gray-500">
+                                        <span className="font-medium">Patterns:</span> {rule.if.any_text.join(', ')}
+                                      </div>
+                                      <div className="text-xs text-emerald-600 mt-1">
+                                        Action: {rule.flag.action}
+                                      </div>
+                                    </div>
+                                  )) || <p className="text-sm text-gray-500">No red flag rules configured</p>}
+                                </div>
+                              </div>
+
+                              {/* Red Flag Rules from Database */}
+                              <div>
+                                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                                  <AlertCircle className="w-5 h-5" />
+                                  Database Red Flag Rules
+                                </h3>
+                                <div className="space-y-2">
+                                  {protocolProfile.redFlagRules.map((rule: any) => (
+                                    <div key={rule.id} className="border rounded-lg p-3 bg-white">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="font-medium text-sm">{rule.rule_code}</span>
+                                        <Badge variant={rule.severity === 'CRITICAL' ? 'destructive' : 'default'}>
+                                          {rule.severity}
+                                        </Badge>
+                                      </div>
+                                      <p className="text-xs text-gray-600">{rule.description}</p>
+                                      <p className="text-xs text-emerald-600 mt-1">→ {rule.action_hint}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 text-gray-500">
+                              <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                              <p>Click "Profile" to load protocol information</p>
+                            </div>
+                          )}
+                        </SheetContent>
+                      </Sheet>
+                      
                       <Button 
                         variant={showMetadata ? "default" : "outline"} 
                         onClick={() => setShowMetadata(!showMetadata)}

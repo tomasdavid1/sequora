@@ -474,14 +474,22 @@ async function handleStreamingResponse(input: Record<string, unknown>, stream: R
 // Handle structured patient input parsing
 async function handleParsePatientInput(input: Record<string, unknown>, options: Record<string, unknown>) {
   try {
-    const { condition, educationLevel, patientInput } = input;
+    const { condition, educationLevel, patientInput, conversationHistory = [] } = input;
+    const history = conversationHistory as Array<{role: string, content: string}>;
     
     console.log('🔍 [OpenAI Parser] Extracting structured data from:', patientInput);
+    console.log('💬 [OpenAI Parser] With conversation context:', history.length, 'messages');
     
     // Define the schema for structured output
     const systemPrompt = `You are a medical AI specialized in parsing patient symptom reports for ${condition} (Heart Failure, COPD, AMI, or Pneumonia) patients.
 
-Your job is to extract structured information from patient messages.
+Your job is to extract structured information from patient messages, considering the full conversation context.
+
+IMPORTANT: Use conversation history to understand what the patient is referring to.
+Example:
+- AI: "Is it pain or discomfort?"
+- Patient: "it's pain for sure" + Previous context: "off in my chest"
+- Combined understanding: chest pain
 
 CRITICAL SYMPTOMS TO DETECT:
 ${condition === 'HF' ? `
@@ -522,18 +530,31 @@ SYMPTOM NORMALIZATION RULES:
 
 Be liberal in detection - err on the side of safety for critical symptoms.`;
 
+    // Build messages array with conversation history
+    const messages: Array<{role: string, content: string}> = [
+      {
+        role: "system",
+        content: systemPrompt
+      }
+    ];
+    
+    // Add conversation history for context (if any)
+    if (history.length > 0) {
+      messages.push({
+        role: "user",
+        content: `CONVERSATION HISTORY:\n${history.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n')}\n\nNow analyzing the patient's latest message considering this context.`
+      });
+    }
+    
+    // Add current message
+    messages.push({
+      role: "user",
+      content: `Patient's CURRENT message: "${patientInput}"\n\nExtract structured information in JSON format, considering the full conversation context above.`
+    });
+
     const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt
-        },
-        {
-          role: "user",
-          content: `Patient says: "${patientInput}"\n\nExtract structured information in JSON format.`
-        }
-      ],
+      model: "gpt-4o-mini", // Supports JSON mode, faster and cheaper than gpt-4
+      messages: messages as any,
       response_format: { type: "json_object" },
       temperature: 0.1,
       max_tokens: 300

@@ -101,13 +101,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 2. Parse the patient input using LLM with protocol context
-    const parsedResponse = await parsePatientInputWithProtocol(patientInput, protocolAssignment);
+    // 2. Get conversation history if continuing an existing interaction
+    let conversationHistory: Array<{role: string, content: string}> = [];
+    if (interactionId) {
+      const { data: messages } = await supabase
+        .from('AgentMessage')
+        .select('role, content')
+        .eq('agent_interaction_id', interactionId)
+        .order('sequence_number', { ascending: true })
+        .limit(10); // Last 10 messages for context
+      
+      conversationHistory = messages || [];
+      console.log('💬 [Interaction] Loaded conversation history:', conversationHistory.length, 'messages');
+    }
     
-    // 3. Evaluate rules DSL to get decision hint
+    // 3. Parse the patient input using LLM with protocol context AND conversation history
+    const parsedResponse = await parsePatientInputWithProtocol(
+      patientInput, 
+      protocolAssignment,
+      conversationHistory
+    );
+    
+    // 4. Evaluate rules DSL to get decision hint
     const decisionHint = await evaluateRulesDSL(parsedResponse, protocolAssignment);
     
-    // 4. Check if this patient has been contacted before in this episode
+    // 5. Check if this patient has been contacted before in this episode
     const { data: previousInteractions } = await supabase
       .from('AgentInteraction')
       .select('id')
@@ -387,9 +405,14 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
 }
 
 // Parse patient input with protocol context
-async function parsePatientInputWithProtocol(input: string, protocolAssignment: ProtocolAssignment) {
+async function parsePatientInputWithProtocol(
+  input: string, 
+  protocolAssignment: ProtocolAssignment,
+  conversationHistory: Array<{role: string, content: string}> = []
+) {
   try {
     console.log('🔍 [Parser] Requesting structured symptom extraction from AI');
+    console.log('💬 [Parser] Using', conversationHistory.length, 'previous messages for context');
     
     // Call OpenAI directly with structured output request
     const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
@@ -401,6 +424,7 @@ async function parsePatientInputWithProtocol(input: string, protocolAssignment: 
           condition: protocolAssignment.condition_code,
           educationLevel: protocolAssignment.education_level,
           patientInput: input,
+          conversationHistory: conversationHistory,
           requestStructuredOutput: true
         }
       })
@@ -426,29 +450,91 @@ async function parsePatientInputWithProtocol(input: string, protocolAssignment: 
   }
 }
 
-// Evaluate rules DSL to get decision hint
+// Evaluate rules DSL to get decision hint with AI insights
 async function evaluateRulesDSL(parsedResponse: ParsedResponse, protocolAssignment: ProtocolAssignment): Promise<DecisionHint> {
+  console.log('🧠 [Rules Engine] Evaluating with AI insights:', {
+    symptoms: parsedResponse.symptoms,
+    severity: parsedResponse.severity,
+    confidence: parsedResponse.confidence,
+    intent: parsedResponse.intent,
+    sentiment: parsedResponse.sentiment
+  });
+  
   // Get the rules DSL from the protocol assignment
   const rulesDSL = (protocolAssignment.protocol_config as any)?.rules || {};
   
-  // Evaluate red flags
+  // TODO: Move these thresholds to ProtocolContentPack or separate DecisionConfig table
+  // This will allow per-condition tuning and A/B testing without code changes
+  const CRITICAL_CONFIDENCE_THRESHOLD = 0.8;  // Future: protocol_config.thresholds.critical_confidence
+  const LOW_CONFIDENCE_THRESHOLD = 0.6;       // Future: protocol_config.thresholds.low_confidence
+  const VAGUE_SYMPTOMS = ['discomfort', 'off', 'weird', 'strange', 'not right'];  // Future: DB table
+  
+  // ENHANCEMENT 1: AI Severity Override
+  // If AI is very confident about critical severity, escalate immediately
+  if (parsedResponse.severity === 'critical' && (parsedResponse.confidence || 0) > CRITICAL_CONFIDENCE_THRESHOLD) {
+    console.log('🚨 [Rules Engine] AI detected CRITICAL severity with high confidence');
+    return {
+      action: 'FLAG' as const,
+      flagType: 'AI_CRITICAL_ASSESSMENT',
+      severity: 'critical',
+      reason: `AI assessed as critical with ${Math.round((parsedResponse.confidence || 0) * 100)}% confidence`,
+      followUp: []
+    };
+  }
+  
+  // ENHANCEMENT 2: Intent-based routing
+  // TODO: Make intent routing configurable per protocol
+  if (parsedResponse.intent === 'medication_question' || parsedResponse.intent === 'question') {
+    console.log('ℹ️ [Rules Engine] Non-symptom question detected');
+    return {
+      action: 'ASK_MORE' as const,
+      questions: ['I can help with that. Can you tell me more about your question?'],
+      reason: 'Routing to appropriate information'
+    };
+  }
+  
+  // ENHANCEMENT 3: Low confidence + vague symptoms = clarify
+  const hasVagueSymptom = (parsedResponse.symptoms || []).some(s => 
+    VAGUE_SYMPTOMS.some(v => s.toLowerCase().includes(v))
+  );
+  
+  if ((parsedResponse.confidence || 1) < LOW_CONFIDENCE_THRESHOLD && hasVagueSymptom) {
+    console.log('❓ [Rules Engine] Low confidence + vague symptoms - requesting clarification');
+    return {
+      action: 'ASK_MORE' as const,
+      questions: generateClarifyingQuestions(parsedResponse, protocolAssignment.condition_code),
+      reason: 'Need more specific information'
+    };
+  }
+  
+  // ENHANCEMENT 4: Evaluate red flags with enhanced matching
   const redFlags = rulesDSL.red_flags || [];
   for (const rule of redFlags) {
     if (evaluateRuleCondition(rule.if, parsedResponse)) {
+      console.log('🎯 [Rules Engine] Rule matched:', rule.flag.type);
+      
+      // ENHANCEMENT 5: Severity boost based on AI + sentiment
+      let finalSeverity = rule.flag.severity;
+      if (parsedResponse.severity === 'critical' && parsedResponse.sentiment === 'distressed') {
+        finalSeverity = 'critical';
+        console.log('⬆️ [Rules Engine] Severity upgraded to CRITICAL (AI + distressed sentiment)');
+      }
+      
       return {
         action: 'FLAG' as const,
         flagType: rule.flag.type,
-        severity: rule.flag.severity,
+        severity: finalSeverity,
         reason: rule.flag.message || `Triggered ${rule.flag.type} flag`,
         followUp: rule.flag.follow_up || []
       };
     }
   }
   
-  // Check closures
+  // Check closures (patient doing well)
   const closures = rulesDSL.closures || [];
   for (const closure of closures) {
     if (evaluateRuleCondition(closure.if, parsedResponse)) {
+      console.log('✅ [Rules Engine] Patient doing well - closure condition met');
       return {
         action: 'CLOSE' as const,
         reason: 'Patient is doing well'
@@ -456,24 +542,33 @@ async function evaluateRulesDSL(parsedResponse: ParsedResponse, protocolAssignme
     }
   }
   
-  // Default to ask more questions
+  // Default to ask more questions (with empathy based on sentiment)
+  const defaultQuestions = generateDefaultQuestions(parsedResponse, protocolAssignment.condition_code);
   return {
     action: 'ASK_MORE' as const,
-    questions: ['How are you feeling today?', 'Any new symptoms?']
+    questions: defaultQuestions
   };
 }
 
 // Evaluate a single rule condition
 function evaluateRuleCondition(condition: Record<string, unknown>, parsedResponse: any): boolean {
   if (condition.any_text && Array.isArray(condition.any_text)) {
-    const inputText = parsedResponse.rawInput?.toLowerCase() || '';
+    // Priority order: normalized_text > extracted symptoms > raw input
+    const normalizedText = parsedResponse.normalized_text?.toLowerCase() || '';
     const extractedSymptoms = (parsedResponse.symptoms || []).join(' ').toLowerCase();
-    const combinedText = `${inputText} ${extractedSymptoms}`;
+    const inputText = parsedResponse.rawInput?.toLowerCase() || '';
+    const combinedText = `${normalizedText} ${extractedSymptoms} ${inputText}`;
     
-    // Check if any pattern matches either raw input OR extracted symptoms
-    return (condition.any_text as string[]).some((text: string) => 
+    // Check if any pattern matches
+    const matched = (condition.any_text as string[]).some((text: string) => 
       combinedText.includes(text.toLowerCase())
     );
+    
+    if (matched) {
+      console.log('✅ [Rule Match] Pattern matched:', condition.any_text);
+    }
+    
+    return matched;
   }
   
   if (condition.pain_score_gte && parsedResponse.painScore) {
@@ -923,4 +1018,71 @@ function extractSentiment(input: string): string {
   if (lowerInput.includes('confused') || lowerInput.includes('don\'t understand')) return 'confused';
   if (lowerInput.includes('good') || lowerInput.includes('fine') || lowerInput.includes('better')) return 'positive';
   return 'neutral';
+}
+
+// Generate clarifying questions based on vague symptoms
+function generateClarifyingQuestions(parsedResponse: any, condition: string): string[] {
+  const questions: string[] = [];
+  
+  // If they mentioned discomfort but unclear what kind
+  if (parsedResponse.symptoms?.some((s: string) => s.includes('discomfort'))) {
+    questions.push("Can you be more specific about the discomfort? Is it more like pain, pressure, tightness, or something else?");
+  }
+  
+  // If they said "off" or "weird"
+  if (parsedResponse.symptoms?.some((s: string) => s.includes('off') || s.includes('weird'))) {
+    questions.push("Can you describe what feels 'off'? Where do you feel it?");
+  }
+  
+  // Condition-specific follow-ups
+  if (condition === 'HF') {
+    if (!questions.length) {
+      questions.push("Can you tell me more about what you're experiencing? Is it related to breathing, swelling, or something else?");
+    }
+    questions.push("On a scale of 1-10, how severe is this feeling?");
+  }
+  
+  if (condition === 'COPD') {
+    questions.push("Is this affecting your breathing? Can you describe how?");
+  }
+  
+  // Always ask for severity if we don't know
+  if (!parsedResponse.painScore && questions.length < 2) {
+    questions.push("How severe would you rate this on a scale of 1-10?");
+  }
+  
+  return questions.slice(0, 3); // Max 3 questions at a time
+}
+
+// Generate default questions based on condition and sentiment
+function generateDefaultQuestions(parsedResponse: any, condition: string): string[] {
+  const sentiment = parsedResponse.sentiment || 'neutral';
+  const questions: string[] = [];
+  
+  // Adjust empathy based on sentiment
+  const prefix = sentiment === 'distressed' || sentiment === 'concerned' 
+    ? "I understand you're concerned. " 
+    : sentiment === 'positive' 
+    ? "That's good to hear. " 
+    : "";
+  
+  // Condition-specific questions
+  if (condition === 'HF') {
+    questions.push(`${prefix}How are you feeling today?`);
+    questions.push("Have you noticed any changes in your breathing, swelling, or weight?");
+  } else if (condition === 'COPD') {
+    questions.push(`${prefix}How is your breathing today?`);
+    questions.push("Have you needed to use your rescue inhaler more than usual?");
+  } else if (condition === 'AMI') {
+    questions.push(`${prefix}How are you feeling today?`);
+    questions.push("Any chest discomfort, shortness of breath, or unusual fatigue?");
+  } else if (condition === 'PNA') {
+    questions.push(`${prefix}How are you feeling today?`);
+    questions.push("How is your cough and breathing?");
+  } else {
+    questions.push(`${prefix}How are you feeling today?`);
+    questions.push("Any new symptoms since we last talked?");
+  }
+  
+  return questions;
 }
