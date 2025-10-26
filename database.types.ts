@@ -78,6 +78,9 @@ export type Database = {
           metadata: Json | null
           outreach_attempt_id: string | null
           patient_id: string | null
+          protocol_config_snapshot: Json | null
+          protocol_rules_snapshot: Json | null
+          protocol_snapshot_at: string | null
           started_at: string | null
           status: string | null
           updated_at: string | null
@@ -94,6 +97,9 @@ export type Database = {
           metadata?: Json | null
           outreach_attempt_id?: string | null
           patient_id?: string | null
+          protocol_config_snapshot?: Json | null
+          protocol_rules_snapshot?: Json | null
+          protocol_snapshot_at?: string | null
           started_at?: string | null
           status?: string | null
           updated_at?: string | null
@@ -110,6 +116,9 @@ export type Database = {
           metadata?: Json | null
           outreach_attempt_id?: string | null
           patient_id?: string | null
+          protocol_config_snapshot?: Json | null
+          protocol_rules_snapshot?: Json | null
+          protocol_snapshot_at?: string | null
           started_at?: string | null
           status?: string | null
           updated_at?: string | null
@@ -1438,6 +1447,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ProtocolConfig: {
+        Row: {
+          active: boolean
+          condition_code: string
+          created_at: string
+          critical_confidence_threshold: number
+          detect_multiple_symptoms: boolean
+          distressed_severity_upgrade: string | null
+          enable_sentiment_boost: boolean
+          id: string
+          low_confidence_threshold: number
+          notes: string | null
+          risk_level: string
+          route_general_questions_to_info: boolean
+          route_medication_questions_to_info: boolean
+          updated_at: string
+          vague_symptoms: string[]
+        }
+        Insert: {
+          active?: boolean
+          condition_code: string
+          created_at?: string
+          critical_confidence_threshold?: number
+          detect_multiple_symptoms?: boolean
+          distressed_severity_upgrade?: string | null
+          enable_sentiment_boost?: boolean
+          id?: string
+          low_confidence_threshold?: number
+          notes?: string | null
+          risk_level: string
+          route_general_questions_to_info?: boolean
+          route_medication_questions_to_info?: boolean
+          updated_at?: string
+          vague_symptoms?: string[]
+        }
+        Update: {
+          active?: boolean
+          condition_code?: string
+          created_at?: string
+          critical_confidence_threshold?: number
+          detect_multiple_symptoms?: boolean
+          distressed_severity_upgrade?: string | null
+          enable_sentiment_boost?: boolean
+          id?: string
+          low_confidence_threshold?: number
+          notes?: string | null
+          risk_level?: string
+          route_general_questions_to_info?: boolean
+          route_medication_questions_to_info?: boolean
+          updated_at?: string
+          vague_symptoms?: string[]
+        }
+        Relationships: []
       }
       ProtocolContentPack: {
         Row: {

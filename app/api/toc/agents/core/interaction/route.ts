@@ -126,17 +126,24 @@ export async function POST(request: NextRequest) {
       console.log('💬 [Interaction] Loaded conversation history:', conversationHistory.length, 'messages');
     }
     
-    // 3. Parse the patient input using LLM with protocol context AND conversation history
+    // 3. Load protocol configuration (AI decision parameters)
+    const protocolConfig = await getProtocolConfig(
+      protocolAssignment.condition_code,
+      protocolAssignment.risk_level || 'MEDIUM',
+      supabase
+    );
+    
+    // 4. Parse the patient input using LLM with protocol context AND conversation history
     const parsedResponse = await parsePatientInputWithProtocol(
       patientInput, 
       protocolAssignment,
       conversationHistory
     );
     
-    // 4. Evaluate rules DSL to get decision hint
-    const decisionHint = await evaluateRulesDSL(parsedResponse, protocolAssignment, supabase);
+    // 5. Evaluate rules DSL to get decision hint (using protocol config)
+    const decisionHint = await evaluateRulesDSL(parsedResponse, protocolAssignment, protocolConfig, supabase);
     
-    // 5. Check if this patient has been contacted before in this episode
+    // 6. Check if this patient has been contacted before in this episode
     const { data: previousInteractions } = await supabase
       .from('AgentInteraction')
       .select('id')
@@ -218,7 +225,14 @@ export async function POST(request: NextRequest) {
         .single();
       interaction = existing;
     } else {
-      // Create new interaction
+      // Create new interaction with protocol snapshots for audit trail
+      // Get active protocol rules for snapshot
+      const protocolRules = await getProtocolRules(
+        protocolAssignment.condition_code,
+        protocolAssignment.risk_level || 'MEDIUM',
+        supabase
+      );
+      
       const { data: newInteraction, error: interactionError } = await supabase
         .from('AgentInteraction')
         .insert({
@@ -229,6 +243,9 @@ export async function POST(request: NextRequest) {
           status: 'IN_PROGRESS',
           external_id: null,
           started_at: new Date().toISOString(),
+          protocol_config_snapshot: protocolConfig as any, // Snapshot AI decision parameters
+          protocol_rules_snapshot: protocolRules as any, // Snapshot all active rules
+          protocol_snapshot_at: new Date().toISOString(),
           metadata: {
             condition,
             decisionHint: decisionHint as any,
@@ -410,6 +427,40 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
   }
 }
 
+// Query protocol configuration (AI decision parameters) from database
+async function getProtocolConfig(conditionCode: string, riskLevel: string, supabase: SupabaseAdmin) {
+  const { data: config, error } = await supabase
+    .from('ProtocolConfig')
+    .select('*')
+    .eq('condition_code', conditionCode)
+    .eq('risk_level', riskLevel)
+    .eq('active', true)
+    .single();
+
+  if (error || !config) {
+    console.warn(`⚠️ [Protocol Config] No config found for ${conditionCode} + ${riskLevel}, using defaults`);
+    // Return safe defaults if config not found
+    return {
+      critical_confidence_threshold: 0.80,
+      low_confidence_threshold: 0.60,
+      vague_symptoms: ['discomfort', 'off', 'weird', 'strange', 'not right'],
+      enable_sentiment_boost: true,
+      distressed_severity_upgrade: 'high',
+      route_medication_questions_to_info: true,
+      route_general_questions_to_info: true,
+      detect_multiple_symptoms: false
+    };
+  }
+
+  console.log(`⚙️ [Protocol Config] Loaded config for ${conditionCode} + ${riskLevel}`, {
+    critical_threshold: config.critical_confidence_threshold,
+    low_threshold: config.low_confidence_threshold,
+    vague_symptoms_count: config.vague_symptoms?.length || 0
+  });
+
+  return config;
+}
+
 // Query protocol rules from ProtocolContentPack based on condition and risk level
 async function getProtocolRules(conditionCode: string, riskLevel: string, supabase: SupabaseAdmin) {
   // Determine severity filter based on risk level
@@ -520,7 +571,12 @@ async function parsePatientInputWithProtocol(
 }
 
 // Evaluate rules DSL to get decision hint with AI insights
-async function evaluateRulesDSL(parsedResponse: ParsedResponse, protocolAssignment: ProtocolAssignment, supabase: SupabaseAdmin): Promise<DecisionHint> {
+async function evaluateRulesDSL(
+  parsedResponse: ParsedResponse, 
+  protocolAssignment: ProtocolAssignment, 
+  protocolConfig: any, // From ProtocolConfig table
+  supabase: SupabaseAdmin
+): Promise<DecisionHint> {
   console.log('🧠 [Rules Engine] Evaluating with AI insights:', {
     symptoms: parsedResponse.symptoms,
     severity: parsedResponse.severity,
@@ -536,11 +592,17 @@ async function evaluateRulesDSL(parsedResponse: ParsedResponse, protocolAssignme
     supabase
   );
   
-  // TODO: Move these thresholds to ProtocolContentPack or separate DecisionConfig table
-  // This will allow per-condition tuning and A/B testing without code changes
-  const CRITICAL_CONFIDENCE_THRESHOLD = 0.8;  // Future: protocol_config.thresholds.critical_confidence
-  const LOW_CONFIDENCE_THRESHOLD = 0.6;       // Future: protocol_config.thresholds.low_confidence
-  const VAGUE_SYMPTOMS = ['discomfort', 'off', 'weird', 'strange', 'not right'];  // Future: DB table
+  // Use database-driven thresholds instead of hardcoded values
+  const CRITICAL_CONFIDENCE_THRESHOLD = protocolConfig.critical_confidence_threshold;
+  const LOW_CONFIDENCE_THRESHOLD = protocolConfig.low_confidence_threshold;
+  const VAGUE_SYMPTOMS = protocolConfig.vague_symptoms || [];
+  
+  console.log('⚙️ [Rules Engine] Using protocol config:', {
+    critical_threshold: CRITICAL_CONFIDENCE_THRESHOLD,
+    low_threshold: LOW_CONFIDENCE_THRESHOLD,
+    vague_symptoms_count: VAGUE_SYMPTOMS.length,
+    sentiment_boost: protocolConfig.enable_sentiment_boost
+  });
   
   // ENHANCEMENT 1: AI Severity Override
   // If AI is very confident about critical severity, escalate immediately
@@ -555,10 +617,18 @@ async function evaluateRulesDSL(parsedResponse: ParsedResponse, protocolAssignme
     };
   }
   
-  // ENHANCEMENT 2: Intent-based routing
-  // TODO: Make intent routing configurable per protocol
-  if (parsedResponse.intent === 'medication_question' || parsedResponse.intent === 'question') {
-    console.log('ℹ️ [Rules Engine] Non-symptom question detected');
+  // ENHANCEMENT 2: Intent-based routing (configurable per protocol)
+  if (protocolConfig.route_medication_questions_to_info && parsedResponse.intent === 'medication_question') {
+    console.log('ℹ️ [Rules Engine] Medication question detected - routing to info');
+    return {
+      action: 'ASK_MORE' as const,
+      questions: ['I can help with that. Can you tell me more about your medication question?'],
+      reason: 'Routing to medication information'
+    };
+  }
+  
+  if (protocolConfig.route_general_questions_to_info && parsedResponse.intent === 'question') {
+    console.log('ℹ️ [Rules Engine] General question detected - routing to info');
     return {
       action: 'ASK_MORE' as const,
       questions: ['I can help with that. Can you tell me more about your question?'],
@@ -586,11 +656,13 @@ async function evaluateRulesDSL(parsedResponse: ParsedResponse, protocolAssignme
     if (evaluateRuleCondition(rule.if, parsedResponse)) {
       console.log('🎯 [Rules Engine] Rule matched:', rule.flag.type);
       
-      // ENHANCEMENT 5: Severity boost based on AI + sentiment
+      // ENHANCEMENT 5: Severity boost based on AI + sentiment (configurable)
       let finalSeverity = rule.flag.severity;
-      if (parsedResponse.severity === 'critical' && parsedResponse.sentiment === 'distressed') {
-        finalSeverity = 'critical';
-        console.log('⬆️ [Rules Engine] Severity upgraded to CRITICAL (AI + distressed sentiment)');
+      if (protocolConfig.enable_sentiment_boost && 
+          parsedResponse.severity === 'critical' && 
+          parsedResponse.sentiment === 'distressed') {
+        finalSeverity = protocolConfig.distressed_severity_upgrade || 'critical';
+        console.log(`⬆️ [Rules Engine] Severity upgraded to ${finalSeverity.toUpperCase()} (AI + distressed sentiment)` );
       }
       
       return {
