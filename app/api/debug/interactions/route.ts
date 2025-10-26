@@ -19,12 +19,13 @@ export async function GET(request: NextRequest) {
           id,
           first_name,
           last_name,
-          email
+          email,
+          education_level
         ),
         Episode!AgentInteraction_episode_id_fkey (
           id,
           condition_code,
-          education_level
+          risk_level
         )
       `)
       .order('started_at', { ascending: false })

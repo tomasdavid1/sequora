@@ -162,12 +162,18 @@ async function analyzeResponsesForRedFlags(
     throw new Error(`No red flag rules configured for condition: ${condition}. Please configure rules in admin dashboard.`);
   }
 
+  // Build condition context from database red flag rules
+  const conditionContext = `
+Red Flag Symptoms to Watch For:
+${redFlagRules.map((rule: Record<string, unknown>) => `- ${rule.description}`).join('\n')}
+`;
+
   // Prepare context for LLM analysis
   const context = `
 You are a medical AI assistant analyzing patient responses for ${condition} in a Transition of Care program.
 
 CONDITION CONTEXT:
-${getConditionContext(condition)}
+${conditionContext}
 
 RED FLAG RULES:
 ${redFlagRules?.map((rule: Record<string, unknown>) => `
@@ -358,58 +364,6 @@ function determineNextActions(analysis: Record<string, unknown>, escalationTaskI
   }
   
   return actions;
-}
-
-// Helper functions
-function getConditionContext(condition: string): string {
-  switch (condition) {
-    case 'HF':
-      return `
-Heart Failure Red Flags:
-- Weight gain of 3+ pounds in 1 day or 5+ pounds in 1 week
-- Increased shortness of breath
-- Swelling in feet, ankles, or legs
-- Difficulty sleeping due to breathing problems
-- Persistent cough or wheezing
-- Fatigue or weakness
-- Confusion or memory problems
-`;
-    case 'COPD':
-      return `
-COPD Red Flags:
-- Increased shortness of breath
-- Change in sputum color or amount
-- Fever or signs of infection
-- Increased use of rescue inhaler
-- Difficulty sleeping due to breathing
-- Swelling in feet or ankles
-- Confusion or drowsiness
-`;
-    case 'AMI':
-      return `
-Post-Heart Attack Red Flags:
-- Chest pain or pressure
-- Pain in arms, back, neck, or jaw
-- Shortness of breath
-- Nausea or vomiting
-- Cold sweat
-- Feeling lightheaded or dizzy
-- Irregular heartbeat
-`;
-    case 'PNA':
-      return `
-Pneumonia Recovery Red Flags:
-- Fever returns or gets worse
-- Increased breathing difficulty
-- Chest pain that worsens
-- Coughing up blood
-- Confusion or disorientation
-- Inability to keep food/fluids down
-- Blue lips or fingernails
-`;
-    default:
-      return 'General medical red flags: severe pain, breathing difficulty, confusion, fever, bleeding, or any concerning symptoms.';
-  }
 }
 
 function getSLADueTime(severity: SeverityType): string {
