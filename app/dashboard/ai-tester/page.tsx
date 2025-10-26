@@ -1229,6 +1229,38 @@ export default function AITesterPage() {
               
               {protocolProfile?.protocolConfig && (
                 <div className="space-y-6">
+                  {/* Active Protocol Rules - MOST IMPORTANT! */}
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <h3 className="font-semibold text-base mb-3 flex items-center gap-2">
+                      <Zap className="w-5 h-5 text-yellow-700" />
+                      Active Detection Rules for {protocolProfile.episode.risk_level} Risk
+                    </h3>
+                    <p className="text-xs text-gray-600 mb-3">These patterns trigger AI actions. To edit, go to /dashboard/protocol-config.</p>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {protocolProfile.activeProtocolRules?.filter((r: any) => r.rule_type === 'RED_FLAG').map((rule: any) => (
+                        <div key={rule.rule_code} className="bg-white rounded p-3 border border-gray-200 text-xs">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-semibold">{rule.rule_code}</span>
+                            <Badge variant={rule.severity === 'CRITICAL' ? 'destructive' : 'default'} className="text-xs">
+                              {rule.severity}
+                            </Badge>
+                          </div>
+                          <div className="text-gray-600 mb-1">
+                            <strong>Patterns:</strong> {rule.text_patterns?.join(', ')}
+                          </div>
+                          <div className="text-emerald-700 font-medium">
+                            → Action: {rule.action_type}
+                          </div>
+                          {rule.numeric_follow_up_question && (
+                            <div className="mt-2 pt-2 border-t border-gray-200 bg-blue-50 p-2 rounded">
+                              <strong className="text-blue-900">If vague, ask:</strong> {rule.numeric_follow_up_question}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* System Prompt */}
                   <div>
                     <Label className="text-base font-semibold mb-3 block flex items-center gap-2">
