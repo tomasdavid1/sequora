@@ -41,8 +41,8 @@ export default function ProtocolConfigPage() {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editedConfig, setEditedConfig] = useState<Partial<ProtocolConfig>>({});
-  const [filterCondition, setFilterCondition] = useState<string>('');
-  const [filterRiskLevel, setFilterRiskLevel] = useState<string>('');
+  const [filterCondition, setFilterCondition] = useState<string>('ALL');
+  const [filterRiskLevel, setFilterRiskLevel] = useState<string>('ALL');
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [selectedConfig, setSelectedConfig] = useState<ProtocolConfig | null>(null);
 
@@ -55,8 +55,8 @@ export default function ProtocolConfigPage() {
     try {
       let url = '/api/admin/protocol-config';
       const params = new URLSearchParams();
-      if (filterCondition) params.append('condition', filterCondition);
-      if (filterRiskLevel) params.append('riskLevel', filterRiskLevel);
+      if (filterCondition && filterCondition !== 'ALL') params.append('condition', filterCondition);
+      if (filterRiskLevel && filterRiskLevel !== 'ALL') params.append('riskLevel', filterRiskLevel);
       if (params.toString()) url += `?${params.toString()}`;
 
       const response = await fetch(url);
@@ -181,7 +181,7 @@ export default function ProtocolConfigPage() {
                     <SelectValue placeholder="All Conditions" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Conditions</SelectItem>
+                    <SelectItem value="ALL">All Conditions</SelectItem>
                     <SelectItem value="HF">HF - Heart Failure</SelectItem>
                     <SelectItem value="COPD">COPD</SelectItem>
                     <SelectItem value="PNA">PNA - Pneumonia</SelectItem>
@@ -196,7 +196,7 @@ export default function ProtocolConfigPage() {
                     <SelectValue placeholder="All Risk Levels" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Risk Levels</SelectItem>
+                    <SelectItem value="ALL">All Risk Levels</SelectItem>
                     <SelectItem value="HIGH">High</SelectItem>
                     <SelectItem value="MEDIUM">Medium</SelectItem>
                     <SelectItem value="LOW">Low</SelectItem>
