@@ -126,7 +126,19 @@ export async function POST(request: NextRequest) {
       console.log('💬 [Interaction] Loaded conversation history:', conversationHistory.length, 'messages');
     }
     
-    // 3. Load protocol configuration (AI decision parameters)
+    // 3. Validate risk_level exists
+    if (!protocolAssignment.risk_level) {
+      console.error('❌ [Interaction] Episode missing risk_level:', {
+        episodeId,
+        condition: protocolAssignment.condition_code
+      });
+      return NextResponse.json(
+        { error: `Episode ${episodeId} is missing risk_level. Please set the risk level (LOW/MEDIUM/HIGH) for this episode in the admin dashboard.` },
+        { status: 400 }
+      );
+    }
+    
+    // 4. Load protocol configuration (AI decision parameters)
     const protocolConfig = await getProtocolConfig(
       protocolAssignment.condition_code,
       protocolAssignment.risk_level as RiskLevelType,
