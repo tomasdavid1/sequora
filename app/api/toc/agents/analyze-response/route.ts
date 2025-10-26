@@ -64,25 +64,61 @@ export async function POST(request: NextRequest) {
       .eq('active', true);
 
     if (rulesError) {
-      console.error('Error fetching red flag rules:', rulesError);
+      console.error('❌ [Analysis] Database error fetching red flag rules:', rulesError);
       return NextResponse.json(
         { error: 'Failed to fetch red flag rules' },
         { status: 500 }
       );
     }
 
+    if (!redFlagRules || redFlagRules.length === 0) {
+      console.error(`❌ [Analysis] No red flag rules found for condition: ${condition}`);
+      return NextResponse.json(
+        { error: `No red flag rules configured for condition: ${condition}. Please configure rules in admin dashboard.` },
+        { status: 500 }
+      );
+    }
+
+    // Validate all responses have required fields
+    for (const response of responses) {
+      if (!response.questionCode) {
+        console.error('❌ [Analysis] Response missing questionCode:', response);
+        return NextResponse.json(
+          { error: 'Invalid response data: questionCode is required' },
+          { status: 400 }
+        );
+      }
+      
+      if (!response.responseType) {
+        console.error('❌ [Analysis] Response missing responseType:', response);
+        return NextResponse.json(
+          { error: 'Invalid response data: responseType is required' },
+          { status: 400 }
+        );
+      }
+
+      // Validate question_version exists (required for audit trail)
+      if (response.questionVersion === undefined || response.questionVersion === null) {
+        console.error('❌ [Analysis] Response missing questionVersion:', response);
+        return NextResponse.json(
+          { error: 'Invalid response data: questionVersion is required' },
+          { status: 400 }
+        );
+      }
+    }
+
     // Analyze responses using LLM
     const analysisResult = await analyzeResponsesWithLLM(
       responses, 
       condition, 
-      redFlagRules || []
+      redFlagRules // No fallback - validated above
     );
 
     // Save outreach responses
     const responseInserts = responses.map((response: Record<string, unknown>) => ({
       outreach_attempt_id: outreachAttemptId,
       question_code: response.questionCode,
-      question_version: response.questionVersion || 1,
+      question_version: response.questionVersion, // No fallback - validated above
       response_type: response.responseType,
       value_text: response.valueText,
       value_number: response.valueNumber,
@@ -244,81 +280,51 @@ Respond in JSON format:
 
     const response = completion.choices[0]?.message?.content;
     if (!response) {
-      throw new Error('No response from OpenAI');
+      console.error('❌ [Analysis] OpenAI returned no content');
+      throw new Error('AI analysis failed: No response from OpenAI');
     }
 
-    const analysis = JSON.parse(response);
+    let analysis;
+    try {
+      analysis = JSON.parse(response);
+    } catch (parseError) {
+      console.error('❌ [Analysis] Failed to parse AI response as JSON:', response);
+      throw new Error(`AI analysis failed: Invalid JSON response - ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+    }
     
-    // Validate the response
+    // Validate required fields
+    if (!analysis.severity) {
+      console.error('❌ [Analysis] AI response missing severity field:', analysis);
+      throw new Error('AI analysis failed: Response missing severity field');
+    }
+
+    if (!analysis.redFlagCode) {
+      console.error('❌ [Analysis] AI response missing redFlagCode field:', analysis);
+      throw new Error('AI analysis failed: Response missing redFlagCode field');
+    }
+
+    if (!analysis.reasoning) {
+      console.error('❌ [Analysis] AI response missing reasoning field:', analysis);
+      throw new Error('AI analysis failed: Response missing reasoning field');
+    }
+
+    // Validate severity is valid
     const validSeverities = ['NONE', 'LOW', 'MODERATE', 'HIGH', 'CRITICAL'];
     if (!validSeverities.includes(analysis.severity)) {
-      analysis.severity = 'NONE';
+      console.error('❌ [Analysis] AI returned invalid severity:', analysis.severity);
+      throw new Error(`AI analysis failed: Invalid severity "${analysis.severity}". Must be one of: ${validSeverities.join(', ')}`);
     }
 
     return {
       severity: analysis.severity,
-      redFlagCode: analysis.redFlagCode || 'NONE',
-      reasoning: analysis.reasoning || 'No specific reasoning provided'
+      redFlagCode: analysis.redFlagCode,
+      reasoning: analysis.reasoning
     };
 
   } catch (error) {
-    console.error('Error in LLM analysis:', error);
-    
-    // Fallback to rule-based analysis
-    return fallbackRuleBasedAnalysis(responses, condition, redFlagRules);
+    console.error('❌ [Analysis] LLM analysis error:', error);
+    throw new Error(`Failed to analyze patient responses: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
-}
-
-function fallbackRuleBasedAnalysis(
-  responses:  unknown[], 
-  condition: string, 
-  redFlagRules:  unknown[]
-): {
-  severity: 'NONE' | 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
-  redFlagCode: string;
-  reasoning: string;
-} {
-  
-  // Simple keyword-based analysis as fallback
-  const allResponses = responses.map((r: any) => 
-    (r.valueText || r.valueChoice || '').toLowerCase()
-  ).join(' ');
-
-  // Check for critical keywords
-  const criticalKeywords = ['chest pain', 'can\'t breathe', 'emergency', 'severe', 'unconscious'];
-  if (criticalKeywords.some(keyword => allResponses.includes(keyword))) {
-    return {
-      severity: 'CRITICAL',
-      redFlagCode: 'CRITICAL_SYMPTOMS',
-      reasoning: 'Critical symptoms detected in patient responses'
-    };
-  }
-
-  // Check for high severity keywords
-  const highKeywords = ['pain', 'swelling', 'fever', 'dizzy', 'nausea'];
-  if (highKeywords.some(keyword => allResponses.includes(keyword))) {
-    return {
-      severity: 'HIGH',
-      redFlagCode: 'SYMPTOM_WORSENING',
-      reasoning: 'Concerning symptoms reported by patient'
-    };
-  }
-
-  // Check for moderate keywords
-  const moderateKeywords = ['tired', 'weak', 'difficulty', 'concern'];
-  if (moderateKeywords.some(keyword => allResponses.includes(keyword))) {
-    return {
-      severity: 'MODERATE',
-      redFlagCode: 'GENERAL_CONCERN',
-      reasoning: 'Patient expressing concerns or mild symptoms'
-    };
-  }
-
-  return {
-    severity: 'NONE',
-    redFlagCode: 'NONE',
-    reasoning: 'No red flags detected in patient responses'
-  };
 }
 
 function getConditionFullName(condition: string): string {
