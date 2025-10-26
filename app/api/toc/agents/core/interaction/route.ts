@@ -148,14 +148,28 @@ export async function POST(request: NextRequest) {
       supabase
     );
     
-    // 4. Parse the patient input using LLM with protocol context AND conversation history
+    // 4. Load protocol patterns for AI parsing
+    const protocolRules = await getProtocolRules(
+      protocolAssignment.condition_code,
+      protocolAssignment.risk_level as RiskLevelType,
+      supabase
+    );
+    
+    // Extract all text patterns for AI to understand what to detect
+    const allPatterns = [
+      ...protocolRules.red_flags.flatMap((r: any) => r.if.any_text || []),
+      ...protocolRules.closures.flatMap((c: any) => c.if.any_text || [])
+    ];
+    
+    // 5. Parse the patient input using LLM with protocol patterns
     const parsedResponse = await parsePatientInputWithProtocol(
       patientInput, 
       protocolAssignment,
-      conversationHistory
+      conversationHistory,
+      allPatterns // Pass database patterns to AI
     );
     
-    // 5. Evaluate rules DSL to get decision hint (using protocol config)
+    // 6. Evaluate rules DSL to get decision hint (using protocol config)
     const decisionHint = await evaluateRulesDSL(parsedResponse, protocolAssignment, protocolConfig, supabase);
     
     // 6. Check if this patient has been contacted before in this episode
@@ -566,10 +580,12 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
 async function parsePatientInputWithProtocol(
   input: string, 
   protocolAssignment: ProtocolAssignmentWithRelations,
-  conversationHistory: Array<{role: string, content: string}> = []
+  conversationHistory: Array<{role: string, content: string}> = [],
+  protocolPatterns: string[] = []
 ) {
   console.log('🔍 [Parser] Requesting structured symptom extraction from AI');
   console.log('💬 [Parser] Using', conversationHistory.length, 'previous messages for context');
+  console.log('🎯 [Parser] Using', protocolPatterns.length, 'protocol patterns from database');
   
   // Call OpenAI directly with structured output request
   const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
@@ -582,6 +598,7 @@ async function parsePatientInputWithProtocol(
         educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level, // NOT NULL in DB
         patientInput: input,
         conversationHistory: conversationHistory,
+        protocolPatterns: protocolPatterns, // Database patterns for AI to match against
         requestStructuredOutput: true
       }
     })

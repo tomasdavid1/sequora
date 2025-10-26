@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { VALID_SEVERITIES } from '@/lib/enums';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -460,14 +461,16 @@ async function handleStreamingResponse(input: Record<string, unknown>, stream: R
 // Handle structured patient input parsing
 async function handleParsePatientInput(input: Record<string, unknown>, options: Record<string, unknown>) {
   try {
-    const { condition, educationLevel, patientInput, conversationHistory = [] } = input;
+    const { condition, educationLevel, patientInput, conversationHistory = [], protocolPatterns = [] } = input;
     const history = conversationHistory as Array<{role: string, content: string}>;
+    const patterns = protocolPatterns as string[];
     
     console.log('🔍 [OpenAI Parser] Extracting structured data from:', patientInput);
     console.log('💬 [OpenAI Parser] With conversation context:', history.length, 'messages');
+    console.log('🎯 [OpenAI Parser] Matching against', patterns.length, 'protocol patterns from database');
     
     // Define the schema for structured output
-    const systemPrompt = `You are a medical AI specialized in parsing patient symptom reports for ${condition} (Heart Failure, COPD, AMI, or Pneumonia) patients.
+    const systemPrompt = `You are a medical AI specialized in parsing patient symptom reports for ${condition} patients.
 
 Your job is to extract structured information from patient messages, considering the full conversation context.
 
@@ -477,53 +480,31 @@ Example:
 - Patient: "it's pain for sure" + Previous context: "off in my chest"
 - Combined understanding: chest pain
 
-CRITICAL SYMPTOMS TO DETECT:
-${condition === 'HF' ? `
-- Chest pain/pressure/discomfort/tightness (CRITICAL - possible heart attack)
-- Severe breathing difficulty (CRITICAL)
-- Significant weight gain (HIGH)
-- New/worsening swelling (MODERATE)
-` : ''}
-${condition === 'COPD' ? `
-- Severe breathing difficulty (CRITICAL)
-- Increased sputum or color change (HIGH)
-- Fever/infection signs (HIGH)
-` : ''}
-${condition === 'AMI' ? `
-- Chest pain/pressure (CRITICAL)
-- Arm/jaw/back pain (CRITICAL)
-- Shortness of breath (HIGH)
-` : ''}
+PROTOCOL PATTERNS (from database):
+These are the canonical symptom phrases we're monitoring for. If the patient describes symptoms using different words, 
+interpret their meaning and normalize to the closest matching pattern below.
+
+${patterns.length > 0 ? patterns.map(p => `- ${p}`).join('\n') : 'No patterns configured'}
+
+NORMALIZATION GUIDANCE EXAMPLES:
+- "put on weight" / "gained weight" / "weight up" → normalized_text: "gained X pounds" or "weight gain"
+- "chest hurts" / "chest pain" / "chest pressure" → normalized_text: "chest pain"
+- "can't breathe" / "short of breath" / "trouble breathing" → normalized_text: "breathing difficulty"
+- Always preserve numbers (3 lbs → 3 pounds, 5 lbs → 5 pounds)
+- Use the EXACT phrasing from the patterns list above in your normalized_text
 
 Extract the following in JSON format:
 {
-  "symptoms": ["symptom1", "symptom2"],  // normalized symptom names
-  "severity": "low|moderate|high|critical",
+  "symptoms": ["symptom1", "symptom2"],
+  "severity": "${VALID_SEVERITIES.join('|')}",
   "intent": "symptom_report|question|medication|general",
   "sentiment": "positive|neutral|concerned|distressed",
   "confidence": 0.0-1.0,
-  "normalized_text": "chest pain, shortness of breath"  // simplified symptom description
+  "normalized_text": "gained 3 pounds, chest pain"  // Use EXACT phrases from patterns above
 }
 
-SYMPTOM NORMALIZATION RULES:
-- "pain in my chest" → "chest pain"
-- "my chest hurts" → "chest pain"  
-- "chest pressure" → "chest pain"
-- "can't breathe" → "breathing difficulty"
-- "short of breath" → "shortness of breath"
-- "swollen ankles" → "swelling"
-
-WEIGHT GAIN (CRITICAL FOR HF PATIENTS):
-- "put on 3 lbs" → normalized_text: "gained 3 pounds"
-- "put on 5 lbs" → normalized_text: "gained 5 pounds"
-- "gained 3 lbs" → normalized_text: "gained 3 pounds"
-- "up 3 lbs" → normalized_text: "up 3 pounds"
-- "weight is up" → normalized_text: "weight gain"
-
-IMPORTANT: Always extract weight amounts and use "pounds" not "lbs" in normalized_text.
-Include the number if specified (e.g., "3 pounds", "5 pounds").
-
-Be liberal in detection - err on the side of safety for critical symptoms.`;
+Be liberal in detection - err on the side of safety for critical symptoms.
+If patient mentions something that matches a pattern (even with different words), include it in normalized_text using the canonical pattern phrase.`;
 
     // Build messages array with conversation history
     const messages: Array<{role: string, content: string}> = [
