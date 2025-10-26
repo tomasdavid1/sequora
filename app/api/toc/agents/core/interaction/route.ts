@@ -499,24 +499,47 @@ async function getProtocolRules(conditionCode: string, riskLevel: string, supaba
     throw new Error(`Failed to load closure rules: ${closureError.message}`);
   }
 
-  // Transform to DSL format expected by evaluateRulesDSL
-  const redFlags = (redFlagData || []).map(rule => ({
-    if: { any_text: rule.text_patterns },
-    flag: {
-      type: rule.rule_code,
-      action: rule.action_type,
-      severity: rule.severity,
-      message: rule.message
-    }
-  }));
+  // Validate we got data back
+  if (!redFlagData) {
+    console.error('❌ [Protocol Rules] Red flag query returned null');
+    throw new Error('Failed to load red flag rules - database returned no data');
+  }
 
-  const closures = (closureData || []).map(rule => ({
-    if: { any_text: rule.text_patterns },
-    then: {
-      action: rule.action_type,
-      message: rule.message
+  if (!closureData) {
+    console.error('❌ [Protocol Rules] Closure query returned null');
+    throw new Error('Failed to load closure rules - database returned no data');
+  }
+
+  // Transform to DSL format expected by evaluateRulesDSL
+  const redFlags = redFlagData.map(rule => {
+    if (!rule.rule_code || !rule.severity || !rule.message) {
+      console.error('❌ [Protocol Rules] Invalid red flag rule:', rule);
+      throw new Error(`Red flag rule missing required fields: ${JSON.stringify(rule)}`);
     }
-  }));
+    return {
+      if: { any_text: rule.text_patterns },
+      flag: {
+        type: rule.rule_code,
+        action: rule.action_type,
+        severity: rule.severity,
+        message: rule.message
+      }
+    };
+  });
+
+  const closures = closureData.map(rule => {
+    if (!rule.rule_code || !rule.message) {
+      console.error('❌ [Protocol Rules] Invalid closure rule:', rule);
+      throw new Error(`Closure rule missing required fields: ${JSON.stringify(rule)}`);
+    }
+    return {
+      if: { any_text: rule.text_patterns },
+      then: {
+        action: rule.action_type,
+        message: rule.message
+      }
+    };
+  });
 
   return {
     red_flags: redFlags,
@@ -600,7 +623,12 @@ async function evaluateRulesDSL(
   // Use database-driven thresholds instead of hardcoded values
   const CRITICAL_CONFIDENCE_THRESHOLD = protocolConfig.critical_confidence_threshold;
   const LOW_CONFIDENCE_THRESHOLD = protocolConfig.low_confidence_threshold;
-  const VAGUE_SYMPTOMS = protocolConfig.vague_symptoms || [];
+  const VAGUE_SYMPTOMS = protocolConfig.vague_symptoms;
+  
+  if (!Array.isArray(VAGUE_SYMPTOMS)) {
+    console.error('❌ [Rules Engine] vague_symptoms is not an array:', VAGUE_SYMPTOMS);
+    throw new Error('Protocol configuration error: vague_symptoms must be an array');
+  }
   
   console.log('⚙️ [Rules Engine] Using protocol config:', {
     critical_threshold: CRITICAL_CONFIDENCE_THRESHOLD,
@@ -656,32 +684,60 @@ async function evaluateRulesDSL(
   }
   
   // ENHANCEMENT 4: Evaluate red flags with enhanced matching
-  const redFlags = rulesDSL.red_flags || [];
+  const redFlags = rulesDSL.red_flags;
+  
+  if (!Array.isArray(redFlags)) {
+    console.error('❌ [Rules Engine] red_flags is not an array:', redFlags);
+    throw new Error('Protocol rules error: red_flags must be an array');
+  }
+  
   for (const rule of redFlags) {
     if (evaluateRuleCondition(rule.if, parsedResponse)) {
       console.log('🎯 [Rules Engine] Rule matched:', rule.flag.type);
       
+      // Validate rule has required fields
+      if (!rule.flag.severity) {
+        console.error('❌ [Rules Engine] Rule missing severity:', rule);
+        throw new Error(`Protocol rule ${rule.flag.type} is missing severity field`);
+      }
+      
+      if (!rule.flag.message) {
+        console.error('❌ [Rules Engine] Rule missing message:', rule);
+        throw new Error(`Protocol rule ${rule.flag.type} is missing message field`);
+      }
+      
       // ENHANCEMENT 5: Severity boost based on AI + sentiment (configurable)
-      let finalSeverity = rule.flag.severity || 'moderate';
+      let finalSeverity = rule.flag.severity;
       if (protocolConfig.enable_sentiment_boost && 
           parsedResponse.severity === 'critical' && 
           parsedResponse.sentiment === 'distressed') {
-        finalSeverity = protocolConfig.distressed_severity_upgrade || 'critical';
-        console.log(`⬆️ [Rules Engine] Severity upgraded to ${finalSeverity.toUpperCase()} (AI + distressed sentiment)` );
+        finalSeverity = protocolConfig.distressed_severity_upgrade;
+        
+        if (!finalSeverity) {
+          console.error('❌ [Rules Engine] distressed_severity_upgrade is null');
+          throw new Error('Protocol config missing distressed_severity_upgrade field');
+        }
+        
+        console.log(`⬆️ [Rules Engine] Severity upgraded to ${finalSeverity.toUpperCase()} (AI + distressed sentiment)`);
       }
       
       return {
         action: 'FLAG' as const,
         flagType: rule.flag.type,
-        severity: finalSeverity || undefined,
-        reason: rule.flag.message || `Triggered ${rule.flag.type} flag`,
+        severity: finalSeverity,
+        reason: rule.flag.message,
         followUp: []
       };
     }
   }
   
   // Check closures (patient doing well)
-  const closures = rulesDSL.closures || [];
+  const closures = rulesDSL.closures;
+  
+  if (!Array.isArray(closures)) {
+    console.error('❌ [Rules Engine] closures is not an array:', closures);
+    throw new Error('Protocol rules error: closures must be an array');
+  }
   for (const closure of closures) {
     if (evaluateRuleCondition(closure.if, parsedResponse)) {
       console.log('✅ [Rules Engine] Patient doing well - closure condition met');
