@@ -1032,6 +1032,40 @@ export default function AITesterPage() {
                             
                             <div className="whitespace-pre-wrap">{message.content}</div>
                             
+                            {/* Inline Flag Alert - Always visible when flags triggered */}
+                            {message.role === 'assistant' && message.metadata?.decisionHint?.action === 'FLAG' && (
+                              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <AlertTriangle className="w-4 h-4 text-red-600" />
+                                  <span className="font-semibold text-sm text-red-900">
+                                    {message.metadata.decisionHint.severity === 'CRITICAL' ? '🚨 CRITICAL FLAG' : '⚠️ FLAG RAISED'}
+                                  </span>
+                                </div>
+                                <div className="text-xs space-y-1 text-gray-700">
+                                  <div><strong>Rule:</strong> {message.metadata.decisionHint.flagType}</div>
+                                  <div><strong>Severity:</strong> <Badge className={getSeverityColor(message.metadata.decisionHint.severity)}>{message.metadata.decisionHint.severity}</Badge></div>
+                                  {message.metadata.decisionHint.matchedPattern && (
+                                    <div className="bg-yellow-50 px-2 py-1 rounded border border-yellow-200">
+                                      <strong>Matched Pattern:</strong> "{message.metadata.decisionHint.matchedPattern}"
+                                    </div>
+                                  )}
+                                  {message.metadata.decisionHint.reason && (
+                                    <div><strong>Reason:</strong> {message.metadata.decisionHint.reason}</div>
+                                  )}
+                                  {message.metadata.toolCalls && message.metadata.toolCalls.length > 0 && (
+                                    <div className="mt-2 pt-2 border-t border-red-200">
+                                      <strong>Action Taken:</strong>
+                                      {message.metadata.toolCalls.map((tool: any, idx: number) => (
+                                        <div key={idx} className="ml-2 text-emerald-700">
+                                          → {tool.tool || tool.name}: {tool.parameters?.reason || tool.parameters?.flagType || 'Escalated'}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            
                             {showMetadata && message.metadata && message.role === 'assistant' && (
                               <div className="mt-3 pt-3 border-t border-gray-300">
                                 {/* Only show if there's actual data */}

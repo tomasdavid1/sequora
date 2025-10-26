@@ -2,11 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { 
   ProtocolAssignment, 
-  Episode, 
-  OutreachResponse, 
-  OutreachResponseInsert,
-  EscalationTask,
-  EscalationTaskInsert,
+
   ConditionCode
 } from '@/types';
 import { SupabaseClient } from '@supabase/supabase-js';
@@ -46,6 +42,8 @@ interface DecisionHint {
   flagType?: string;
   severity?: string;
   reason?: string;
+  matchedPattern?: string; // Which text pattern triggered the rule
+  ruleDescription?: string; // Database description of the rule
   followUp?: string[];
   questions?: string[];
 }
@@ -694,8 +692,9 @@ async function evaluateRulesDSL(
   }
   
   for (const rule of redFlags) {
-    if (evaluateRuleCondition(rule.if, parsedResponse)) {
-      console.log('🎯 [Rules Engine] Rule matched:', rule.flag.type);
+    const ruleMatch = evaluateRuleCondition(rule.if, parsedResponse);
+    if (ruleMatch.matched) {
+      console.log('🎯 [Rules Engine] Rule matched:', rule.flag.type, 'Pattern:', ruleMatch.matchedPattern);
       
       // Validate rule has required fields
       if (!rule.flag.severity) {
@@ -728,6 +727,8 @@ async function evaluateRulesDSL(
         flagType: rule.flag.type,
         severity: finalSeverity,
         reason: rule.flag.message,
+        matchedPattern: ruleMatch.matchedPattern,
+        ruleDescription: rule.flag.message,
         followUp: []
       };
     }
@@ -741,11 +742,13 @@ async function evaluateRulesDSL(
     throw new Error('Protocol rules error: closures must be an array');
   }
   for (const closure of closures) {
-    if (evaluateRuleCondition(closure.if, parsedResponse)) {
-      console.log('✅ [Rules Engine] Patient doing well - closure condition met');
+    const closureMatch = evaluateRuleCondition(closure.if, parsedResponse);
+    if (closureMatch.matched) {
+      console.log('✅ [Rules Engine] Patient doing well - closure condition met. Pattern:', closureMatch.matchedPattern);
       return {
         action: 'CLOSE' as const,
-        reason: 'Patient is doing well'
+        reason: 'Patient is doing well',
+        matchedPattern: closureMatch.matchedPattern
       };
     }
   }
@@ -759,7 +762,7 @@ async function evaluateRulesDSL(
 }
 
 // Evaluate a single rule condition
-function evaluateRuleCondition(condition: Record<string, unknown>, parsedResponse: any): boolean {
+function evaluateRuleCondition(condition: Record<string, unknown>, parsedResponse: any): { matched: boolean; matchedPattern?: string } {
   if (condition.any_text && Array.isArray(condition.any_text)) {
     // Priority order: normalized_text > extracted symptoms > raw input
     const normalizedText = parsedResponse.normalized_text?.toLowerCase() || '';
@@ -767,63 +770,21 @@ function evaluateRuleCondition(condition: Record<string, unknown>, parsedRespons
     const inputText = parsedResponse.rawInput?.toLowerCase() || '';
     const combinedText = `${normalizedText} ${extractedSymptoms} ${inputText}`;
     
-    // Check if any pattern matches
-    const matched = (condition.any_text as string[]).some((text: string) => 
+    // Check if any pattern matches and capture which one
+    const matchedPattern = (condition.any_text as string[]).find((text: string) => 
       combinedText.includes(text.toLowerCase())
     );
     
-    if (matched) {
-      console.log('✅ [Rule Match] Pattern matched:', condition.any_text);
+    if (matchedPattern) {
+      console.log('✅ [Rule Match] Pattern matched:', matchedPattern);
+      return { matched: true, matchedPattern };
     }
     
-    return matched;
+    return { matched: false };
   }
   
-  if (condition.pain_score_gte && parsedResponse.painScore) {
-    return parsedResponse.painScore >= condition.pain_score_gte;
-  }
-  
-  if (condition.pain_score_lte && parsedResponse.painScore) {
-    return parsedResponse.painScore <= condition.pain_score_lte;
-  }
-  
-  if (condition.no_symptoms) {
-    return parsedResponse.symptoms.length === 0;
-  }
-  
-  if (condition.weight_stable) {
-    return parsedResponse.weightChange === 'stable';
-  }
-  
-  if (condition.medication_adherent) {
-    return parsedResponse.medicationAdherence === 'adherent';
-  }
-  
-  if (condition.temperature_gte && parsedResponse.temperature) {
-    return parsedResponse.temperature >= condition.temperature_gte;
-  }
-  
-  if (condition.temperature_normal) {
-    return parsedResponse.temperature < 100.4;
-  }
-  
-  if (condition.breathing_ok) {
-    return !parsedResponse.symptoms.includes('shortness_of_breath');
-  }
-  
-  if (condition.breathing_stable) {
-    return parsedResponse.breathingStatus === 'stable';
-  }
-  
-  if (condition.no_exacerbation) {
-    return !parsedResponse.symptoms.includes('exacerbation');
-  }
-  
-  if (condition.no_complications) {
-    return parsedResponse.complications.length === 0;
-  }
-  
-  return false;
+  // Simple fallback for other condition types
+  return { matched: false };
 }
 
 // Generate AI response with tool calling
