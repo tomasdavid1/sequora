@@ -96,7 +96,7 @@ export default function AITesterPage() {
     patientId: '',
     episodeId: '',
     condition: 'HF',
-    educationLevel: 'medium'
+    educationLevel: 'MEDIUM'
   });
   const [currentInteractionId, setCurrentInteractionId] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -207,7 +207,7 @@ export default function AITesterPage() {
               ...prev, 
               episodeId: firstEpisode.id,
               condition: firstEpisode.condition_code,
-              educationLevel: firstEpisode.education_level || 'medium'
+              educationLevel: firstEpisode.education_level || 'MEDIUM'
             }));
           }
         }
@@ -285,7 +285,7 @@ export default function AITesterPage() {
       id: 'hf-low-chest-pain',
       name: 'HF Low Ed - Chest Pain',
       condition: 'HF',
-      educationLevel: 'low',
+      educationLevel: 'LOW',
       patientInput: 'I have chest pain and can\'t breathe',
       description: 'Heart failure patient with low education reporting chest pain'
     },
@@ -293,7 +293,7 @@ export default function AITesterPage() {
       id: 'copd-high-shortness',
       name: 'COPD High Ed - Shortness',
       condition: 'COPD',
-      educationLevel: 'high',
+      educationLevel: 'HIGH',
       patientInput: 'I\'m experiencing increased dyspnea and my inhaler isn\'t helping',
       description: 'COPD patient with high education reporting breathing issues'
     },
@@ -301,7 +301,7 @@ export default function AITesterPage() {
       id: 'ami-medium-fatigue',
       name: 'AMI Medium Ed - Fatigue',
       condition: 'AMI',
-      educationLevel: 'medium',
+      educationLevel: 'MEDIUM',
       patientInput: 'I feel very tired and have some chest discomfort',
       description: 'Heart attack patient with medium education reporting fatigue'
     },
@@ -309,7 +309,7 @@ export default function AITesterPage() {
       id: 'pna-medium-fever',
       name: 'PNA Medium Ed - Fever',
       condition: 'PNA',
-      educationLevel: 'medium',
+      educationLevel: 'MEDIUM',
       patientInput: 'I have a fever of 102 and can\'t breathe well',
       description: 'Pneumonia patient with medium education reporting fever'
     }
@@ -370,7 +370,7 @@ export default function AITesterPage() {
             toast({
               title: `⚠️ Flag Raised: ${severity.toUpperCase()}`,
               description: `${flagType}: ${toolResult.parameters?.reason || 'Concerning symptoms detected'}`,
-              variant: severity === 'high' || severity === 'critical' ? "warning" : "default"
+              variant: severity === 'HIGH' || severity === 'CRITICAL' ? "warning" : "default"
             });
           } else if (toolName === 'log_checkin') {
             toast({
@@ -428,6 +428,9 @@ export default function AITesterPage() {
             outcome: null,
             severity: null,
             metadata: {},
+            protocol_config_snapshot: null,
+            protocol_rules_snapshot: null,
+            protocol_snapshot_at: null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
             patient: patients.find(p => p.id === testConfig.patientId),
@@ -537,7 +540,7 @@ export default function AITesterPage() {
       patientId: patients.length > 0 ? patients[0].id : '',
       episodeId: episodes.length > 0 ? episodes[0].id : '',
       condition: 'HF',
-      educationLevel: 'medium'
+      educationLevel: 'MEDIUM'
     };
     setTestConfig(defaultConfig);
     
@@ -559,6 +562,9 @@ export default function AITesterPage() {
       outcome: null,
       severity: null,
       metadata: {},
+      protocol_config_snapshot: null,
+      protocol_rules_snapshot: null,
+      protocol_snapshot_at: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       patient: patients.find(p => p.id === defaultConfig.patientId),
@@ -602,7 +608,7 @@ export default function AITesterPage() {
         patientId: interaction.patient.id,
         episodeId: interaction.episode.id,
         condition: interaction.episode.condition_code,
-        educationLevel: interaction.patient.education_level || 'medium'
+        educationLevel: interaction.patient.education_level || 'MEDIUM'
       });
     }
   };
@@ -908,7 +914,7 @@ export default function AITesterPage() {
                                     <div key={index} className="border rounded-lg p-3 bg-white">
                                       <div className="flex items-center justify-between mb-2">
                                         <span className="font-medium text-sm">{rule.rule_code}</span>
-                                        <Badge variant={rule.severity === 'critical' ? 'destructive' : 'default'}>
+                                        <Badge variant={rule.severity === 'CRITICAL' ? 'destructive' : 'default'}>
                                           {rule.severity}
                                         </Badge>
                                       </div>
@@ -1187,9 +1193,9 @@ export default function AITesterPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="low">Low</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="LOW">Low</SelectItem>
+                        <SelectItem value="MEDIUM">Medium</SelectItem>
+                        <SelectItem value="HIGH">High</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

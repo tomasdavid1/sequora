@@ -440,7 +440,7 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
 }
 
 // Query protocol configuration (AI decision parameters) from database
-async function getProtocolConfig(conditionCode: string, riskLevel: string, supabase: SupabaseAdmin) {
+async function getProtocolConfig(conditionCode: ConditionCode, riskLevel: RiskLevelType, supabase: SupabaseAdmin) {
   const { data: config, error } = await supabase
     .from('ProtocolConfig')
     .select('*')

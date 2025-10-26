@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { ConditionCodeType, RiskLevelType } from '@/lib/enums';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,14 +16,14 @@ export async function GET(request: NextRequest) {
       .from('ProtocolConfig')
       .select('*')
       .order('condition_code', { ascending: true })
-      .order('risk_level', { ascending: false }); // HIGH, MEDIUM, LOW
+      .order('risk_level', { ascending: false }); 
 
     if (condition) {
-      query = query.eq('condition_code', condition);
+      query = query.eq('condition_code', condition as ConditionCodeType);
     }
 
     if (riskLevel) {
-      query = query.eq('risk_level', riskLevel);
+      query = query.eq('risk_level', riskLevel as RiskLevelType);
     }
 
     const { data, error } = await query;
@@ -106,15 +107,15 @@ export async function POST(request: NextRequest) {
       .insert({
         condition_code,
         risk_level,
-        critical_confidence_threshold, // No fallback - validated above
-        low_confidence_threshold, // No fallback - validated above
-        vague_symptoms, // No fallback - validated above
+        critical_confidence_threshold,
+        low_confidence_threshold,
+        vague_symptoms, 
         enable_sentiment_boost: enable_sentiment_boost ?? true,
-        distressed_severity_upgrade, // No fallback - validated above
+        distressed_severity_upgrade, 
         route_medication_questions_to_info: route_medication_questions_to_info ?? true,
         route_general_questions_to_info: route_general_questions_to_info ?? true,
         detect_multiple_symptoms: detect_multiple_symptoms ?? false,
-        notes: notes ?? null, // Only notes can be null (it's optional)
+        notes: notes ?? null, 
         active: true
       })
       .select()
