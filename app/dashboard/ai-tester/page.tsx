@@ -87,7 +87,6 @@ export default function AITesterPage() {
   const [currentInput, setCurrentInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [showMetadata, setShowMetadata] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [interactions, setInteractions] = useState<InteractionWithRelations[]>([]);
   const [selectedInteraction, setSelectedInteraction] = useState<InteractionWithRelations | null>(null);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -576,9 +575,6 @@ export default function AITesterPage() {
     setCurrentInteractionId(tempId);
     setSelectedInteraction(placeholderInteraction);
     setInteractions(prev => [placeholderInteraction, ...prev]);
-    
-    // Close settings modal if open
-    setShowSettingsModal(false);
   };
 
   const loadConversation = (interaction: InteractionWithRelations) => {
@@ -669,21 +665,14 @@ export default function AITesterPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex gap-2 mb-4">
+                  <div className="mb-4">
                     <Button 
                       onClick={createNewChat}
-                      className="flex-1"
+                      className="w-full"
                       size="sm"
                     >
                       <Plus className="w-4 h-4 mr-2" />
                       New Chat
-                    </Button>
-                    <Button 
-                      onClick={() => setShowSettingsModal(true)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <Settings className="w-4 h-4" />
                     </Button>
                   </div>
                   
@@ -1175,135 +1164,6 @@ export default function AITesterPage() {
               </Card>
             </div>
           </div>
-
-          {/* Settings Modal */}
-          <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Test Configuration & New Chat</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="patient">Patient</Label>
-                    <Select 
-                      value={testConfig.patientId} 
-                      onValueChange={(value) => setTestConfig(prev => ({ ...prev, patientId: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a patient" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {patients.map((patient) => (
-                          <SelectItem key={patient.id} value={patient.id}>
-                            {`${patient.first_name} ${patient.last_name}` || patient.email}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="episode">Episode</Label>
-                    <Select 
-                      value={testConfig.episodeId} 
-                      onValueChange={(value) => setTestConfig(prev => ({ ...prev, episodeId: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select an episode" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {episodes.map((episode) => (
-                          <SelectItem key={episode.id} value={episode.id}>
-                            {episode.condition_code} • {episode.risk_level || 'MEDIUM'} risk
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="condition">Condition</Label>
-                    <Select 
-                      value={testConfig.condition} 
-                      onValueChange={(value) => setTestConfig(prev => ({ ...prev, condition: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="HF">Heart Failure</SelectItem>
-                        <SelectItem value="COPD">COPD</SelectItem>
-                        <SelectItem value="AMI">Heart Attack</SelectItem>
-                        <SelectItem value="PNA">Pneumonia</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="education">Education Level</Label>
-                    <Select 
-                      value={testConfig.educationLevel} 
-                      onValueChange={(value) => setTestConfig(prev => ({ ...prev, educationLevel: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="LOW">Low</SelectItem>
-                        <SelectItem value="MEDIUM">Medium</SelectItem>
-                        <SelectItem value="HIGH">High</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Current:</span>
-                  <Badge className={getConditionColor(testConfig.condition)}>
-                    {testConfig.condition}
-                  </Badge>
-                  <Badge variant="outline">
-                    {testConfig.educationLevel}
-                  </Badge>
-                </div>
-
-                <div className="pt-4 border-t">
-                  <Label className="text-sm font-medium">Quick Test Scenarios</Label>
-                  <div className="space-y-2 mt-2">
-                    {testScenarios.map((scenario) => (
-                      <Button
-                        key={scenario.id}
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-start text-left h-auto p-3"
-                        onClick={() => loadScenario(scenario)}
-                      >
-                        <div>
-                          <div className="font-medium text-xs">{scenario.name}</div>
-                          <div className="text-xs text-gray-500 mt-1">{scenario.description}</div>
-                        </div>
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setShowSettingsModal(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={() => {
-                    setShowSettingsModal(false);
-                    createNewChat();
-                  }}>
-                    Start New Chat
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
 
           {/* Delete Confirmation Modal */}
           <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
