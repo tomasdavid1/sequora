@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
           city: patientData.city || null,
           state: patientData.state || null,
           zip: patientData.zip || null,
+          education_level: patientData.educationLevel || 'medium', // Patient attribute
           preferred_channel: 'SMS', // Default to SMS
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -80,7 +81,6 @@ export async function POST(request: NextRequest) {
           patient_id: patient.id,
           condition_code: patientData.condition,
           risk_level: patientData.riskLevel || 'MEDIUM',
-          education_level: patientData.educationLevel || 'medium',
           admit_at: patientData.admitDate || null,
           discharge_at: patientData.dischargeDate || new Date().toISOString(),
           discharge_location: 'HOME',

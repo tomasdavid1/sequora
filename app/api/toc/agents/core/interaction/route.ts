@@ -335,7 +335,11 @@ async function loadProtocolAssignment(episodeId: string, supabase: SupabaseAdmin
     .from('ProtocolAssignment')
     .select(`
       *,
-      Episode!inner(condition_code, risk_level, education_level)
+      Episode!inner(
+        condition_code, 
+        risk_level,
+        Patient!inner(education_level)
+      )
     `)
     .eq('episode_id', episodeId)
     .eq('is_active', true)
@@ -355,7 +359,7 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
     // First, get the episode details
     const { data: episode, error: episodeError } = await supabase
       .from('Episode')
-      .select('condition_code, risk_level, education_level')
+      .select('condition_code, risk_level')
       .eq('id', episodeId)
       .single();
 
@@ -371,12 +375,15 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
         episode_id: episodeId,
         condition_code: episode.condition_code,
         risk_level: episode.risk_level || 'MEDIUM',
-        education_level: episode.education_level || 'medium',
         is_active: true
       })
       .select(`
         *,
-        Episode!inner(condition_code, risk_level, education_level)
+        Episode!inner(
+          condition_code, 
+          risk_level,
+          Patient!inner(education_level)
+        )
       `)
       .single();
 

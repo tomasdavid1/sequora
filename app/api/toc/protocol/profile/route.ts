@@ -26,13 +26,13 @@ export async function GET(request: NextRequest) {
           id,
           condition_code,
           risk_level,
-          education_level,
           Patient!inner(
             id,
             first_name,
             last_name,
             email,
-            date_of_birth
+            date_of_birth,
+            education_level
           )
         )
       `)
@@ -94,14 +94,12 @@ export async function GET(request: NextRequest) {
       episode: {
         id: protocol.Episode.id,
         condition_code: protocol.Episode.condition_code,
-        risk_level: protocol.Episode.risk_level,
-        education_level: protocol.Episode.education_level
+        risk_level: protocol.Episode.risk_level
       },
       protocol: {
         id: protocol.id,
         condition_code: protocol.condition_code,
         risk_level: protocol.risk_level,
-        education_level: protocol.education_level,
         assigned_at: protocol.assigned_at
       },
       activeProtocolRules: (activeRules || []).map(rule => ({

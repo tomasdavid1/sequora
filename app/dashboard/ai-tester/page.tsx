@@ -822,8 +822,8 @@ export default function AITesterPage() {
                                   </div>
                                   <div>
                                     <span className="font-medium">Education Level:</span>{' '}
-                                    <Badge variant="outline">{protocolProfile.episode.education_level}</Badge>
-                                    <span className="ml-2 text-xs text-gray-600">(for communication style only)</span>
+                                    <Badge variant="outline">{protocolProfile.patient.education_level}</Badge>
+                                    <span className="ml-2 text-xs text-gray-600">(patient's communication style)</span>
                                   </div>
                                   <div><span className="font-medium">Episode ID:</span> <span className="text-xs font-mono">{protocolProfile.episode.id}</span></div>
                                 </div>
