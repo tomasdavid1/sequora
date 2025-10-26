@@ -458,8 +458,12 @@ async function evaluateRulesDSL(parsedResponse: ParsedResponse, protocolAssignme
 function evaluateRuleCondition(condition: Record<string, unknown>, parsedResponse: any): boolean {
   if (condition.any_text && Array.isArray(condition.any_text)) {
     const inputText = parsedResponse.rawInput?.toLowerCase() || '';
+    const extractedSymptoms = (parsedResponse.symptoms || []).join(' ').toLowerCase();
+    const combinedText = `${inputText} ${extractedSymptoms}`;
+    
+    // Check if any pattern matches either raw input OR extracted symptoms
     return (condition.any_text as string[]).some((text: string) => 
-      inputText.includes(text.toLowerCase())
+      combinedText.includes(text.toLowerCase())
     );
   }
   
@@ -849,7 +853,19 @@ function extractSymptoms(input: string, condition: string): string[] {
   
   // Condition-specific symptom extraction
   if (condition === 'HF') {
+    // CRITICAL: Chest pain for HF patients (possible MI)
+    if ((lowerInput.includes('chest') && (lowerInput.includes('pain') || lowerInput.includes('hurt') || lowerInput.includes('ache'))) || 
+        ((lowerInput.includes('pain') || lowerInput.includes('hurt')) && lowerInput.includes('chest')) ||
+        lowerInput.includes('chest pressure') ||
+        lowerInput.includes('chest discomfort') ||
+        lowerInput.includes('chest tightness') ||
+        lowerInput.includes('heart pain')) {
+      symptoms.push('chest pain');
+    }
+    // Breathing symptoms
     if (lowerInput.includes('breath') || lowerInput.includes('shortness')) symptoms.push('shortness_of_breath');
+    if (lowerInput.includes('can\'t breathe') || lowerInput.includes('cannot breathe')) symptoms.push('breathing difficulty');
+    // Weight/swelling
     if (lowerInput.includes('weight') || lowerInput.includes('gain')) symptoms.push('weight_gain');
     if (lowerInput.includes('swell') || lowerInput.includes('ankle')) symptoms.push('swelling');
   }
