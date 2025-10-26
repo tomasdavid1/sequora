@@ -501,9 +501,16 @@ ${patterns.length > 0 ? patterns.map(p => `- ${p}`).join('\n') : 'No patterns co
 NORMALIZATION INSTRUCTIONS:
 - If patient input matches the MEANING of any pattern above, include that pattern in normalized_text
 - Use EXACT phrasing from the patterns list (don't paraphrase)
-- Always convert "lbs" → "pounds" and preserve numbers (3 lbs → 3 pounds)
-- Be liberal in matching - if it's close, include it
-- Multiple patterns can match one input (e.g., "chest pain and can't breathe" → "chest pain, cant breathe")
+- Always convert "lbs" → "pounds" and preserve numbers if present (3 lbs → 3 pounds)
+
+⚠️ CRITICAL - NUMERIC PATTERNS:
+Some patterns contain numbers (e.g., "gained 3 pounds", "temperature 101"). 
+- If patient mentions a SPECIFIC number → use the numeric pattern that matches
+- If patient is VAGUE (e.g., "some weight", "a bit", "a little") → use the GENERIC pattern WITHOUT numbers
+- NEVER invent or assume numbers the patient didn't say!
+- When unsure about amount → choose generic pattern to trigger follow-up question
+
+Multiple patterns can match one input (e.g., "chest pain and can't breathe" → "chest pain, cant breathe")
 
 Extract the following in JSON format:
 {
