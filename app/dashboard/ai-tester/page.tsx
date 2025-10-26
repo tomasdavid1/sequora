@@ -710,10 +710,6 @@ export default function AITesterPage() {
               <p className="text-gray-600">Test AI interactions and protocol responses</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => window.location.href = '/dashboard/protocol-config'}>
-                <Settings className="w-4 h-4 mr-2" />
-                Protocol Config
-              </Button>
               <Button variant="outline" onClick={() => window.location.href = '/dashboard'}>
                 Back to Dashboard
               </Button>
@@ -848,22 +844,7 @@ export default function AITesterPage() {
                         </DialogTrigger>
                         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
                           <DialogHeader>
-                            <div className="flex items-center justify-between">
-                              <DialogTitle>Protocol Profile</DialogTitle>
-                              {protocolProfile?.protocolConfig && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    // Navigate to protocol config page filtered to this specific config
-                                    window.location.href = `/dashboard/protocol-config?condition=${protocolProfile.episode.condition_code}&risk=${protocolProfile.episode.risk_level}`;
-                                  }}
-                                >
-                                  <Settings className="w-4 h-4 mr-2" />
-                                  Edit Config
-                                </Button>
-                              )}
-                            </div>
+                            <DialogTitle>Protocol Profile</DialogTitle>
                           </DialogHeader>
                           
                           {loadingProfile ? (
@@ -1076,7 +1057,7 @@ export default function AITesterPage() {
                         disabled={!testConfig.episodeId}
                       >
                         <Settings className="w-4 h-4 mr-2" />
-                        Edit Config
+                        Patient Protocol
                       </Button>
                       {selectedInteraction && (
                         <Button 
