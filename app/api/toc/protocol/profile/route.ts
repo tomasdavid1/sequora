@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { RiskLevelType, getSeverityFilterForRiskLevel } from '@/lib/enums';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,15 +55,7 @@ export async function GET(request: NextRequest) {
     // - MEDIUM risk: CRITICAL + HIGH severity only
     // - LOW risk: CRITICAL severity only
     const riskLevel = protocol.Episode.risk_level || 'MEDIUM';
-    let severityFilter: ('CRITICAL' | 'HIGH' | 'MODERATE' | 'LOW')[] = [];
-        
-    if (riskLevel === 'HIGH') {
-      severityFilter = ['CRITICAL', 'HIGH', 'MODERATE', 'LOW'];
-    } else if (riskLevel === 'MEDIUM') {
-      severityFilter = ['CRITICAL', 'HIGH'];
-    } else {
-      severityFilter = ['CRITICAL'];
-    }
+    const severityFilter = getSeverityFilterForRiskLevel(riskLevel as RiskLevelType);
 
     const { data: redFlagRules, error: rulesError } = await supabase
       .from('RedFlagRule')
