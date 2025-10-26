@@ -395,23 +395,23 @@ async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdm
 // Query protocol rules from ProtocolContentPack based on condition and risk level
 async function getProtocolRules(conditionCode: string, riskLevel: string, supabase: SupabaseAdmin) {
   // Determine severity filter based on risk level
-  let severityFilter: ('CRITICAL' | 'HIGH' | 'MODERATE' | 'LOW')[] = [];
+  let severityFilter: ('critical' | 'high' | 'moderate' | 'low')[] = [];
   
   if (riskLevel === 'HIGH') {
-    severityFilter = ['CRITICAL', 'HIGH', 'MODERATE', 'LOW'];
+    severityFilter = ['critical', 'high', 'moderate', 'low'];
   } else if (riskLevel === 'MEDIUM') {
-    severityFilter = ['CRITICAL', 'HIGH'];
+    severityFilter = ['critical', 'high'];
   } else {
-    severityFilter = ['CRITICAL'];
+    severityFilter = ['critical'];
   }
 
-  // Query red flags
+  // Query red flags (now using proper columns, not JSONB!)
   const { data: redFlagData, error: redFlagError } = await supabase
     .from('ProtocolContentPack')
-    .select('*')
-    .eq('condition_code', conditionCode)
+    .select('rule_code, text_patterns, action_type, severity, message')
+    .eq('condition_code', conditionCode as any)
     .eq('rule_type', 'RED_FLAG')
-    .in('actions->>severity', severityFilter)
+    .in('severity', severityFilter)
     .eq('active', true);
 
   if (redFlagError) {
@@ -421,8 +421,8 @@ async function getProtocolRules(conditionCode: string, riskLevel: string, supaba
   // Query closures
   const { data: closureData, error: closureError } = await supabase
     .from('ProtocolContentPack')
-    .select('*')
-    .eq('condition_code', conditionCode)
+    .select('rule_code, text_patterns, action_type, message')
+    .eq('condition_code', conditionCode as any)
     .eq('rule_type', 'CLOSURE')
     .eq('active', true);
 
@@ -432,13 +432,21 @@ async function getProtocolRules(conditionCode: string, riskLevel: string, supaba
 
   // Transform to DSL format expected by evaluateRulesDSL
   const redFlags = (redFlagData || []).map(rule => ({
-    if: rule.conditions,
-    flag: rule.actions
+    if: { any_text: rule.text_patterns },
+    flag: {
+      type: rule.rule_code,
+      action: rule.action_type,
+      severity: rule.severity,
+      message: rule.message
+    }
   }));
 
   const closures = (closureData || []).map(rule => ({
-    if: rule.conditions,
-    then: rule.actions
+    if: { any_text: rule.text_patterns },
+    then: {
+      action: rule.action_type,
+      message: rule.message
+    }
   }));
 
   return {
@@ -570,9 +578,9 @@ async function evaluateRulesDSL(parsedResponse: ParsedResponse, protocolAssignme
       return {
         action: 'FLAG' as const,
         flagType: rule.flag.type,
-        severity: finalSeverity,
+        severity: finalSeverity || undefined,
         reason: rule.flag.message || `Triggered ${rule.flag.type} flag`,
-        followUp: rule.flag.follow_up || []
+        followUp: []
       };
     }
   }

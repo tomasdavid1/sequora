@@ -19,14 +19,7 @@ ADD COLUMN IF NOT EXISTS rule_type TEXT NOT NULL CHECK (rule_type IN ('RED_FLAG'
 ADD COLUMN IF NOT EXISTS conditions JSONB NOT NULL DEFAULT '{}'::jsonb,
 ADD COLUMN IF NOT EXISTS actions JSONB NOT NULL DEFAULT '{}'::jsonb;
 
--- 4. Add proper constraints
-ALTER TABLE public."ProtocolContentPack"
-DROP CONSTRAINT IF EXISTS protocolcontentpack_pkey;
-
-ALTER TABLE public."ProtocolContentPack"
-ADD CONSTRAINT protocolcontentpack_pkey PRIMARY KEY (id);
-
--- Add unique constraint on condition + rule_code
+-- 4. Add unique constraint on condition + rule_code
 CREATE UNIQUE INDEX IF NOT EXISTS idx_protocol_content_pack_unique 
 ON public."ProtocolContentPack"(condition_code, rule_code);
 

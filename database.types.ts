@@ -1444,37 +1444,43 @@ export type Database = {
       }
       ProtocolContentPack: {
         Row: {
+          action_type: string
           active: boolean | null
           condition_code: Database["public"]["Enums"]["condition_code"]
-          content_data: Json
-          content_type: string
           created_at: string | null
-          education_level: string
           id: string
+          message: string | null
+          rule_code: string
+          rule_type: string
+          severity: string | null
+          text_patterns: string[]
           updated_at: string | null
-          version: string
         }
         Insert: {
+          action_type: string
           active?: boolean | null
           condition_code: Database["public"]["Enums"]["condition_code"]
-          content_data: Json
-          content_type: string
           created_at?: string | null
-          education_level: string
           id?: string
+          message?: string | null
+          rule_code: string
+          rule_type: string
+          severity?: string | null
+          text_patterns?: string[]
           updated_at?: string | null
-          version: string
         }
         Update: {
+          action_type?: string
           active?: boolean | null
           condition_code?: Database["public"]["Enums"]["condition_code"]
-          content_data?: Json
-          content_type?: string
           created_at?: string | null
-          education_level?: string
           id?: string
+          message?: string | null
+          rule_code?: string
+          rule_type?: string
+          severity?: string | null
+          text_patterns?: string[]
           updated_at?: string | null
-          version?: string
         }
         Relationships: []
       }

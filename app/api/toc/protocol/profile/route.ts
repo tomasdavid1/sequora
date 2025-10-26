@@ -79,9 +79,9 @@ export async function GET(request: NextRequest) {
     // Query active protocol rules from ProtocolContentPack
     const { data: activeRules, error: activeRulesError } = await supabase
       .from('ProtocolContentPack')
-      .select('rule_code, rule_type, conditions, actions')
-      .eq('condition_code', protocol.Episode.condition_code)
-      .in('actions->>severity', severityFilter)
+      .select('rule_code, rule_type, text_patterns, action_type, severity, message')
+      .eq('condition_code', protocol.Episode.condition_code as any)
+      .in('severity', severityFilter)
       .eq('active', true);
 
     if (activeRulesError) {
@@ -107,8 +107,10 @@ export async function GET(request: NextRequest) {
       activeProtocolRules: (activeRules || []).map(rule => ({
         rule_code: rule.rule_code,
         rule_type: rule.rule_type,
-        conditions: rule.conditions,
-        actions: rule.actions
+        text_patterns: rule.text_patterns,
+        action_type: rule.action_type,
+        severity: rule.severity,
+        message: rule.message
       })),
       redFlagRules: redFlagRules || [],
       thresholds: {

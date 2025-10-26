@@ -868,16 +868,16 @@ export default function AITesterPage() {
                                     <div key={index} className="border rounded-lg p-3 bg-white">
                                       <div className="flex items-center justify-between mb-2">
                                         <span className="font-medium text-sm">{rule.rule_code}</span>
-                                        <Badge variant={rule.actions?.severity === 'critical' ? 'destructive' : 'default'}>
-                                          {rule.actions?.severity}
+                                        <Badge variant={rule.severity === 'critical' ? 'destructive' : 'default'}>
+                                          {rule.severity}
                                         </Badge>
                                       </div>
-                                      <p className="text-sm text-gray-600 mb-2">{rule.actions?.message}</p>
+                                      <p className="text-sm text-gray-600 mb-2">{rule.message}</p>
                                       <div className="text-xs text-gray-500">
-                                        <span className="font-medium">Patterns:</span> {rule.conditions?.any_text?.join(', ') || 'N/A'}
+                                        <span className="font-medium">Patterns:</span> {rule.text_patterns?.join(', ') || 'N/A'}
                                       </div>
                                       <div className="text-xs text-emerald-600 mt-1">
-                                        Action: {rule.actions?.action}
+                                        Action: {rule.action_type}
                                       </div>
                                     </div>
                                   )) || <p className="text-sm text-gray-500">No red flag rules configured</p>}
