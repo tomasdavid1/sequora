@@ -63,161 +63,239 @@ END $$;
 -- STEP 3: Update Data to Match Enum Casing (lowercase → UPPERCASE)
 -- ============================================================================
 -- Now safe to update because check constraints are removed
--- Note: Column is still TEXT at this point, so we check against TEXT values
+-- Only update if column is TEXT (skip if already enum)
 
 -- Fix ProtocolContentPack severity (critical → CRITICAL, etc.)
-UPDATE "ProtocolContentPack"
-SET severity = UPPER(severity::TEXT)
-WHERE severity IS NOT NULL 
-  AND severity != UPPER(severity::TEXT);
+DO $$ 
+BEGIN
+  -- Only update if severity is TEXT type
+  IF (SELECT data_type FROM information_schema.columns 
+      WHERE table_name = 'ProtocolContentPack' AND column_name = 'severity') = 'text' THEN
+    UPDATE "ProtocolContentPack"
+    SET severity = UPPER(severity)
+    WHERE severity IS NOT NULL 
+      AND severity != UPPER(severity);
+    RAISE NOTICE 'Updated ProtocolContentPack.severity casing';
+  ELSE
+    RAISE NOTICE 'ProtocolContentPack.severity already an enum, skipping update';
+  END IF;
+END $$;
 
 -- Fix any lowercase severity in EscalationTask
-UPDATE "EscalationTask"
-SET severity = UPPER(severity::TEXT)
-WHERE severity IS NOT NULL 
-  AND severity != UPPER(severity::TEXT);
+DO $$ 
+BEGIN
+  IF (SELECT data_type FROM information_schema.columns 
+      WHERE table_name = 'EscalationTask' AND column_name = 'severity') = 'text' THEN
+    UPDATE "EscalationTask"
+    SET severity = UPPER(severity)
+    WHERE severity IS NOT NULL 
+      AND severity != UPPER(severity);
+    RAISE NOTICE 'Updated EscalationTask.severity casing';
+  ELSE
+    RAISE NOTICE 'EscalationTask.severity already an enum, skipping update';
+  END IF;
+END $$;
 
 -- Fix any lowercase severity in RedFlagRule
-UPDATE "RedFlagRule"
-SET severity = UPPER(severity::TEXT)
-WHERE severity IS NOT NULL 
-  AND severity != UPPER(severity::TEXT);
+DO $$ 
+BEGIN
+  IF (SELECT data_type FROM information_schema.columns 
+      WHERE table_name = 'RedFlagRule' AND column_name = 'severity') = 'text' THEN
+    UPDATE "RedFlagRule"
+    SET severity = UPPER(severity)
+    WHERE severity IS NOT NULL 
+      AND severity != UPPER(severity);
+    RAISE NOTICE 'Updated RedFlagRule.severity casing';
+  ELSE
+    RAISE NOTICE 'RedFlagRule.severity already an enum, skipping update';
+  END IF;
+END $$;
 
 -- ============================================================================
 -- STEP 4: Convert TEXT Columns to Enums
 -- ============================================================================
+-- Only convert if column is TEXT (skip if already enum - idempotent)
 
 -- ProtocolContentPack.severity: TEXT → red_flag_severity
 DO $$ BEGIN
-  ALTER TABLE "ProtocolContentPack"
-    ALTER COLUMN severity TYPE red_flag_severity 
-    USING severity::red_flag_severity;
-EXCEPTION
-  WHEN OTHERS THEN 
-    RAISE NOTICE 'ProtocolContentPack.severity conversion failed: %', SQLERRM;
-    RAISE;
+  IF (SELECT data_type FROM information_schema.columns 
+      WHERE table_name = 'ProtocolContentPack' AND column_name = 'severity') = 'text' THEN
+    ALTER TABLE "ProtocolContentPack"
+      ALTER COLUMN severity TYPE red_flag_severity 
+      USING severity::red_flag_severity;
+    RAISE NOTICE 'Converted ProtocolContentPack.severity to enum';
+  ELSE
+    RAISE NOTICE 'ProtocolContentPack.severity already an enum, skipping';
+  END IF;
 END $$;
 
 -- ProtocolContentPack.rule_type: TEXT → rule_type
 DO $$ BEGIN
-  ALTER TABLE "ProtocolContentPack"
-    ALTER COLUMN rule_type TYPE rule_type 
-    USING rule_type::rule_type;
-EXCEPTION
-  WHEN OTHERS THEN 
-    RAISE NOTICE 'ProtocolContentPack.rule_type conversion failed: %', SQLERRM;
-    RAISE;
+  IF (SELECT data_type FROM information_schema.columns 
+      WHERE table_name = 'ProtocolContentPack' AND column_name = 'rule_type') = 'text' THEN
+    ALTER TABLE "ProtocolContentPack"
+      ALTER COLUMN rule_type TYPE rule_type 
+      USING rule_type::rule_type;
+    RAISE NOTICE 'Converted ProtocolContentPack.rule_type to enum';
+  ELSE
+    RAISE NOTICE 'ProtocolContentPack.rule_type already an enum, skipping';
+  END IF;
 END $$;
 
 -- Episode.risk_level: TEXT → risk_level
 DO $$ BEGIN
-  ALTER TABLE "Episode"
-    ALTER COLUMN risk_level TYPE risk_level 
-    USING risk_level::risk_level;
-EXCEPTION
-  WHEN OTHERS THEN 
-    RAISE NOTICE 'Episode.risk_level conversion failed: %', SQLERRM;
-    RAISE;
+  IF (SELECT data_type FROM information_schema.columns 
+      WHERE table_name = 'Episode' AND column_name = 'risk_level') = 'text' THEN
+    ALTER TABLE "Episode"
+      ALTER COLUMN risk_level TYPE risk_level 
+      USING risk_level::risk_level;
+    RAISE NOTICE 'Converted Episode.risk_level to enum';
+  ELSE
+    RAISE NOTICE 'Episode.risk_level already an enum, skipping';
+  END IF;
 END $$;
 
--- Episode.condition_code: TEXT → condition_code (if not already enum)
+-- Episode.condition_code: TEXT → condition_code
 DO $$ BEGIN
-  ALTER TABLE "Episode"
-    ALTER COLUMN condition_code TYPE condition_code 
-    USING condition_code::condition_code;
-EXCEPTION
-  WHEN OTHERS THEN 
-    RAISE NOTICE 'Episode.condition_code already an enum or conversion failed: %', SQLERRM;
+  IF (SELECT udt_name FROM information_schema.columns 
+      WHERE table_name = 'Episode' AND column_name = 'condition_code') != 'condition_code' THEN
+    ALTER TABLE "Episode"
+      ALTER COLUMN condition_code TYPE condition_code 
+      USING condition_code::condition_code;
+    RAISE NOTICE 'Converted Episode.condition_code to enum';
+  ELSE
+    RAISE NOTICE 'Episode.condition_code already an enum, skipping';
+  END IF;
 END $$;
 
 -- ProtocolAssignment.risk_level: TEXT → risk_level
-ALTER TABLE "ProtocolAssignment"
-  ALTER COLUMN risk_level TYPE risk_level 
-  USING risk_level::risk_level;
-
--- ProtocolAssignment.condition_code: TEXT → condition_code (if not already enum)
 DO $$ BEGIN
-  ALTER TABLE "ProtocolAssignment"
-    ALTER COLUMN condition_code TYPE condition_code 
-    USING condition_code::condition_code;
-EXCEPTION
-  WHEN OTHERS THEN 
-    RAISE NOTICE 'ProtocolAssignment.condition_code already an enum or conversion failed: %', SQLERRM;
+  IF (SELECT data_type FROM information_schema.columns 
+      WHERE table_name = 'ProtocolAssignment' AND column_name = 'risk_level') = 'text' THEN
+    ALTER TABLE "ProtocolAssignment"
+      ALTER COLUMN risk_level TYPE risk_level 
+      USING risk_level::risk_level;
+    RAISE NOTICE 'Converted ProtocolAssignment.risk_level to enum';
+  ELSE
+    RAISE NOTICE 'ProtocolAssignment.risk_level already an enum, skipping';
+  END IF;
+END $$;
+
+-- ProtocolAssignment.condition_code: TEXT → condition_code
+DO $$ BEGIN
+  IF (SELECT udt_name FROM information_schema.columns 
+      WHERE table_name = 'ProtocolAssignment' AND column_name = 'condition_code') != 'condition_code' THEN
+    ALTER TABLE "ProtocolAssignment"
+      ALTER COLUMN condition_code TYPE condition_code 
+      USING condition_code::condition_code;
+    RAISE NOTICE 'Converted ProtocolAssignment.condition_code to enum';
+  ELSE
+    RAISE NOTICE 'ProtocolAssignment.condition_code already an enum, skipping';
+  END IF;
 END $$;
 
 -- ProtocolConfig.risk_level: TEXT → risk_level
-ALTER TABLE "ProtocolConfig"
-  ALTER COLUMN risk_level TYPE risk_level 
-  USING risk_level::risk_level;
-
--- ProtocolConfig.condition_code: TEXT → condition_code (if not already enum)
 DO $$ BEGIN
-  ALTER TABLE "ProtocolConfig"
-    ALTER COLUMN condition_code TYPE condition_code 
-    USING condition_code::condition_code;
-EXCEPTION
-  WHEN OTHERS THEN 
-    RAISE NOTICE 'ProtocolConfig.condition_code already an enum or conversion failed: %', SQLERRM;
+  IF (SELECT data_type FROM information_schema.columns 
+      WHERE table_name = 'ProtocolConfig' AND column_name = 'risk_level') = 'text' THEN
+    ALTER TABLE "ProtocolConfig"
+      ALTER COLUMN risk_level TYPE risk_level 
+      USING risk_level::risk_level;
+    RAISE NOTICE 'Converted ProtocolConfig.risk_level to enum';
+  ELSE
+    RAISE NOTICE 'ProtocolConfig.risk_level already an enum, skipping';
+  END IF;
 END $$;
 
--- RedFlagRule.severity: TEXT → red_flag_severity (if not already enum)
+-- ProtocolConfig.condition_code: TEXT → condition_code
 DO $$ BEGIN
-  ALTER TABLE "RedFlagRule"
-    ALTER COLUMN severity TYPE red_flag_severity 
-    USING severity::red_flag_severity;
-EXCEPTION
-  WHEN OTHERS THEN 
-    RAISE NOTICE 'RedFlagRule.severity already an enum or conversion failed: %', SQLERRM;
+  IF (SELECT udt_name FROM information_schema.columns 
+      WHERE table_name = 'ProtocolConfig' AND column_name = 'condition_code') != 'condition_code' THEN
+    ALTER TABLE "ProtocolConfig"
+      ALTER COLUMN condition_code TYPE condition_code 
+      USING condition_code::condition_code;
+    RAISE NOTICE 'Converted ProtocolConfig.condition_code to enum';
+  ELSE
+    RAISE NOTICE 'ProtocolConfig.condition_code already an enum, skipping';
+  END IF;
 END $$;
 
--- RedFlagRule.condition_code: TEXT → condition_code (if not already enum)
+-- RedFlagRule.severity: TEXT → red_flag_severity
 DO $$ BEGIN
-  ALTER TABLE "RedFlagRule"
-    ALTER COLUMN condition_code TYPE condition_code 
-    USING condition_code::condition_code;
-EXCEPTION
-  WHEN OTHERS THEN 
-    RAISE NOTICE 'RedFlagRule.condition_code already an enum or conversion failed: %', SQLERRM;
+  IF (SELECT udt_name FROM information_schema.columns 
+      WHERE table_name = 'RedFlagRule' AND column_name = 'severity') != 'red_flag_severity' THEN
+    ALTER TABLE "RedFlagRule"
+      ALTER COLUMN severity TYPE red_flag_severity 
+      USING severity::red_flag_severity;
+    RAISE NOTICE 'Converted RedFlagRule.severity to enum';
+  ELSE
+    RAISE NOTICE 'RedFlagRule.severity already an enum, skipping';
+  END IF;
 END $$;
 
--- EscalationTask.severity: TEXT → red_flag_severity (if not already enum)
+-- RedFlagRule.condition_code: TEXT → condition_code
 DO $$ BEGIN
-  ALTER TABLE "EscalationTask"
-    ALTER COLUMN severity TYPE red_flag_severity 
-    USING severity::red_flag_severity;
-EXCEPTION
-  WHEN OTHERS THEN 
-    RAISE NOTICE 'EscalationTask.severity already an enum or conversion failed: %', SQLERRM;
+  IF (SELECT udt_name FROM information_schema.columns 
+      WHERE table_name = 'RedFlagRule' AND column_name = 'condition_code') != 'condition_code' THEN
+    ALTER TABLE "RedFlagRule"
+      ALTER COLUMN condition_code TYPE condition_code 
+      USING condition_code::condition_code;
+    RAISE NOTICE 'Converted RedFlagRule.condition_code to enum';
+  ELSE
+    RAISE NOTICE 'RedFlagRule.condition_code already an enum, skipping';
+  END IF;
 END $$;
 
--- EscalationTask.priority: TEXT → task_priority (if not already enum)
+-- EscalationTask.severity: TEXT → red_flag_severity
 DO $$ BEGIN
-  ALTER TABLE "EscalationTask"
-    ALTER COLUMN priority TYPE task_priority 
-    USING priority::task_priority;
-EXCEPTION
-  WHEN OTHERS THEN 
-    RAISE NOTICE 'EscalationTask.priority already an enum or conversion failed: %', SQLERRM;
+  IF (SELECT udt_name FROM information_schema.columns 
+      WHERE table_name = 'EscalationTask' AND column_name = 'severity') != 'red_flag_severity' THEN
+    ALTER TABLE "EscalationTask"
+      ALTER COLUMN severity TYPE red_flag_severity 
+      USING severity::red_flag_severity;
+    RAISE NOTICE 'Converted EscalationTask.severity to enum';
+  ELSE
+    RAISE NOTICE 'EscalationTask.severity already an enum, skipping';
+  END IF;
 END $$;
 
--- EscalationTask.status: TEXT → task_status (if not already enum)
+-- EscalationTask.priority: TEXT → task_priority
 DO $$ BEGIN
-  ALTER TABLE "EscalationTask"
-    ALTER COLUMN status TYPE task_status 
-    USING status::task_status;
-EXCEPTION
-  WHEN OTHERS THEN 
-    RAISE NOTICE 'EscalationTask.status already an enum or conversion failed: %', SQLERRM;
+  IF (SELECT udt_name FROM information_schema.columns 
+      WHERE table_name = 'EscalationTask' AND column_name = 'priority') != 'task_priority' THEN
+    ALTER TABLE "EscalationTask"
+      ALTER COLUMN priority TYPE task_priority 
+      USING priority::task_priority;
+    RAISE NOTICE 'Converted EscalationTask.priority to enum';
+  ELSE
+    RAISE NOTICE 'EscalationTask.priority already an enum, skipping';
+  END IF;
+END $$;
+
+-- EscalationTask.status: TEXT → task_status
+DO $$ BEGIN
+  IF (SELECT udt_name FROM information_schema.columns 
+      WHERE table_name = 'EscalationTask' AND column_name = 'status') != 'task_status' THEN
+    ALTER TABLE "EscalationTask"
+      ALTER COLUMN status TYPE task_status 
+      USING status::task_status;
+    RAISE NOTICE 'Converted EscalationTask.status to enum';
+  ELSE
+    RAISE NOTICE 'EscalationTask.status already an enum, skipping';
+  END IF;
 END $$;
 
 -- Patient.education_level: TEXT → education_level
 DO $$ BEGIN
-  ALTER TABLE "Patient"
-    ALTER COLUMN education_level TYPE education_level 
-    USING education_level::education_level;
-EXCEPTION
-  WHEN OTHERS THEN 
-    RAISE NOTICE 'Patient.education_level already an enum or conversion failed: %', SQLERRM;
+  IF (SELECT udt_name FROM information_schema.columns 
+      WHERE table_name = 'Patient' AND column_name = 'education_level') != 'education_level' THEN
+    ALTER TABLE "Patient"
+      ALTER COLUMN education_level TYPE education_level 
+      USING education_level::education_level;
+    RAISE NOTICE 'Converted Patient.education_level to enum';
+  ELSE
+    RAISE NOTICE 'Patient.education_level already an enum, skipping';
+  END IF;
 END $$;
 
 -- ============================================================================
