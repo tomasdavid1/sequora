@@ -231,7 +231,7 @@ Decision Hint: ${JSON.stringify(decisionHint)}
 Tool Usage (NOTE: patientId is already known - you don't need to provide it):
 - raise_flag: When symptoms are concerning
 - ask_more: When you need more information  
-- log_checkin: When patient is doing well
+- log_checkin: When you've determined the patient is doing well
 - handoff_to_nurse: When immediate attention needed
 
 RESPONSE FORMAT:

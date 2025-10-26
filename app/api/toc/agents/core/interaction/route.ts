@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
     // 6. Check if this patient has been contacted before and fetch summaries
     const { data: previousInteractions } = await supabase
       .from('AgentInteraction')
-      .select('id, summary, started_at, status')
+      .select('id, started_at, status') // Note: 'summary' added in migration 20250126260000
       .eq('episode_id', episodeId)
       .in('status', ['COMPLETED', 'ESCALATED']) // Only completed interactions
       .order('started_at', { ascending: false })
@@ -184,10 +184,10 @@ export async function POST(request: NextRequest) {
     const hasBeenContactedBefore = (previousInteractions?.length || 0) > 0;
     const isFirstMessageInCurrentChat = !interactionId;
     
-    // Build previous interaction context from summaries
+    // Build previous interaction context from summaries (if column exists)
     const previousSummaries = (previousInteractions || [])
-      .filter(i => i.summary) // Only interactions with summaries
-      .map(i => `[${new Date(i.started_at).toLocaleDateString()}] ${i.summary}`)
+      .filter((i: any) => i.summary) // Only interactions with summaries (column may not exist yet)
+      .map((i: any) => `[${new Date(i.started_at).toLocaleDateString()}] ${i.summary}`)
       .join('\n');
     
     console.log('📞 [Interaction] Contact history:', {
@@ -210,15 +210,21 @@ export async function POST(request: NextRequest) {
       // Determine which tool to call based on severity
       const toolName = decisionHint.severity === 'CRITICAL' ? 'handoff_to_nurse' : 'raise_flag';
       
-      // Create patient-friendly message based on severity
-      let escalationMessage = '';
-      if (decisionHint.severity === 'CRITICAL') {
-        escalationMessage = `Thank you for letting me know. I'm going to have one of our nurses reach out to you right away to help with this. They should contact you within the next 30 minutes. If your symptoms get worse or you feel you need immediate help, please call 911 or go to the emergency room.`;
-      } else if (decisionHint.severity === 'HIGH') {
-        escalationMessage = `I appreciate you sharing this with me. A nurse will give you a call within the next 2 hours to check in and provide guidance. In the meantime, if anything gets worse, don't hesitate to call 911 or visit the emergency room.`;
-      } else {
-        escalationMessage = `Thanks for letting me know. I've made a note for our care team to follow up with you. If you have any concerns in the meantime, please reach out to your healthcare provider.`;
-      }
+      // Generate AI-powered, symptom-specific escalation message
+      const slaMinutes = getSLAMinutesFromSeverity(decisionHint.severity as SeverityType);
+      const timeframe = slaMinutes < 60 ? `${slaMinutes} minutes` : `${Math.round(slaMinutes / 60)} hours`;
+      const urgencyNote = decisionHint.severity === 'CRITICAL' 
+        ? ' If your symptoms get worse or you feel you need immediate help, please call 911 or go to the emergency room.'
+        : ' If anything gets worse, please contact us right away.';
+      
+      // Generate contextual escalation message using AI
+      const escalationMessage = await generateEscalationMessage(
+        parsedResponse.rawInput,
+        decisionHint,
+        timeframe,
+        urgencyNote,
+        protocolAssignment.condition_code
+      );
       
       forcedToolCalls = [{
         name: toolName,
@@ -1190,6 +1196,56 @@ function generateDefaultQuestions(parsedResponse: any, condition: string): strin
   }
   
   return questions;
+}
+
+// Generate symptom-specific escalation message
+async function generateEscalationMessage(
+  patientInput: string,
+  decisionHint: DecisionHint,
+  timeframe: string,
+  urgencyNote: string,
+  condition: string
+): Promise<string> {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'generate_response',
+        input: {
+          messages: [
+            {
+              role: 'system',
+              content: `Generate a warm, empathetic escalation message for a ${condition} patient.
+
+Patient said: "${patientInput}"
+Red flag detected: ${decisionHint.reason}
+
+Your message should:
+1. Acknowledge their specific symptom (weight gain, chest pain, etc.)
+2. Briefly explain WHY this matters for their condition (1 sentence)
+3. Let them know a nurse will call within ${timeframe}
+4. Be reassuring but take it seriously
+
+Keep it concise (2-3 sentences). Be warm and supportive.`
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 150
+        }
+      })
+    });
+
+    const result = await response.json();
+    const aiMessage = result.response || '';
+    
+    // Append urgency note
+    return `${aiMessage}${urgencyNote}`;
+  } catch (error) {
+    console.error('Failed to generate escalation message:', error);
+    // Fallback
+    return `Thank you for letting me know about this. A nurse will call you within ${timeframe} to discuss your symptoms.${urgencyNote}`;
+  }
 }
 
 // Generate AI summary of interaction for future context

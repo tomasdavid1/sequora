@@ -83,6 +83,7 @@ export type Database = {
           protocol_snapshot_at: string | null
           started_at: string | null
           status: string | null
+          summary: string | null
           updated_at: string | null
         }
         Insert: {
@@ -102,6 +103,7 @@ export type Database = {
           protocol_snapshot_at?: string | null
           started_at?: string | null
           status?: string | null
+          summary?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -121,6 +123,7 @@ export type Database = {
           protocol_snapshot_at?: string | null
           started_at?: string | null
           status?: string | null
+          summary?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -724,7 +727,7 @@ export type Database = {
           hospital_id: string | null
           id: string
           patient_id: string
-          risk_level: Database["public"]["Enums"]["risk_level"] | null
+          risk_level: Database["public"]["Enums"]["risk_level"]
           risk_scores: Json | null
           severity_indicator: string | null
           source_system: string | null
@@ -751,7 +754,7 @@ export type Database = {
           hospital_id?: string | null
           id?: string
           patient_id: string
-          risk_level?: Database["public"]["Enums"]["risk_level"] | null
+          risk_level?: Database["public"]["Enums"]["risk_level"]
           risk_scores?: Json | null
           severity_indicator?: string | null
           source_system?: string | null
@@ -778,7 +781,7 @@ export type Database = {
           hospital_id?: string | null
           id?: string
           patient_id?: string
-          risk_level?: Database["public"]["Enums"]["risk_level"] | null
+          risk_level?: Database["public"]["Enums"]["risk_level"]
           risk_scores?: Json | null
           severity_indicator?: string | null
           source_system?: string | null
@@ -1299,7 +1302,7 @@ export type Database = {
           city: string | null
           created_at: string | null
           date_of_birth: string
-          education_level: Database["public"]["Enums"]["education_level"] | null
+          education_level: Database["public"]["Enums"]["education_level"]
           email: string | null
           first_name: string
           id: string
@@ -1327,9 +1330,7 @@ export type Database = {
           city?: string | null
           created_at?: string | null
           date_of_birth: string
-          education_level?:
-            | Database["public"]["Enums"]["education_level"]
-            | null
+          education_level?: Database["public"]["Enums"]["education_level"]
           email?: string | null
           first_name: string
           id?: string
@@ -1357,9 +1358,7 @@ export type Database = {
           city?: string | null
           created_at?: string | null
           date_of_birth?: string
-          education_level?:
-            | Database["public"]["Enums"]["education_level"]
-            | null
+          education_level?: Database["public"]["Enums"]["education_level"]
           email?: string | null
           first_name?: string
           id?: string
@@ -1443,7 +1442,7 @@ export type Database = {
           episode_id: string
           id: string
           is_active: boolean | null
-          risk_level: Database["public"]["Enums"]["risk_level"] | null
+          risk_level: Database["public"]["Enums"]["risk_level"]
           updated_at: string | null
         }
         Insert: {
@@ -1454,7 +1453,7 @@ export type Database = {
           episode_id: string
           id?: string
           is_active?: boolean | null
-          risk_level?: Database["public"]["Enums"]["risk_level"] | null
+          risk_level?: Database["public"]["Enums"]["risk_level"]
           updated_at?: string | null
         }
         Update: {
@@ -1465,7 +1464,7 @@ export type Database = {
           episode_id?: string
           id?: string
           is_active?: boolean | null
-          risk_level?: Database["public"]["Enums"]["risk_level"] | null
+          risk_level?: Database["public"]["Enums"]["risk_level"]
           updated_at?: string | null
         }
         Relationships: [
