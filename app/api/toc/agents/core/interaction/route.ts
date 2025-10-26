@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { 
   ProtocolAssignment, 
-
+  Episode,
   ConditionCode
 } from '@/types';
 import { SupabaseClient } from '@supabase/supabase-js';
@@ -564,7 +564,7 @@ async function parsePatientInputWithProtocol(
       operation: 'parse_patient_input',
       input: {
         condition: protocolAssignment.condition_code,
-        educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level || 'MEDIUM',
+        educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level,
         patientInput: input,
         conversationHistory: conversationHistory,
         requestStructuredOutput: true
@@ -833,7 +833,7 @@ async function generateAIResponseWithTools(
           operation: 'generate_response_with_tools',
           input: {
             condition: protocolAssignment.condition_code,
-            educationLevel: (protocolAssignment.Episode as any)?.Patient?.education_level || 'MEDIUM',
+            educationLevel: (protocolAssignment.Episode as Episode)?.Patient?.education_level,
             patientResponses: parsedResponse.rawInput,
             decisionHint: decisionHint,
             context: fullContext,
@@ -975,8 +975,19 @@ async function handleLogCheckin(parameters: Record<string, unknown>, patientId: 
 
 async function handleHandoffToNurse(parameters: Record<string, unknown>, patientId: string, episodeId: string, supabase: SupabaseAdmin, interactionId?: string) {
   const { reason, flagType } = parameters;
-  const reasonStr = String(reason || 'Patient requires immediate attention');
-  const flagTypeStr = String(flagType || 'NURSE_HANDOFF');
+  
+  if (!reason) {
+    console.error('❌ [Handoff] Missing required parameter: reason');
+    throw new Error('handoff_to_nurse requires reason parameter');
+  }
+  
+  if (!flagType) {
+    console.error('❌ [Handoff] Missing required parameter: flagType');
+    throw new Error('handoff_to_nurse requires flagType parameter');
+  }
+  
+  const reasonStr = String(reason);
+  const flagTypeStr = String(flagType);
   
   // Create high-priority escalation task
   const { data: task, error } = await supabase

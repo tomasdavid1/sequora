@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { RiskLevelType, getSeverityFilterForRiskLevel } from '@/lib/enums';
+import { RiskLevelType, getSeverityFilterForRiskLevel, ConditionCodeType } from '@/lib/enums';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,12 +49,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch red flag rules for this condition AND risk level
-    // Apply same filtering logic as get_protocol_config:
-    // - HIGH risk: All rules
-    // - MEDIUM risk: CRITICAL + HIGH severity only
-    // - LOW risk: CRITICAL severity only
-    const riskLevel = protocol.Episode.risk_level || 'MEDIUM';
+    
+    const riskLevel = protocol.Episode.risk_level as RiskLevelType;
     const severityFilter = getSeverityFilterForRiskLevel(riskLevel as RiskLevelType);
 
     const { data: redFlagRules, error: rulesError } = await supabase
@@ -73,7 +69,7 @@ export async function GET(request: NextRequest) {
     const { data: activeRules, error: activeRulesError } = await supabase
       .from('ProtocolContentPack')
       .select('rule_code, rule_type, text_patterns, action_type, severity, message')
-      .eq('condition_code', protocol.Episode.condition_code as any)
+      .eq('condition_code', protocol.Episode.condition_code as ConditionCodeType)
       .in('severity', severityFilter)
       .eq('active', true);
 
@@ -85,8 +81,8 @@ export async function GET(request: NextRequest) {
     const { data: protocolConfig, error: configError } = await supabase
       .from('ProtocolConfig')
       .select('*')
-      .eq('condition_code', protocol.Episode.condition_code as any)
-      .eq('risk_level', riskLevel)
+      .eq('condition_code', protocol.Episode.condition_code as ConditionCodeType)
+      .eq('risk_level', riskLevel as RiskLevelType)
       .eq('active', true)
       .single();
 
@@ -108,7 +104,7 @@ export async function GET(request: NextRequest) {
         risk_level: protocol.risk_level,
         assigned_at: protocol.assigned_at
       },
-      protocolConfig: protocolConfig || null, // AI decision parameters
+      protocolConfig: protocolConfig,
       activeProtocolRules: (activeRules || []).map(rule => ({
         rule_code: rule.rule_code,
         rule_type: rule.rule_type,

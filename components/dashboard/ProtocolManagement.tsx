@@ -321,8 +321,8 @@ export default function ProtocolManagement() {
                     <Badge className={getConditionColor(assignment.condition_code)}>
                       {assignment.condition_code}
                     </Badge>
-                    <Badge className={getEducationLevelColor(assignment.education_level || 'all')}>
-                      {assignment.education_level || 'all'}
+                    <Badge className={getEducationLevelColor((assignment as any).Episode?.Patient?.education_level || 'MEDIUM')}>
+                      {(assignment as any).Episode?.Patient?.education_level || 'MEDIUM'}
                     </Badge>
                     <Badge variant={assignment.is_active ? "default" : "secondary"}>
                       {assignment.is_active ? "Active" : "Inactive"}

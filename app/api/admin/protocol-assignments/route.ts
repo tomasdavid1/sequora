@@ -11,9 +11,12 @@ export async function GET(request: NextRequest) {
       .select(`
         *,
         Episode!inner(
+          condition_code,
+          risk_level,
           Patient!inner(
             first_name,
-            last_name
+            last_name,
+            education_level
           )
         )
       `)
