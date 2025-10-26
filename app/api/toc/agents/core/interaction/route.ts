@@ -638,7 +638,7 @@ async function evaluateRulesDSL(
   
   // ENHANCEMENT 3: Low confidence + vague symptoms = clarify
   const hasVagueSymptom = (parsedResponse.symptoms || []).some(s => 
-    VAGUE_SYMPTOMS.some(v => s.toLowerCase().includes(v))
+    VAGUE_SYMPTOMS.some((v: string) => s.toLowerCase().includes(v))
   );
   
   if ((parsedResponse.confidence || 1) < LOW_CONFIDENCE_THRESHOLD && hasVagueSymptom) {
@@ -657,7 +657,7 @@ async function evaluateRulesDSL(
       console.log('🎯 [Rules Engine] Rule matched:', rule.flag.type);
       
       // ENHANCEMENT 5: Severity boost based on AI + sentiment (configurable)
-      let finalSeverity = rule.flag.severity;
+      let finalSeverity = rule.flag.severity || 'moderate';
       if (protocolConfig.enable_sentiment_boost && 
           parsedResponse.severity === 'critical' && 
           parsedResponse.sentiment === 'distressed') {

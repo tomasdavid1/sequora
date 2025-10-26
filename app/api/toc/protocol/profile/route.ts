@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     // - HIGH risk: All rules
     // - MEDIUM risk: CRITICAL + HIGH severity only
     // - LOW risk: CRITICAL severity only
-    const riskLevel = protocol.Episode.risk_level;
+    const riskLevel = protocol.Episode.risk_level || 'MEDIUM';
     let severityFilter: ('CRITICAL' | 'HIGH' | 'MODERATE' | 'LOW')[] = [];
         
     if (riskLevel === 'HIGH') {
