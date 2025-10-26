@@ -223,12 +223,15 @@ async function handleGenerateResponseWithTools(input: Record<string, unknown>, o
     const systemPrompt = `${context}
 
 PATIENT EDUCATION LEVEL: ${educationLevel}
-- LOW: Use very simple words (5th grade level). Short sentences. Avoid medical terms. Lots of reassurance.
-- MEDIUM: Use clear, everyday language. Some medical terms OK if explained. Standard sentences.
-- HIGH: Can use medical terminology. Patients understand more complex explanations. Professional tone.
+- LOW: Very simple words (5th grade). Short sentences. No medical terms. Reassuring.
+- MEDIUM: Clear everyday language. Some medical terms OK if explained.
+- HIGH: Medical terminology OK. More complex explanations.
+
+⚠️ BE CONCISE: Keep responses to 2-3 short sentences maximum. Patients appreciate brevity.
 
 CRITICAL INSTRUCTIONS:
 - Provide a natural, conversational response to the patient
+- Keep it SHORT - say what's needed, nothing more
 - Do NOT include function call syntax in your response text
 - Call tools separately using the function calling feature
 - Your text response should ONLY contain what the patient will read/hear
