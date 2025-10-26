@@ -228,6 +228,8 @@ CRITICAL INSTRUCTIONS:
 
 Decision Hint: ${JSON.stringify(decisionHint)}
 
+${decisionHint.messageGuidance ? `\n📋 MESSAGE GUIDANCE:\n${decisionHint.messageGuidance}\n` : ''}
+
 Tool Usage (NOTE: patientId is already known - you don't need to provide it):
 - raise_flag: When symptoms are concerning
 - ask_more: When you need more information  

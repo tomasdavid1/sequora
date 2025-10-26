@@ -49,6 +49,7 @@ interface DecisionHint {
   ruleDescription?: string; // Database description of the rule
   followUp?: string[];
   questions?: string[];
+  messageGuidance?: string; // Explicit guidance for AI on how to respond
 }
 
 // Extended type for ProtocolAssignment with nested relationships
@@ -703,6 +704,7 @@ async function evaluateRulesDSL(
       flagType: 'AI_CRITICAL_ASSESSMENT',
       severity: 'CRITICAL',
       reason: `AI assessed as critical with ${Math.round((parsedResponse.confidence || 0) * 100)}% confidence`,
+      messageGuidance: 'CLOSURE MESSAGE: Acknowledge the critical symptoms detected. Explain briefly why this is concerning for their condition. Let them know a nurse will contact them urgently. Be calm but clear about the seriousness.',
       followUp: []
     };
   }
@@ -713,8 +715,9 @@ async function evaluateRulesDSL(
       return {
       action: 'ASK_MORE' as const,
       questions: ['I can help with that. Can you tell me more about your medication question?'],
-      reason: 'Routing to medication information'
-      };
+      reason: 'Routing to medication information',
+      messageGuidance: 'ASK_MORE: Patient has medication question. Ask helpful follow-up questions to understand their medication concern. Keep monitoring their overall condition too.'
+    };
   }
   
   if (protocolConfig.route_general_questions_to_info && parsedResponse.intent === 'question') {
@@ -722,7 +725,8 @@ async function evaluateRulesDSL(
   return {
       action: 'ASK_MORE' as const,
       questions: ['I can help with that. Can you tell me more about your question?'],
-      reason: 'Routing to appropriate information'
+      reason: 'Routing to appropriate information',
+      messageGuidance: 'ASK_MORE: Patient has general question. Provide helpful information while continuing to monitor their health status.'
     };
   }
   
@@ -736,7 +740,8 @@ async function evaluateRulesDSL(
     return {
       action: 'ASK_MORE' as const,
       questions: [], // AI will generate appropriate clarifying questions based on context
-      reason: 'Need more specific information - vague symptoms detected'
+      reason: 'Need more specific information - vague symptoms detected',
+      messageGuidance: 'ASK_MORE: Patient used vague words (discomfort, off, tired). Ask specific clarifying questions to understand exactly what they\'re experiencing. Be empathetic but thorough.'
     };
   }
   
@@ -771,7 +776,8 @@ async function evaluateRulesDSL(
               ? "How many pounds have you gained? It's important to know the specific amount."
               : "Can you be more specific about the amount or severity?"
           ],
-          reason: 'Need specific numeric detail for accurate assessment'
+          reason: 'Need specific numeric detail for accurate assessment',
+          messageGuidance: 'ASK_MORE: Patient mentioned symptom but without specific amount. Focus ONLY on getting the number - don\'t ask about other symptoms yet. The amount determines urgency.'
         };
       }
       
@@ -808,6 +814,7 @@ async function evaluateRulesDSL(
         reason: rule.flag.message,
         matchedPattern: ruleMatch.matchedPattern,
         ruleDescription: rule.flag.message,
+        messageGuidance: `CLOSURE MESSAGE: Patient showed "${ruleMatch.matchedPattern}". Acknowledge this symptom specifically. Explain in 1-2 sentences why this matters for ${protocolAssignment.condition_code} patients (clinical reasoning). Let them know a nurse will call within ${getSLAMinutesFromSeverity(finalSeverity) / 60} hours. Be warm and reassuring while taking it seriously. This ends the interaction.`,
         followUp: []
       };
     }
@@ -827,7 +834,8 @@ async function evaluateRulesDSL(
       return {
         action: 'CLOSE' as const,
         reason: 'Patient is doing well',
-        matchedPattern: closureMatch.matchedPattern
+        matchedPattern: closureMatch.matchedPattern,
+        messageGuidance: 'CLOSURE MESSAGE: Patient is doing well! Acknowledge their positive status. Provide brief encouragement to continue their care plan. Remind them to contact if anything changes. This ends the interaction on a positive note.'
       };
     }
   }
@@ -836,7 +844,8 @@ async function evaluateRulesDSL(
   // Let AI generate appropriate questions based on system prompt - no hardcoded defaults!
   return {
     action: 'ASK_MORE' as const,
-    questions: [] // AI will generate based on system prompt and decisionHint
+    questions: [], // AI will generate based on system prompt and decisionHint
+    messageGuidance: 'ASK_MORE: No red flags detected yet. Ask open-ended questions to check on their condition. Monitor for key symptoms based on your system prompt. Be conversational and supportive.'
   };
 }
 
