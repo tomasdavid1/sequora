@@ -39,7 +39,17 @@ export default function UnifiedDashboard() {
 
     const getSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        // Add a timeout to prevent hanging
+        const timeoutPromise = new Promise<null>((_, reject) => 
+          setTimeout(() => reject(new Error('Auth check timeout')), 3000)
+        );
+        
+        const sessionPromise = supabase.auth.getSession();
+        
+        const { data: { session } } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as any;
         
         if (!mounted) return;
         

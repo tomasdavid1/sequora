@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -79,6 +80,7 @@ interface InteractionWithRelations extends AgentInteraction {
 
 export default function AITesterPage() {
   const { user, loading: authLoading } = useAuth();
+  const { toast } = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [currentInput, setCurrentInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -95,13 +97,48 @@ export default function AITesterPage() {
     educationLevel: 'medium'
   });
   const [currentInteractionId, setCurrentInteractionId] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [loadingInteractions, setLoadingInteractions] = useState(true);
+  const renderCountRef = React.useRef(0);
   
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
+
+  // Track renders for debugging (using ref to avoid infinite loop)
+  renderCountRef.current += 1;
+  console.log(`🎨 [AITester] Component render #${renderCountRef.current}`, {
+    interactionsLength: interactions.length,
+    currentInteractionId,
+    messagesLength: messages.length
+  });
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Fetch interactions function (reusable)
+  const fetchInteractions = async (showLoader = false) => {
+    if (showLoader) setLoadingInteractions(true);
+    console.log('🔄 [AITester] Fetching interactions...');
+    try {
+      const interactionsResponse = await fetch('/api/debug/interactions');
+      const interactionsData = await interactionsResponse.json();
+      
+      if (interactionsData.success) {
+        console.log('✅ [AITester] Fetched interactions:', interactionsData.interactions?.length || 0);
+        setInteractions(interactionsData.interactions || []);
+        console.log('📊 [AITester] Interactions state updated. Count:', interactionsData.interactions?.length || 0);
+      } else {
+        console.error('Failed to fetch interactions:', interactionsData.error);
+        setInteractions([]);
+      }
+    } catch (error) {
+      console.error('Error fetching interactions:', error);
+      setInteractions([]);
+    } finally {
+      if (showLoader) setLoadingInteractions(false);
+    }
+  };
 
   // Fetch interactions, patients, and episodes on component mount
   useEffect(() => {
@@ -134,22 +171,10 @@ export default function AITesterPage() {
         }
 
         // Fetch real interactions from database
-        try {
-          const interactionsResponse = await fetch('/api/debug/interactions');
-          const interactionsData = await interactionsResponse.json();
-          
-          if (interactionsData.success) {
-            setInteractions(interactionsData.interactions || []);
-          } else {
-            console.error('Failed to fetch interactions:', interactionsData.error);
-            setInteractions([]);
-          }
-        } catch (error) {
-          console.error('Error fetching interactions:', error);
-          setInteractions([]);
-        }
+        await fetchInteractions(true);
       } catch (error) {
         console.error('Error fetching data:', error);
+        setLoadingInteractions(false);
       }
     };
 
@@ -251,6 +276,9 @@ export default function AITesterPage() {
   const sendMessage = async (input: string) => {
     if (!input.trim() || loading) return;
 
+    console.log('💬 [AITester] Sending message:', input);
+    console.log('📍 [AITester] Current interaction ID:', currentInteractionId);
+
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
@@ -263,6 +291,9 @@ export default function AITesterPage() {
     setLoading(true);
 
     try {
+      // Only pass interactionId if it's a real UUID (not a temp placeholder)
+      const isRealInteraction = currentInteractionId && !currentInteractionId.startsWith('temp-');
+      
       const response = await fetch('/api/toc/agents/core/interaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -272,15 +303,102 @@ export default function AITesterPage() {
           patientInput: input,
           condition: testConfig.condition,
           interactionType: 'TEXT',
-          interactionId: currentInteractionId // Continue existing conversation
+          interactionId: isRealInteraction ? currentInteractionId : undefined // Only pass real UUIDs
         })
       });
 
       const result = await response.json();
+      console.log('📥 [AITester] API response:', result);
+      
+      // Check for tool calls and show escalation toasts
+      if (result.toolResults && Array.isArray(result.toolResults)) {
+        result.toolResults.forEach((toolResult: any) => {
+          console.log('🔧 [AITester] Tool called:', toolResult);
+          const toolName = toolResult.tool || toolResult.name;
+          
+          if (toolName === 'handoff_to_nurse') {
+            toast({
+              title: "🚨 Escalated to Nurse",
+              description: `Patient requires immediate attention: ${toolResult.parameters?.reason || 'Serious symptoms detected'}`,
+              variant: "critical"
+            });
+          } else if (toolName === 'raise_flag') {
+            const severity = toolResult.parameters?.severity || 'unknown';
+            const flagType = toolResult.parameters?.flagType || 'symptom';
+            toast({
+              title: `⚠️ Flag Raised: ${severity.toUpperCase()}`,
+              description: `${flagType}: ${toolResult.parameters?.reason || 'Concerning symptoms detected'}`,
+              variant: severity === 'high' || severity === 'critical' ? "warning" : "default"
+            });
+          } else if (toolName === 'log_checkin') {
+            toast({
+              title: "✅ Check-in Logged",
+              description: "Patient is doing well. Check-in recorded successfully.",
+              variant: "default"
+            });
+          }
+        });
+      }
       
       // Track the interaction ID for this conversation
-      if (result.interactionId && !currentInteractionId) {
-        setCurrentInteractionId(result.interactionId);
+      if (result.interactionId) {
+        const isTemporaryId = currentInteractionId?.startsWith('temp-');
+        
+        if (isTemporaryId) {
+          // Replace temporary placeholder with real interaction
+          console.log('🔄 [AITester] Replacing temp ID:', currentInteractionId, '→', result.interactionId);
+          setCurrentInteractionId(result.interactionId);
+          
+          // Update the placeholder interaction with the real ID
+          setInteractions(prev => prev.map(interaction => 
+            interaction.id === currentInteractionId
+              ? { ...interaction, id: result.interactionId }
+              : interaction
+          ));
+          
+          // Update selected interaction if it was the temp one
+          if (selectedInteraction?.id === currentInteractionId) {
+            setSelectedInteraction(prev => prev ? { ...prev, id: result.interactionId } : null);
+          }
+          
+          // Fetch fresh data in the background to get complete info
+          console.log('🔄 [AITester] Scheduling background refetch...');
+          setTimeout(() => fetchInteractions(), 500);
+          setTimeout(() => fetchInteractions(), 1500);
+        } else if (!currentInteractionId) {
+          // No placeholder was created (old flow for backwards compatibility)
+          console.log('🆕 [AITester] New interaction created:', result.interactionId);
+          setCurrentInteractionId(result.interactionId);
+          
+          const tempInteraction = {
+            id: result.interactionId,
+            patient_id: testConfig.patientId,
+            episode_id: testConfig.episodeId,
+            agent_config_id: null,
+            outreach_attempt_id: null,
+            external_id: null,
+            interaction_type: 'TEXT',
+            started_at: new Date().toISOString(),
+            ended_at: null,
+            completed_at: null,
+            duration_seconds: null,
+            status: 'ACTIVE' as InteractionStatus,
+            outcome: null,
+            severity: null,
+            metadata: {},
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            patient: patients.find(p => p.id === testConfig.patientId),
+            episode: episodes.find(e => e.id === testConfig.episodeId),
+            messages: []
+          } as InteractionWithRelations;
+          
+          console.log('✨ [AITester] Adding optimistic interaction to sidebar');
+          setInteractions(prev => [tempInteraction, ...prev]);
+          
+          setTimeout(() => fetchInteractions(), 500);
+          setTimeout(() => fetchInteractions(), 1500);
+        }
       }
       
       const assistantMessage: ChatMessage = {
@@ -298,8 +416,9 @@ export default function AITesterPage() {
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+      console.log('✅ [AITester] Message sent successfully');
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('❌ [AITester] Error sending message:', error);
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -327,11 +446,11 @@ export default function AITesterPage() {
     setCurrentInteractionId(null);
   };
 
-  const handleDeleteInteraction = async () => {
-    if (!selectedInteraction || !window.confirm('Are you sure you want to permanently delete this chat and all its messages? This cannot be undone.')) {
-      return;
-    }
+  const confirmDeleteInteraction = async () => {
+    if (!selectedInteraction) return;
 
+    setShowDeleteModal(false);
+    
     try {
       const response = await fetch(`/api/toc/admin/interactions/${selectedInteraction.id}`, {
         method: 'DELETE'
@@ -345,35 +464,80 @@ export default function AITesterPage() {
         setSelectedInteraction(null);
         setCurrentInteractionId(null);
         
-        alert('Chat deleted successfully');
+        toast({
+          title: "Chat deleted",
+          description: "The conversation has been permanently deleted.",
+        });
       } else {
         const data = await response.json();
-        alert(`Failed to delete chat: ${data.error || 'Unknown error'}`);
+        toast({
+          title: "Failed to delete chat",
+          description: data.error || 'Unknown error occurred',
+          variant: "destructive"
+        });
       }
     } catch (error) {
       console.error('Error deleting interaction:', error);
-      alert('Failed to delete chat. Please try again.');
+      toast({
+        title: "Failed to delete chat",
+        description: "Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
   const createNewChat = () => {
     setMessages([]);
-    setSelectedInteraction(null);
-    setCurrentInteractionId(null);
     setCurrentInput('');
+    
     // Reset to default test configuration
-    setTestConfig({
+    const defaultConfig = {
       patientId: patients.length > 0 ? patients[0].id : '',
       episodeId: episodes.length > 0 ? episodes[0].id : '',
       condition: 'HF',
       educationLevel: 'medium'
-    });
+    };
+    setTestConfig(defaultConfig);
+    
+    // Create optimistic placeholder interaction
+    const tempId = `temp-${Date.now()}`;
+    const placeholderInteraction = {
+      id: tempId,
+      patient_id: defaultConfig.patientId,
+      episode_id: defaultConfig.episodeId,
+      agent_config_id: null,
+      outreach_attempt_id: null,
+      external_id: null,
+      interaction_type: 'TEXT',
+      started_at: new Date().toISOString(),
+      ended_at: null,
+      completed_at: null,
+      duration_seconds: null,
+      status: 'ACTIVE' as InteractionStatus,
+      outcome: null,
+      severity: null,
+      metadata: {},
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      patient: patients.find(p => p.id === defaultConfig.patientId),
+      episode: episodes.find(e => e.id === defaultConfig.episodeId),
+      messages: []
+    } as InteractionWithRelations;
+    
+    console.log('✨ [AITester] Creating new chat with placeholder:', tempId);
+    setCurrentInteractionId(tempId);
+    setSelectedInteraction(placeholderInteraction);
+    setInteractions(prev => [placeholderInteraction, ...prev]);
+    
     // Close settings modal if open
     setShowSettingsModal(false);
   };
 
   const loadConversation = (interaction: InteractionWithRelations) => {
+    console.log('📂 [AITester] Loading conversation:', interaction.id);
     setSelectedInteraction(interaction);
+    setCurrentInteractionId(interaction.id); // Set the current interaction ID
+    
     if (interaction.messages) {
       // Map AgentMessage to ChatMessage
       const chatMessages: ChatMessage[] = interaction.messages.map(msg => ({
@@ -388,6 +552,7 @@ export default function AITesterPage() {
         } as any : undefined
       }));
       setMessages(chatMessages);
+      console.log('💬 [AITester] Loaded messages:', chatMessages.length);
     }
     // Update test config based on the interaction
     if (interaction.patient && interaction.episode) {
@@ -471,30 +636,50 @@ export default function AITesterPage() {
                     </Button>
                   </div>
                   
-                  <div className="text-xs text-gray-500 mb-2">Recent Conversations</div>
+                  <div className="text-xs text-gray-500 mb-2">Recent Conversations ({interactions.length})</div>
                   
-                  {interactions.length === 0 ? (
+                  {loadingInteractions ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+                        <p className="text-sm">Loading conversations...</p>
+                      </div>
+                    </div>
+                  ) : interactions.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       <MessageSquare className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                       <p className="text-sm">No conversations yet</p>
                       <p className="text-xs">Create a new chat to start testing</p>
                     </div>
                   ) : (
-                    interactions.map((interaction) => (
+                    <div className="space-y-2">
+                    {interactions.map((interaction, index) => (
                       <div
                         key={interaction.id}
-                        className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                        className={`p-3 rounded-lg border cursor-pointer transition-all duration-300 ease-out ${
                           selectedInteraction?.id === interaction.id
-                            ? 'bg-blue-50 border-blue-200'
-                            : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                        }`}
+                            ? 'bg-blue-50 border-blue-200 scale-100'
+                            : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:scale-[1.02]'
+                        } ${index === 0 ? 'animate-in slide-in-from-top-2 fade-in duration-500' : ''}`}
                         onClick={() => loadConversation(interaction)}
                       >
                         <div className="flex items-center gap-2 mb-1">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <div className={`w-2 h-2 rounded-full ${
+                            interaction.id === currentInteractionId ? 'bg-blue-500 animate-pulse' : 'bg-green-500'
+                          }`}></div>
                         <span className="text-sm font-medium">
-                          {interaction.patient ? `${interaction.patient.first_name} ${interaction.patient.last_name}` : 'Unknown Patient'}
+                          {interaction.id.startsWith('temp-') 
+                            ? 'New Chat' 
+                            : interaction.patient 
+                              ? `${interaction.patient.first_name} ${interaction.patient.last_name}` 
+                              : 'Unknown Patient'}
                         </span>
+                        {interaction.id.startsWith('temp-') && (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">New</span>
+                        )}
+                        {!interaction.id.startsWith('temp-') && index === 0 && interaction.id === currentInteractionId && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Active</span>
+                        )}
                         </div>
                         <div className="text-xs text-gray-600">
                           {interaction.episode?.condition_code} • {interaction.episode?.education_level}
@@ -503,7 +688,8 @@ export default function AITesterPage() {
                           {new Date(interaction.started_at || interaction.created_at || Date.now()).toLocaleDateString()}
                         </div>
                       </div>
-                    ))
+                    ))}
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -515,16 +701,21 @@ export default function AITesterPage() {
                 <CardHeader className="flex-shrink-0">
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle>
+                      <CardTitle className="flex items-center gap-2">
                         {selectedInteraction ? 
-                          (selectedInteraction.patient ? 
-                            `${selectedInteraction.patient.first_name} ${selectedInteraction.patient.last_name}` : 
-                            'Unknown Patient') : 
+                          (selectedInteraction.id.startsWith('temp-') 
+                            ? 'New Chat'
+                            : selectedInteraction.patient 
+                              ? `${selectedInteraction.patient.first_name} ${selectedInteraction.patient.last_name}` 
+                              : 'Unknown Patient') : 
                           'New Chat'}
+                        {selectedInteraction?.id.startsWith('temp-') && (
+                          <Badge className="text-xs bg-green-100 text-green-700">New</Badge>
+                        )}
                       </CardTitle>
                       <p className="text-sm text-gray-600">
                         {testConfig.condition} • {testConfig.educationLevel}
-                        {selectedInteraction && (
+                        {selectedInteraction && !selectedInteraction.id.startsWith('temp-') && (
                           <span className="ml-2 text-xs text-gray-500">
                             • {new Date(selectedInteraction.started_at || selectedInteraction.created_at || Date.now()).toLocaleDateString()}
                           </span>
@@ -544,7 +735,7 @@ export default function AITesterPage() {
                         <Button 
                           variant="outline"
                           size="sm"
-                          onClick={() => handleDeleteInteraction()}
+                          onClick={() => setShowDeleteModal(true)}
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
@@ -579,6 +770,13 @@ export default function AITesterPage() {
                               <span className="text-xs opacity-70">
                                 {message.timestamp.toLocaleTimeString()}
                               </span>
+                              {/* Escalation badges */}
+                              {message.role === 'assistant' && message.metadata?.toolCalls && message.metadata.toolCalls.some((t: any) => (t.tool || t.name) === 'handoff_to_nurse') && (
+                                <Badge className="text-xs bg-red-500 text-white">🚨 Escalated</Badge>
+                              )}
+                              {message.role === 'assistant' && message.metadata?.toolCalls && message.metadata.toolCalls.some((t: any) => (t.tool || t.name) === 'raise_flag') && (
+                                <Badge className="text-xs bg-orange-500 text-white">⚠️ Flag Raised</Badge>
+                              )}
                             </div>
                             
                             <div className="whitespace-pre-wrap">{message.content}</div>
@@ -607,7 +805,7 @@ export default function AITesterPage() {
                                         <div className="text-xs font-medium text-gray-700 mb-1">🔧 Tools Used:</div>
                                         {message.metadata.toolCalls.map((tool: any, index: number) => (
                                           <div key={index} className="text-xs bg-white border border-gray-200 p-2 rounded mb-1">
-                                            <div className="font-medium text-blue-700">{tool.name}</div>
+                                            <div className="font-medium text-blue-700">{tool.tool || tool.name}</div>
                                             {tool.parameters && Object.keys(tool.parameters).length > 0 && (
                                               <pre className="text-gray-600 mt-1 text-[10px] overflow-x-auto">
                                                 {JSON.stringify(tool.parameters, null, 2)}
@@ -804,6 +1002,40 @@ export default function AITesterPage() {
                     createNewChat();
                   }}>
                     Start New Chat
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Delete Confirmation Modal */}
+          <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-red-600">
+                  <AlertTriangle className="w-5 h-5" />
+                  Delete Chat
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Are you sure you want to permanently delete this chat and all its messages? This action cannot be undone.
+                </p>
+
+                <div className="flex justify-end gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowDeleteModal(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    variant="destructive"
+                    onClick={confirmDeleteInteraction}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Permanently
                   </Button>
                 </div>
               </div>

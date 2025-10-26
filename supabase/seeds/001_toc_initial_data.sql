@@ -49,6 +49,7 @@ INSERT INTO public."OutreachQuestion" (condition_code, code, text, response_type
 
 -- Insert red flag rules for Heart Failure
 INSERT INTO public."RedFlagRule" (condition_code, rule_code, description, severity, action_hint, active) VALUES
+('HF', 'HF_CHEST_PAIN', 'Chest pain or pressure - possible heart attack', 'CRITICAL', 'ED_REFERRAL', true),
 ('HF', 'HF_WEIGHT_GAIN_3LB', 'Weight gain of 3+ pounds in 1 day', 'HIGH', 'NURSE_CALLBACK_2H', true),
 ('HF', 'HF_WEIGHT_GAIN_5LB', 'Weight gain of 5+ pounds in 1 week', 'HIGH', 'NURSE_CALLBACK_2H', true),
 ('HF', 'HF_BREATHING_WORSE', 'Significantly worse breathing', 'CRITICAL', 'URGENT_TELEVISIT', true),

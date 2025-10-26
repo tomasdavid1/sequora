@@ -107,16 +107,76 @@ export async function POST(request: NextRequest) {
     // 3. Evaluate rules DSL to get decision hint
     const decisionHint = await evaluateRulesDSL(parsedResponse, protocolAssignment);
     
-    // 4. Generate AI response with tool calling
-    const aiResponse = await generateAIResponseWithTools(
-      parsedResponse, 
-      protocolAssignment, 
-      decisionHint,
-      patientId,
-      episodeId
-    );
+    // 4. Check if this patient has been contacted before in this episode
+    const { data: previousInteractions } = await supabase
+      .from('AgentInteraction')
+      .select('id')
+      .eq('episode_id', episodeId)
+      .order('started_at', { ascending: false })
+      .limit(5);
     
-    // 5. Get or create AgentInteraction record
+    const hasBeenContactedBefore = (previousInteractions?.length || 0) > 0;
+    const isFirstMessageInCurrentChat = !interactionId;
+    
+    console.log('📞 [Interaction] Contact history:', {
+      episodeId,
+      previousInteractionsCount: previousInteractions?.length || 0,
+      hasBeenContactedBefore,
+      isFirstMessageInCurrentChat
+    });
+    
+    // 5. Check if decision hint requires immediate escalation
+    let aiResponse;
+    let forcedToolCalls: ToolCall[] = [];
+    
+    if (decisionHint.action === 'FLAG') {
+      console.log('🚨 [Interaction] CRITICAL FLAG TRIGGERED - Forcing immediate escalation');
+      console.log('🚨 Flag Type:', decisionHint.flagType);
+      console.log('🚨 Severity:', decisionHint.severity);
+      
+      // Determine which tool to call based on severity
+      const toolName = decisionHint.severity === 'critical' ? 'handoff_to_nurse' : 'raise_flag';
+      
+      // Create patient-friendly message based on severity
+      let escalationMessage = '';
+      if (decisionHint.severity === 'critical') {
+        escalationMessage = `Thank you for letting me know. I'm going to have one of our nurses reach out to you right away to help with this. They should contact you within the next 30 minutes. If your symptoms get worse or you feel you need immediate help, please call 911 or go to the emergency room.`;
+      } else if (decisionHint.severity === 'high') {
+        escalationMessage = `I appreciate you sharing this with me. A nurse will give you a call within the next 2 hours to check in and provide guidance. In the meantime, if anything gets worse, don't hesitate to call 911 or visit the emergency room.`;
+      } else {
+        escalationMessage = `Thanks for letting me know. I've made a note for our care team to follow up with you. If you have any concerns in the meantime, please reach out to your healthcare provider.`;
+      }
+      
+      forcedToolCalls = [{
+        name: toolName,
+        parameters: {
+          patientId: patientId,
+          reason: decisionHint.reason || `${decisionHint.flagType}: ${decisionHint.severity} severity`,
+          flagType: decisionHint.flagType,
+          severity: decisionHint.severity
+        }
+      }];
+      
+      aiResponse = {
+        response: escalationMessage,
+        toolCalls: forcedToolCalls
+      };
+      
+      console.log('🚨 [Interaction] Forced tool call:', toolName);
+    } else {
+      // Normal AI generation with tools
+      aiResponse = await generateAIResponseWithTools(
+        parsedResponse, 
+        protocolAssignment, 
+        decisionHint,
+        patientId,
+        episodeId,
+        isFirstMessageInCurrentChat,
+        hasBeenContactedBefore
+      );
+    }
+    
+    // 6. Get or create AgentInteraction record
     let existingInteractionId = interactionId;
     let interaction = null;
     
@@ -172,7 +232,7 @@ export async function POST(request: NextRequest) {
       const nextSequence = (existingMessages?.[0]?.sequence_number || 0) + 1;
       
 
-      await supabase
+      const { error: userMsgError } = await supabase
         .from('AgentMessage')
         .insert({
           agent_interaction_id: activeInteractionId,
@@ -183,8 +243,14 @@ export async function POST(request: NextRequest) {
           timestamp: new Date().toISOString()
         });
 
+      if (userMsgError) {
+        console.error('❌ [Interaction] Error saving user message:', userMsgError);
+      } else {
+        console.log('✅ [Interaction] User message saved. Sequence:', nextSequence);
+      }
+
       // 7. Store AI response message
-      await supabase
+      const { error: aiMsgError } = await supabase
         .from('AgentMessage')
         .insert({
           agent_interaction_id: activeInteractionId,
@@ -198,6 +264,12 @@ export async function POST(request: NextRequest) {
           model_used: 'gpt-4',
           timestamp: new Date().toISOString()
         });
+
+      if (aiMsgError) {
+        console.error('❌ [Interaction] Error saving AI message:', aiMsgError);
+      } else {
+        console.log('✅ [Interaction] AI message saved. Sequence:', nextSequence + 1);
+      }
 
       // 8. Update interaction with message count (don't mark completed yet - ongoing conversation)
       const { data: allMessages } = await supabase
@@ -444,10 +516,31 @@ async function generateAIResponseWithTools(
   protocolAssignment: ProtocolAssignment, 
   decisionHint: DecisionHint,
   patientId: string,
-  episodeId: string
+  episodeId: string,
+  isFirstMessageInCurrentChat: boolean = false,
+  hasBeenContactedBefore: boolean = false
 ) {
   try {
+    // Build context based on patient contact history
+    let conversationContext: string;
+    
+    if (!hasBeenContactedBefore) {
+      // TRUE FIRST CONTACT - Never spoken to this patient before
+      conversationContext = `This is your VERY FIRST contact with this patient since their hospital discharge for ${protocolAssignment.condition_code}. Introduce yourself warmly as their post-discharge care coordinator. Explain that you'll be checking in with them regularly during their recovery.`;
+    } else if (isFirstMessageInCurrentChat) {
+      // RETURNING PATIENT - New chat but patient has been contacted before
+      conversationContext = `This patient has been contacted before as part of their post-discharge care. This is a NEW follow-up check-in. Greet them warmly and ask how they've been doing since your last contact. DO NOT introduce yourself as if it's the first time - they know who you are.`;
+    } else {
+      // CONTINUING CURRENT CONVERSATION
+      conversationContext = `You are continuing an ONGOING conversation with this patient in their current check-in. Continue naturally from the previous messages.`;
+    }
+    
     // Call OpenAI with tool calling enabled
+    console.log(`🤖 [AI Generation] Calling OpenAI with tools for ${protocolAssignment.condition_code} patient`);
+    console.log(`🤖 [AI Generation] First message in chat: ${isFirstMessageInCurrentChat}`);
+    console.log(`🤖 [AI Generation] Patient contacted before: ${hasBeenContactedBefore}`);
+    console.log(`🤖 [AI Generation] Decision hint:`, decisionHint);
+    
     const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -458,13 +551,18 @@ async function generateAIResponseWithTools(
             educationLevel: protocolAssignment.education_level,
             patientResponses: parsedResponse.rawInput,
             decisionHint: decisionHint,
-            context: `You are a post-discharge nurse assistant for a ${protocolAssignment.condition_code} patient with ${protocolAssignment.education_level} education level. Use the decision hint to guide your response and call appropriate tools.`,
-            responseType: 'patient_response_with_tools'
+            context: `You are a post-discharge nurse assistant for a ${protocolAssignment.condition_code} patient with ${protocolAssignment.education_level} education level. ${conversationContext} Use the decision hint to guide your response and call appropriate tools.`,
+            responseType: 'patient_response_with_tools',
+            isFirstMessageInCurrentChat: isFirstMessageInCurrentChat,
+            hasBeenContactedBefore: hasBeenContactedBefore
           }
         })
       });
 
     const result = await response.json();
+    
+    console.log(`🤖 [AI Generation] Response received. Success: ${result.success}`);
+    console.log(`🤖 [AI Generation] Tool calls:`, result.toolCalls || []);
     
     if (result.success) {
       return {
@@ -582,7 +680,9 @@ async function handleLogCheckin(parameters: Record<string, unknown>, patientId: 
 }
 
 async function handleHandoffToNurse(parameters: Record<string, unknown>, patientId: string, episodeId: string, supabase: SupabaseAdmin, interactionId?: string) {
-  const { reason } = parameters;
+  const { reason, flagType } = parameters;
+  const reasonStr = String(reason || 'Patient requires immediate attention');
+  const flagTypeStr = String(flagType || 'NURSE_HANDOFF');
   
   // Create high-priority escalation task
   const { data: task, error } = await supabase
@@ -590,12 +690,11 @@ async function handleHandoffToNurse(parameters: Record<string, unknown>, patient
     .insert({
       episode_id: episodeId,
       agent_interaction_id: interactionId || null,
-      reason_codes: ['NURSE_HANDOFF'],
-      severity: 'HIGH',
+      reason_codes: [flagTypeStr, reasonStr],
+      severity: 'CRITICAL',
       priority: 'URGENT',
       status: 'OPEN',
       sla_due_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutes
-      notes: reason,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })
@@ -607,6 +706,7 @@ async function handleHandoffToNurse(parameters: Record<string, unknown>, patient
     return { success: false, error: error.message };
   }
 
+  console.log('✅ [Handoff] Escalation task created:', task.id);
   return { success: true, taskId: task.id };
 }
 

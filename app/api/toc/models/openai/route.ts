@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
-  apiKey: process.env.OPEN_API_KEY || process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 // OpenAI model layer for text response generation
@@ -129,13 +129,19 @@ async function handleGenerateResponse(input: Record<string, unknown>, options: R
 
 async function handleGenerateResponseWithTools(input: Record<string, unknown>, options: Record<string, unknown>) {
   try {
+    console.log('🔧 [OpenAI Tools] Handling generate_response_with_tools');
     const { 
       condition, 
       educationLevel, 
       patientResponses, 
       decisionHint, 
-      context 
+      context,
+      isFirstMessageInCurrentChat,
+      hasBeenContactedBefore
     } = input;
+    
+    console.log('🔧 [OpenAI Tools] First message in chat:', isFirstMessageInCurrentChat);
+    console.log('🔧 [OpenAI Tools] Patient contacted before:', hasBeenContactedBefore);
 
     // Define the tools available to the AI
     const tools = [
@@ -280,6 +286,11 @@ Generate a response to the patient and use appropriate tools based on the decisi
       }
       return null;
     }).filter(Boolean) || [];
+    
+    console.log('🔧 [OpenAI Tools] Extracted tool calls:', toolCalls.length);
+    toolCalls.forEach((call: any) => {
+      console.log(`  - ${call.name}:`, call.parameters);
+    });
 
     // Get the text response (might be null if only tool calls)
     let responseText = message.content || '';

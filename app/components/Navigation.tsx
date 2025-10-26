@@ -24,33 +24,63 @@ export default function Navigation() {
   useEffect(() => {
     // Get initial session and user role
     const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        // Try to fetch user role from API endpoint (bypasses RLS)
-        try {
-          const roleResponse = await fetch('/api/auth/user-role', {
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`
+      try {
+        // Add a timeout to prevent hanging
+        const timeoutPromise = new Promise<null>((_, reject) => 
+          setTimeout(() => reject(new Error('Auth check timeout')), 3000)
+        );
+        
+        const sessionPromise = supabase.auth.getSession();
+        
+        const { data: { session } } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as any;
+        
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          // Try to fetch user role from API endpoint (bypasses RLS)
+          try {
+            const roleResponse = await fetch('/api/auth/user-role', {
+              headers: {
+                'Authorization': `Bearer ${session.access_token}`
+              }
+            });
+            
+            if (roleResponse.ok) {
+              const roleData = await roleResponse.json();
+              setUserRole(roleData.role || 'ADMIN');
+            } else {
+              console.error('Failed to fetch role from API in Navigation');
+              setUserRole(session.user.user_metadata?.role || 'ADMIN');
             }
-          });
-          
-          if (roleResponse.ok) {
-            const roleData = await roleResponse.json();
-            setUserRole(roleData.role || 'ADMIN');
-          } else {
-            console.error('Failed to fetch role from API in Navigation');
+          } catch (error) {
+            console.error('Error fetching user role in Navigation:', error);
+            // Fallback to user metadata or default to ADMIN
             setUserRole(session.user.user_metadata?.role || 'ADMIN');
           }
-        } catch (error) {
-          console.error('Error fetching user role in Navigation:', error);
-          // Fallback to user metadata or default to ADMIN
-          setUserRole(session.user.user_metadata?.role || 'ADMIN');
         }
+      } catch (error) {
+        console.log('ℹ️ Navigation: No session or timeout - clearing corrupted tokens');
+        // Clear corrupted localStorage on timeout
+        if (typeof window !== 'undefined') {
+          try {
+            const keys = Object.keys(localStorage);
+            keys.forEach(key => {
+              if (key.includes('supabase') || key.includes('sb-')) {
+                localStorage.removeItem(key);
+              }
+            });
+          } catch (e) {
+            console.error('Failed to clear tokens:', e);
+          }
+        }
+        setUser(null);
+        setUserRole(null);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     };
 
     getSession();

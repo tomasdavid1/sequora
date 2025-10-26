@@ -17,8 +17,6 @@ export async function DELETE(
 
     const supabase = getSupabaseAdmin();
 
-    // First, delete any escalation tasks that were triggered by this interaction
-    // Note: With CASCADE delete, this should happen automatically, but we do it explicitly for clarity
     const { error: escalationError } = await supabase
       .from('EscalationTask')
       .delete()

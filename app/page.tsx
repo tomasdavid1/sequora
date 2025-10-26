@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,28 +9,48 @@ import { useRouter } from 'next/navigation';
 
 export default function HomePage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is logged in and redirect to dashboard
+    // Silently check if user is logged in and redirect to dashboard (non-blocking)
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        router.push('/dashboard');
-      } else {
-        setLoading(false);
+      try {
+        // Add a timeout to prevent hanging
+        const timeoutPromise = new Promise<null>((_, reject) => 
+          setTimeout(() => reject(new Error('Auth check timeout')), 3000)
+        );
+        
+        const sessionPromise = supabase.auth.getSession();
+        
+        const { data: { session } } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as any;
+        
+        if (session?.user) {
+          console.log('✅ User logged in, redirecting to dashboard');
+          router.push('/dashboard');
+        }
+      } catch (error) {
+        console.log('ℹ️ No active session or timeout - clearing potentially corrupted tokens');
+        // Clear corrupted localStorage on timeout
+        if (typeof window !== 'undefined') {
+          try {
+            const keys = Object.keys(localStorage);
+            keys.forEach(key => {
+              if (key.includes('supabase') || key.includes('sb-')) {
+                localStorage.removeItem(key);
+              }
+            });
+            console.log('✅ Cleared auth tokens');
+          } catch (e) {
+            console.error('Failed to clear tokens:', e);
+          }
+        }
+        // Silently fail - user can still use the landing page
       }
     };
     checkAuth();
   }, [router]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-emerald-600">Loading...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-blue-50 px-4 py-12">

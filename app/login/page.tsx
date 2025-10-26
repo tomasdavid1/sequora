@@ -34,27 +34,45 @@ export default function LoginPage() {
   // Check if user is already logged in
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        // Get user role from User table
-        const { data: userData, error } = await supabase
-          .from('User')
-          .select('role')
-          .eq('auth_user_id', session.user.id)
-          .single();
+      try {
+        // Add a timeout to prevent hanging
+        const timeoutPromise = new Promise<null>((_, reject) => 
+          setTimeout(() => reject(new Error('Auth check timeout')), 5000)
+        );
         
-        let userRole = null;
-        if (userData) {
-          userRole = userData.role;
-        } else if (error) {
-          console.error('Error fetching user role:', error);
-          // Fallback to user metadata if User table query fails
-          userRole = session.user.user_metadata?.role;
+        const sessionPromise = supabase.auth.getSession();
+        
+        const { data: { session } } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as any;
+        
+        if (session) {
+          console.log('✅ Session found, redirecting to dashboard');
+          // All users go to the unified dashboard
+          router.push('/dashboard');
+        } else {
+          console.log('ℹ️ No session found');
+          setCheckingAuth(false);
         }
-        
-        // All users go to the unified dashboard
-        router.push('/dashboard');
-      } else {
+      } catch (error) {
+        console.error('Auth check error:', error);
+        // Clear corrupted localStorage on timeout
+        if (typeof window !== 'undefined') {
+          try {
+            const keys = Object.keys(localStorage);
+            keys.forEach(key => {
+              if (key.includes('supabase') || key.includes('sb-')) {
+                console.log('Removing corrupted token:', key);
+                localStorage.removeItem(key);
+              }
+            });
+            console.log('✅ Cleared corrupted auth tokens');
+          } catch (e) {
+            console.error('Failed to clear tokens:', e);
+          }
+        }
+        // On error or timeout, show login form
         setCheckingAuth(false);
       }
     };
