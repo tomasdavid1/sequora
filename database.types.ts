@@ -1549,6 +1549,7 @@ export type Database = {
           created_at: string | null
           id: string
           message: string | null
+          numeric_follow_up_question: string | null
           rule_code: string
           rule_type: Database["public"]["Enums"]["rule_type"]
           severity: Database["public"]["Enums"]["red_flag_severity"] | null
@@ -1562,6 +1563,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           message?: string | null
+          numeric_follow_up_question?: string | null
           rule_code: string
           rule_type: Database["public"]["Enums"]["rule_type"]
           severity?: Database["public"]["Enums"]["red_flag_severity"] | null
@@ -1575,6 +1577,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           message?: string | null
+          numeric_follow_up_question?: string | null
           rule_code?: string
           rule_type?: Database["public"]["Enums"]["rule_type"]
           severity?: Database["public"]["Enums"]["red_flag_severity"] | null

@@ -144,6 +144,8 @@ async function handleGenerateResponseWithTools(input: Record<string, unknown>, o
       hasBeenContactedBefore
     } = input;
     
+    const hint = decisionHint as any; // Type assertion for nested access
+    
     console.log('🔧 [OpenAI Tools] First message in chat:', isFirstMessageInCurrentChat);
     console.log('🔧 [OpenAI Tools] Patient contacted before:', hasBeenContactedBefore);
 
@@ -226,9 +228,9 @@ CRITICAL INSTRUCTIONS:
 - Call tools separately using the function calling feature
 - Your text response should ONLY contain what the patient will read/hear
 
-Decision Hint: ${JSON.stringify(decisionHint)}
+Decision Hint: ${JSON.stringify(hint)}
 
-${decisionHint.messageGuidance ? `\n📋 MESSAGE GUIDANCE:\n${decisionHint.messageGuidance}\n` : ''}
+${hint.messageGuidance ? `\n📋 MESSAGE GUIDANCE:\n${hint.messageGuidance}\n` : ''}
 
 Tool Usage (NOTE: patientId is already known - you don't need to provide it):
 - raise_flag: When symptoms are concerning
