@@ -148,7 +148,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Backfill existing episodes with default MEDIUM risk
 UPDATE public."Episode"
-SET risk_level = 'MEDIUM'
+SET risk_level = 'HIGH'
 WHERE risk_level IS NULL;
 
 -- Backfill existing protocol assignments with risk level from episode

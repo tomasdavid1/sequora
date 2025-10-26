@@ -48,11 +48,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch red flag rules for this condition
+    // Fetch red flag rules for this condition AND risk level
+    // Apply same filtering logic as get_protocol_config:
+    // - HIGH risk: All rules
+    // - MEDIUM risk: CRITICAL + HIGH severity only
+    // - LOW risk: CRITICAL severity only
+    const riskLevel = protocol.Episode.risk_level || 'MEDIUM';
+    let severityFilter: string[] = [];
+    
+    if (riskLevel === 'HIGH') {
+      severityFilter = ['CRITICAL', 'HIGH', 'MODERATE', 'LOW'];
+    } else if (riskLevel === 'MEDIUM') {
+      severityFilter = ['CRITICAL', 'HIGH'];
+    } else {
+      severityFilter = ['CRITICAL'];
+    }
+
     const { data: redFlagRules, error: rulesError } = await supabase
       .from('RedFlagRule')
       .select('*')
       .eq('condition_code', protocol.Episode.condition_code)
+      .in('severity', severityFilter)
       .eq('active', true)
       .order('severity', { ascending: false });
 
@@ -61,6 +77,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Build profile response
+    // Cast protocol_config to access nested properties
+    const protocolConfig = protocol.protocol_config as any;
+    
     const profile = {
       patient: protocol.Episode.Patient,
       episode: {
@@ -78,11 +97,11 @@ export async function GET(request: NextRequest) {
         assigned_at: protocol.assigned_at
       },
       redFlagRules: redFlagRules || [],
-      thresholds: protocol.protocol_config?.thresholds || {
+      thresholds: protocolConfig?.thresholds || {
         critical_confidence: 0.8,
         low_confidence: 0.6
       },
-      checkInFrequency: protocol.protocol_config?.check_in_frequency_hours || 24
+      checkInFrequency: protocolConfig?.check_in_frequency_hours || 24
     };
 
     return NextResponse.json({
