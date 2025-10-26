@@ -43,7 +43,8 @@ import {
   ChevronUp,
   Trash2,
   FileText,
-  AlertCircle
+  AlertCircle,
+  UserPlus
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -115,6 +116,8 @@ export default function AITesterPage() {
   const [showPatientSelector, setShowPatientSelector] = useState(false);
   const [selectedPatientForChat, setSelectedPatientForChat] = useState<any>(null);
   const [availableEpisodes, setAvailableEpisodes] = useState<any[]>([]);
+  const [chatGroupBy, setChatGroupBy] = useState<'none' | 'condition' | 'patient' | 'risk'>('none');
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const renderCountRef = React.useRef(0);
   
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
@@ -847,6 +850,52 @@ export default function AITesterPage() {
     }
   };
 
+  // Group interactions based on selected grouping
+  const groupedInteractions = React.useMemo(() => {
+    if (chatGroupBy === 'none') {
+      return { 'All Chats': interactions };
+    }
+
+    const groups: Record<string, typeof interactions> = {};
+
+    interactions.forEach(interaction => {
+      let groupKey = '';
+      
+      switch (chatGroupBy) {
+        case 'condition':
+          groupKey = interaction.episode?.condition_code || 'Unknown';
+          break;
+        case 'patient':
+          groupKey = interaction.patient 
+            ? `${interaction.patient.first_name} ${interaction.patient.last_name}`
+            : 'Unknown Patient';
+          break;
+        case 'risk':
+          groupKey = interaction.episode?.risk_level || 'Unknown';
+          break;
+        default:
+          groupKey = 'All Chats';
+      }
+
+      if (!groups[groupKey]) {
+        groups[groupKey] = [];
+      }
+      groups[groupKey].push(interaction);
+    });
+
+    return groups;
+  }, [interactions, chatGroupBy]);
+
+  const toggleGroup = (groupName: string) => {
+    const newExpanded = new Set(expandedGroups);
+    if (newExpanded.has(groupName)) {
+      newExpanded.delete(groupName);
+    } else {
+      newExpanded.add(groupName);
+    }
+    setExpandedGroups(newExpanded);
+  };
+
   const getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'CRITICAL': return 'bg-red-100 text-red-800 border-red-200';
@@ -899,7 +948,7 @@ export default function AITesterPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="mb-4">
+                  <div className="space-y-2">
                     <Button 
                       onClick={createNewChat}
                       className="w-full"
@@ -908,9 +957,29 @@ export default function AITesterPage() {
                       <Plus className="w-4 h-4 mr-2" />
                       New Chat
                     </Button>
+                    
+                    <Select value={chatGroupBy} onValueChange={(value: any) => {
+                      setChatGroupBy(value);
+                      // Auto-expand all groups when changing grouping
+                      if (value !== 'none') {
+                        setExpandedGroups(new Set(Object.keys(groupedInteractions)));
+                      }
+                    }}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">All Chats</SelectItem>
+                        <SelectItem value="condition">Group by Condition</SelectItem>
+                        <SelectItem value="patient">Group by Patient</SelectItem>
+                        <SelectItem value="risk">Group by Risk Level</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   
-                  <div className="text-xs text-gray-500 mb-2">Recent Conversations ({interactions.length})</div>
+                  <div className="text-xs text-gray-500">
+                    {interactions.length} conversation{interactions.length !== 1 ? 's' : ''}
+                  </div>
                   
                   {loadingInteractions ? (
                     <div className="text-center py-8 text-gray-500">
@@ -926,8 +995,25 @@ export default function AITesterPage() {
                       <p className="text-xs">Create a new chat to start testing</p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                    {interactions.map((interaction, index) => (
+                    <div className="space-y-3">
+                      {Object.entries(groupedInteractions).map(([groupName, groupInteractions]) => (
+                        <div key={groupName}>
+                          {chatGroupBy !== 'none' && (
+                            <button
+                              onClick={() => toggleGroup(groupName)}
+                              className="w-full flex items-center justify-between px-2 py-1 rounded hover:bg-gray-100 mb-1"
+                            >
+                              <div className="flex items-center gap-2">
+                                <ChevronDown className={`w-4 h-4 transition-transform ${expandedGroups.has(groupName) ? '' : '-rotate-90'}`} />
+                                <span className="text-xs font-semibold text-gray-700">{groupName}</span>
+                                <Badge variant="outline" className="text-xs">{groupInteractions.length}</Badge>
+                              </div>
+                            </button>
+                          )}
+                          
+                          {(chatGroupBy === 'none' || expandedGroups.has(groupName)) && (
+                            <div className="space-y-2">
+                              {groupInteractions.map((interaction, index) => (
                       <div
                         key={interaction.id}
                         className={`p-3 rounded-lg border cursor-pointer transition-all duration-300 ease-out ${
@@ -962,7 +1048,11 @@ export default function AITesterPage() {
                           {new Date(interaction.started_at || interaction.created_at || Date.now()).toLocaleDateString()}
                         </div>
                       </div>
-                    ))}
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </CardContent>
