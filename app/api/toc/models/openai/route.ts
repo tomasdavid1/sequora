@@ -294,23 +294,14 @@ Generate a response to the patient and use appropriate tools based on the decisi
       console.log(`  - ${call.name}:`, call.parameters);
     });
 
-    // Get the text response (might be null if only tool calls)
-    let responseText = message.content || '';
+    // Get the text response - MUST have text for patient
+    const responseText = message.content;
     
-    // If there's no text but there are tool calls, generate a fallback message
-    if (!responseText && toolCalls.length > 0) {
-      const toolName = toolCalls[0]?.name;
-      if (toolName === 'ask_more') {
-        responseText = "I'd like to understand your situation better. Can you answer a few questions for me?";
-      } else if (toolName === 'raise_flag') {
-        responseText = "I understand your concern. I'm connecting you with a nurse who will call you shortly to provide guidance.";
-      } else if (toolName === 'handoff_to_nurse') {
-        responseText = "I'm transferring you to a nurse right away to ensure you get the care you need.";
-      } else if (toolName === 'log_checkin') {
-        responseText = "Thank you for checking in! It sounds like you're doing well. Keep up the good work with your care plan.";
-      } else {
-        responseText = "I understand. Let me help you with that.";
-      }
+    // AI must always provide a text response to the patient
+    if (!responseText) {
+      console.error('❌ [OpenAI Tools] AI returned no text response');
+      console.error('   Tool calls:', toolCalls);
+      throw new Error('AI failed to generate patient message. AI must always provide text response along with tool calls.');
     }
 
     return NextResponse.json({
@@ -506,14 +497,11 @@ NORMALIZATION INSTRUCTIONS:
 - Always convert "lbs" → "pounds" and preserve numbers if present (3 lbs → 3 pounds)
 
 ⚠️ CRITICAL - NUMERIC PATTERNS:
-These patterns will trigger follow-up questions for specific amounts (from database):
-${numericPatterns.length > 0 ? numericPatterns.map(p => `- ${p}`).join('\n') : 'None'}
-
-RULES:
-- If patient mentions these topics VAGUELY (no specific number) → use these GENERIC patterns
-- If patient gives SPECIFIC number → use the numbered pattern from the full list above
-- NEVER invent numbers the patient didn't say!
-- Examples: "some weight" → "weight gain" (generic), "3 pounds" → "gained 3 pounds" (specific)
+Some patterns contain numbers (e.g., "gained 3 pounds", "temperature 101"). 
+- If patient mentions a SPECIFIC number → use the numeric pattern that matches
+- If patient is VAGUE (e.g., "some weight", "a bit", "a little") → use the GENERIC pattern WITHOUT numbers
+- NEVER invent or assume numbers the patient didn't say!
+- When unsure about amount → choose generic pattern to trigger follow-up question
 
 Multiple patterns can match one input (e.g., "chest pain and can't breathe" → "chest pain, cant breathe")
 
