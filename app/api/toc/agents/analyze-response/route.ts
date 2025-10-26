@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       .from('ProtocolConfig')
       .select('*')
       .eq('condition_code', episode.condition_code)
-      .eq('risk_level', episode.risk_level || 'MEDIUM')
+      .eq('risk_level', episode.risk_level)
       .single();
 
     if (configError || !protocolConfig) {
