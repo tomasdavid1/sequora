@@ -11,6 +11,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   AgentInteraction, 
   AgentMessage, 
@@ -24,7 +26,9 @@ import {
   Bot, 
   MessageSquare, 
   Eye, 
-  Settings, 
+  Settings,
+  Settings2,
+  Save,
   Plus, 
   AlertTriangle, 
   Lock, 
@@ -102,6 +106,9 @@ export default function AITesterPage() {
   const [loadingInteractions, setLoadingInteractions] = useState(true);
   const [protocolProfile, setProtocolProfile] = useState<any>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
+  const [editConfigModalOpen, setEditConfigModalOpen] = useState(false);
+  const [currentProtocolConfig, setCurrentProtocolConfig] = useState<any>(null);
+  const [editedProtocolConfig, setEditedProtocolConfig] = useState<any>({});
   const renderCountRef = React.useRef(0);
   
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
@@ -178,6 +185,70 @@ export default function AITesterPage() {
       });
     } finally {
       setLoadingProfile(false);
+    }
+  };
+
+  // Fetch current protocol config for editing
+  const fetchCurrentProtocolConfig = async () => {
+    if (!testConfig.episodeId) {
+      toast({
+        title: "No episode selected",
+        description: "Please select an episode first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // First get the episode to know condition + risk
+    const profileResponse = await fetch(`/api/toc/protocol/profile?episodeId=${testConfig.episodeId}`);
+    const profileData = await profileResponse.json();
+    
+    if (profileData.success && profileData.profile.protocolConfig) {
+      setCurrentProtocolConfig(profileData.profile.protocolConfig);
+      setEditedProtocolConfig(profileData.profile.protocolConfig);
+      setEditConfigModalOpen(true);
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to load protocol config",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Save protocol config changes
+  const saveProtocolConfig = async () => {
+    if (!currentProtocolConfig?.id) return;
+
+    try {
+      const response = await fetch(`/api/admin/protocol-config/${currentProtocolConfig.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editedProtocolConfig)
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast({
+          title: 'Config updated!',
+          description: 'Changes will apply to new conversations immediately.',
+        });
+        setEditConfigModalOpen(false);
+        setEditedProtocolConfig({});
+      } else {
+        toast({
+          title: 'Error',
+          description: data.error || 'Failed to update config',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to save changes',
+        variant: 'destructive'
+      });
     }
   };
 
@@ -998,6 +1069,15 @@ export default function AITesterPage() {
                         <Eye className="w-4 h-4 mr-2" />
                         {showMetadata ? 'Hide' : 'Show'} Metadata
                       </Button>
+                      <Button 
+                        variant="outline"
+                        onClick={fetchCurrentProtocolConfig}
+                        size="sm"
+                        disabled={!testConfig.episodeId}
+                      >
+                        <Settings className="w-4 h-4 mr-2" />
+                        Edit Config
+                      </Button>
                       {selectedInteraction && (
                         <Button 
                           variant="outline"
@@ -1179,6 +1259,152 @@ export default function AITesterPage() {
               </Card>
             </div>
           </div>
+
+          {/* Edit Protocol Config Modal */}
+          <Dialog open={editConfigModalOpen} onOpenChange={setEditConfigModalOpen}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Settings2 className="w-5 h-5" />
+                  Edit Protocol Configuration
+                </DialogTitle>
+                {currentProtocolConfig && (
+                  <p className="text-sm text-gray-600">
+                    {currentProtocolConfig.condition_code} • {currentProtocolConfig.risk_level} Risk
+                  </p>
+                )}
+              </DialogHeader>
+              
+              {currentProtocolConfig && (
+                <div className="space-y-6">
+                  {/* System Prompt */}
+                  <div>
+                    <Label htmlFor="system_prompt" className="text-base font-semibold flex items-center gap-2 mb-3">
+                      <Brain className="w-5 h-5" />
+                      AI System Prompt
+                    </Label>
+                    <Textarea
+                      id="system_prompt"
+                      value={editedProtocolConfig.system_prompt ?? currentProtocolConfig.system_prompt ?? ''}
+                      onChange={(e) => setEditedProtocolConfig({ ...editedProtocolConfig, system_prompt: e.target.value })}
+                      rows={6}
+                      className="font-mono text-sm"
+                      placeholder="Enter the AI system prompt..."
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Defines AI personality and behavior
+                    </p>
+                  </div>
+
+                  {/* Thresholds */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Critical Confidence Threshold</Label>
+                      <Input
+                        type="number"
+                        step="0.05"
+                        min="0"
+                        max="1"
+                        value={editedProtocolConfig.critical_confidence_threshold ?? currentProtocolConfig.critical_confidence_threshold}
+                        onChange={(e) => setEditedProtocolConfig({
+                          ...editedProtocolConfig,
+                          critical_confidence_threshold: parseFloat(e.target.value)
+                        })}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">AI escalates if confidence {'>'} this</p>
+                    </div>
+                    <div>
+                      <Label>Low Confidence Threshold</Label>
+                      <Input
+                        type="number"
+                        step="0.05"
+                        min="0"
+                        max="1"
+                        value={editedProtocolConfig.low_confidence_threshold ?? currentProtocolConfig.low_confidence_threshold}
+                        onChange={(e) => setEditedProtocolConfig({
+                          ...editedProtocolConfig,
+                          low_confidence_threshold: parseFloat(e.target.value)
+                        })}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">AI asks more if confidence {'<'} this</p>
+                    </div>
+                  </div>
+
+                  {/* Vague Symptoms */}
+                  <div>
+                    <Label>Vague Symptoms (comma-separated)</Label>
+                    <Input
+                      value={
+                        editedProtocolConfig.vague_symptoms 
+                          ? editedProtocolConfig.vague_symptoms.join(', ')
+                          : currentProtocolConfig.vague_symptoms?.join(', ') || ''
+                      }
+                      onChange={(e) => setEditedProtocolConfig({
+                        ...editedProtocolConfig,
+                        vague_symptoms: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                      })}
+                      placeholder="discomfort, off, tired..."
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Words that trigger clarifying questions</p>
+                  </div>
+
+                  {/* Sentiment Boost */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Enable Sentiment Boost</Label>
+                        <p className="text-xs text-gray-500">Upgrade severity when distressed</p>
+                      </div>
+                      <Switch
+                        checked={editedProtocolConfig.enable_sentiment_boost ?? currentProtocolConfig.enable_sentiment_boost}
+                        onCheckedChange={(checked) => setEditedProtocolConfig({
+                          ...editedProtocolConfig,
+                          enable_sentiment_boost: checked
+                        })}
+                      />
+                    </div>
+                    
+                    {(editedProtocolConfig.enable_sentiment_boost ?? currentProtocolConfig.enable_sentiment_boost) && (
+                      <div>
+                        <Label>Distressed Severity Upgrade</Label>
+                        <Select
+                          value={editedProtocolConfig.distressed_severity_upgrade ?? currentProtocolConfig.distressed_severity_upgrade}
+                          onValueChange={(value) => setEditedProtocolConfig({
+                            ...editedProtocolConfig,
+                            distressed_severity_upgrade: value
+                          })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="CRITICAL">CRITICAL</SelectItem>
+                            <SelectItem value="HIGH">HIGH</SelectItem>
+                            <SelectItem value="MODERATE">MODERATE</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-gray-500 mt-1">Severity when patient is distressed</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex justify-end gap-2 pt-4 border-t">
+                    <Button variant="outline" onClick={() => {
+                      setEditConfigModalOpen(false);
+                      setEditedProtocolConfig({});
+                    }}>
+                      Cancel
+                    </Button>
+                    <Button onClick={saveProtocolConfig}>
+                      <Save className="w-4 h-4 mr-2" />
+                      Save Changes
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
 
           {/* Delete Confirmation Modal */}
           <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
