@@ -172,22 +172,30 @@ export async function POST(request: NextRequest) {
     // 6. Evaluate rules DSL to get decision hint (using protocol config)
     const decisionHint = await evaluateRulesDSL(parsedResponse, protocolAssignment, protocolConfig, supabase);
     
-    // 6. Check if this patient has been contacted before in this episode
+    // 6. Check if this patient has been contacted before and fetch summaries
     const { data: previousInteractions } = await supabase
       .from('AgentInteraction')
-      .select('id')
+      .select('id, summary, started_at, status')
       .eq('episode_id', episodeId)
+      .in('status', ['COMPLETED', 'ESCALATED']) // Only completed interactions
       .order('started_at', { ascending: false })
       .limit(5);
     
     const hasBeenContactedBefore = (previousInteractions?.length || 0) > 0;
     const isFirstMessageInCurrentChat = !interactionId;
     
+    // Build previous interaction context from summaries
+    const previousSummaries = (previousInteractions || [])
+      .filter(i => i.summary) // Only interactions with summaries
+      .map(i => `[${new Date(i.started_at).toLocaleDateString()}] ${i.summary}`)
+      .join('\n');
+    
     console.log('📞 [Interaction] Contact history:', {
       episodeId,
       previousInteractionsCount: previousInteractions?.length || 0,
       hasBeenContactedBefore,
-      isFirstMessageInCurrentChat
+      isFirstMessageInCurrentChat,
+      hasSummaries: previousSummaries.length > 0
     });
     
     // 5. Check if decision hint requires immediate escalation
@@ -237,6 +245,7 @@ export async function POST(request: NextRequest) {
         patientId,
         episodeId,
         protocolConfig,
+        previousSummaries,
         isFirstMessageInCurrentChat,
         hasBeenContactedBefore
       );
@@ -367,6 +376,37 @@ export async function POST(request: NextRequest) {
 
     // 9. Handle tool calls from AI response
     const toolResults = await handleToolCalls(aiResponse.toolCalls, patientId, episodeId, supabase, activeInteractionId);
+
+    // 10. Check if interaction should end and generate summary
+    const shouldEndInteraction = decisionHint.action === 'FLAG' || 
+                                  aiResponse.toolCalls?.some((t: any) => t.name === 'handoff_to_nurse' || t.name === 'log_checkin');
+    
+    if (shouldEndInteraction && activeInteractionId) {
+      console.log('📝 [Interaction] Generating summary - interaction ending');
+      
+      // Generate AI summary of the conversation
+      const summary = await generateInteractionSummary(
+        activeInteractionId,
+        patientInput,
+        aiResponse.response,
+        decisionHint,
+        supabase
+      );
+      
+      // Update interaction with summary and status
+      const finalStatus = decisionHint.action === 'FLAG' ? 'ESCALATED' : 'COMPLETED';
+      await supabase
+        .from('AgentInteraction')
+        .update({
+          status: finalStatus,
+          summary: summary,
+          completed_at: new Date().toISOString(),
+          ended_at: new Date().toISOString()
+        })
+        .eq('id', activeInteractionId);
+      
+      console.log(`✅ [Interaction] Marked as ${finalStatus} with summary`);
+    }
 
     return NextResponse.json({
       success: true,
@@ -827,6 +867,7 @@ async function generateAIResponseWithTools(
   patientId: string,
   episodeId: string,
   protocolConfig: any,
+  previousSummaries: string = '',
   isFirstMessageInCurrentChat: boolean = false,
   hasBeenContactedBefore: boolean = false
 ) {
@@ -839,7 +880,8 @@ async function generateAIResponseWithTools(
       conversationContext = `This is your VERY FIRST contact with this patient since their hospital discharge for ${protocolAssignment.condition_code}. Introduce yourself warmly as their post-discharge care coordinator. Explain that you'll be checking in with them regularly during their recovery.`;
     } else if (isFirstMessageInCurrentChat) {
       // RETURNING PATIENT - New chat but patient has been contacted before
-      conversationContext = `This patient has been contacted before as part of their post-discharge care. This is a NEW follow-up check-in. Greet them warmly and ask how they've been doing since your last contact. DO NOT introduce yourself as if it's the first time - they know who you are.`;
+      const historyContext = previousSummaries ? `\n\nPREVIOUS INTERACTIONS:\n${previousSummaries}\n\nUse this context to reference past issues (e.g., "How's the weight gain going?" or "Any improvement with the swelling?")` : '';
+      conversationContext = `This patient has been contacted before as part of their post-discharge care. This is a NEW follow-up check-in. Greet them warmly and ask how they've been doing since your last contact. DO NOT introduce yourself as if it's the first time - they know who you are.${historyContext}`;
     } else {
       // CONTINUING CURRENT CONVERSATION
       conversationContext = `You are continuing an ONGOING conversation with this patient in their current check-in. Continue naturally from the previous messages.`;
@@ -1113,4 +1155,57 @@ function generateDefaultQuestions(parsedResponse: any, condition: string): strin
   }
   
   return questions;
+}
+
+// Generate AI summary of interaction for future context
+async function generateInteractionSummary(
+  interactionId: string,
+  lastPatientMessage: string,
+  lastAIResponse: string,
+  decisionHint: DecisionHint,
+  supabase: SupabaseAdmin
+): Promise<string> {
+  try {
+    // Fetch all messages from this interaction
+    const { data: messages } = await supabase
+      .from('AgentMessage')
+      .select('role, content')
+      .eq('agent_interaction_id', interactionId)
+      .order('sequence_number', { ascending: true });
+    
+    if (!messages || messages.length === 0) {
+      return `Patient contacted. ${decisionHint.action === 'FLAG' ? `Escalated: ${decisionHint.reason}` : 'Routine check-in completed.'}`;
+    }
+
+    // Generate summary using AI
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'generate_response',
+        input: {
+          messages: [
+            {
+              role: 'system',
+              content: `Summarize this patient interaction in 2-3 concise sentences. Focus on: 1) Key symptoms/concerns mentioned, 2) Outcome/action taken. Be factual and clinical.
+
+Conversation:
+${messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n')}
+
+Outcome: ${decisionHint.action === 'FLAG' ? `Escalated - ${decisionHint.reason}` : decisionHint.action === 'CLOSE' ? 'Patient doing well' : 'Ongoing monitoring'}`
+            }
+          ],
+          temperature: 0.3,
+          max_tokens: 150
+        }
+      })
+    });
+
+    const result = await response.json();
+    return result.response || `Patient interaction. ${decisionHint.action === 'FLAG' ? 'Escalated.' : 'Completed.'}`;
+  } catch (error) {
+    console.error('Failed to generate summary:', error);
+    // Fallback summary
+    return `${decisionHint.action === 'FLAG' ? `Escalated: ${decisionHint.reason}` : 'Check-in completed'}. Last message: ${lastPatientMessage.substring(0, 100)}`;
+  }
 }
