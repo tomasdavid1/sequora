@@ -781,6 +781,28 @@ async function evaluateRulesDSL(
     if (ruleMatch.matched) {
       console.log('🎯 [Rules Engine] Rule matched:', rule.flag.type, 'Pattern:', ruleMatch.matchedPattern);
       
+      // CRITICAL: Check if matched pattern requires a number but input doesn't have it
+      const patternHasNumber = /\d/.test(ruleMatch.matchedPattern || '');
+      const inputHasNumber = /\d/.test(parsedResponse.rawInput);
+      const normalizedHasNumber = /\d/.test(parsedResponse.normalized_text || '');
+      
+      if (patternHasNumber && !inputHasNumber && !normalizedHasNumber) {
+        console.log('❓ [Rules Engine] Pattern requires number but input lacks specifics');
+        console.log('   Pattern:', ruleMatch.matchedPattern);
+        console.log('   Input:', parsedResponse.rawInput);
+        
+        // Ask for the specific number instead of escalating
+        return {
+          action: 'ASK_MORE' as const,
+          questions: [
+            rule.flag.type.includes('WEIGHT') 
+              ? "How many pounds have you gained? It's important to know the specific amount."
+              : "Can you be more specific about the amount or severity?"
+          ],
+          reason: 'Need specific numeric detail for accurate assessment'
+        };
+      }
+      
       // Validate rule has required fields
       if (!rule.flag.severity) {
         console.error('❌ [Rules Engine] Rule missing severity:', rule);
