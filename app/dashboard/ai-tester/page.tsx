@@ -916,52 +916,64 @@ export default function AITesterPage() {
                                 </div>
                               )}
 
-                              {/* Protocol Rules */}
+                              {/* Combined Protocol Rules - AI Detection + Clinical Action */}
                               <div>
                                 <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
                                   <Zap className="w-5 h-5" />
-                                  Active Protocol Rules
+                                  Protocol Rules (Filtered by {protocolProfile.episode.risk_level} Risk)
                                 </h3>
                                 <div className="space-y-3">
-                                  {protocolProfile.activeProtocolRules?.filter((rule: any) => rule.rule_type === 'RED_FLAG').map((rule: any, index: number) => (
-                                    <div key={index} className="border rounded-lg p-3 bg-white">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <span className="font-medium text-sm">{rule.rule_code}</span>
-                                        <Badge variant={rule.severity === 'CRITICAL' ? 'destructive' : 'default'}>
-                                          {rule.severity}
-                                        </Badge>
+                                  {protocolProfile.activeProtocolRules?.filter((rule: any) => rule.rule_type === 'RED_FLAG').map((aiRule: any) => {
+                                    // Find matching clinical rule
+                                    const clinicalRule = protocolProfile.redFlagRules?.find((r: any) => r.rule_code === aiRule.rule_code);
+                                    
+                                    return (
+                                      <div key={aiRule.rule_code} className="border rounded-lg p-4 bg-white shadow-sm">
+                                        {/* Header */}
+                                        <div className="flex items-center justify-between mb-3">
+                                          <span className="font-semibold text-base">{aiRule.rule_code}</span>
+                                          <Badge variant={aiRule.severity === 'CRITICAL' ? 'destructive' : aiRule.severity === 'HIGH' ? 'default' : 'outline'}>
+                                            {aiRule.severity}
+                                          </Badge>
+                                        </div>
+                                        
+                                        {/* AI Detection Section */}
+                                        <div className="bg-blue-50 rounded p-3 mb-3">
+                                          <div className="text-xs font-semibold text-blue-900 mb-2 flex items-center gap-1">
+                                            <Brain className="w-3 h-3" />
+                                            AI Detection
+                                          </div>
+                                          <p className="text-sm text-gray-700 mb-2">{aiRule.message}</p>
+                                          <div className="text-xs text-gray-600">
+                                            <span className="font-medium">Patterns:</span> {aiRule.text_patterns?.join(', ') || 'N/A'}
+                                          </div>
+                                          <div className="text-xs text-blue-700 mt-1 font-medium">
+                                            AI Action: {aiRule.action_type}
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Clinical Action Section */}
+                                        {clinicalRule && (
+                                          <div className="bg-emerald-50 rounded p-3">
+                                            <div className="text-xs font-semibold text-emerald-900 mb-2 flex items-center gap-1">
+                                              <Activity className="w-3 h-3" />
+                                              Clinical Response
+                                            </div>
+                                            <p className="text-xs text-gray-700 mb-1">{clinicalRule.description}</p>
+                                            <div className="text-xs text-emerald-700 font-medium mt-1">
+                                              → {clinicalRule.action_hint}
+                                            </div>
+                                          </div>
+                                        )}
+                                        
+                                        {!clinicalRule && (
+                                          <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded">
+                                            ⚠️ No matching clinical rule found
+                                          </div>
+                                        )}
                                       </div>
-                                      <p className="text-sm text-gray-600 mb-2">{rule.message}</p>
-                                      <div className="text-xs text-gray-500">
-                                        <span className="font-medium">Patterns:</span> {rule.text_patterns?.join(', ') || 'N/A'}
-                                      </div>
-                                      <div className="text-xs text-emerald-600 mt-1">
-                                        Action: {rule.action_type}
-                                      </div>
-                                    </div>
-                                  )) || <p className="text-sm text-gray-500">No red flag rules configured</p>}
-                                </div>
-                              </div>
-
-                              {/* Red Flag Rules from Database */}
-                              <div>
-                                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                                  <AlertCircle className="w-5 h-5" />
-                                  Database Red Flag Rules
-                                </h3>
-                                <div className="space-y-2">
-                                  {protocolProfile.redFlagRules.map((rule: any) => (
-                                    <div key={rule.id} className="border rounded-lg p-3 bg-white">
-                                      <div className="flex items-center justify-between mb-1">
-                                        <span className="font-medium text-sm">{rule.rule_code}</span>
-                                        <Badge variant={rule.severity === 'CRITICAL' ? 'destructive' : 'default'}>
-                                          {rule.severity}
-                                        </Badge>
-                                      </div>
-                                      <p className="text-xs text-gray-600">{rule.description}</p>
-                                      <p className="text-xs text-emerald-600 mt-1">→ {rule.action_hint}</p>
-                                    </div>
-                                  ))}
+                                    );
+                                  }) || <p className="text-sm text-gray-500">No red flag rules configured</p>}
                                 </div>
                               </div>
                             </div>
