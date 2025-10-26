@@ -310,7 +310,7 @@ INSERT INTO public."ProtocolConfig" (
   0.50,
   ARRAY['discomfort', 'off', 'tired', 'heavy'],
   true,
-  'critical',
+  'CRITICAL',
   true,
   true,
   true,

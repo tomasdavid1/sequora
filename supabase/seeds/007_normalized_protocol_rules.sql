@@ -71,7 +71,7 @@ INSERT INTO public."ProtocolContentPack" (
 -- Closures (patient doing well)
 ('HF', 'HF_DOING_WELL', 'CLOSURE',
  ARRAY['feeling good', 'doing well', 'feeling great', 'no problems', 'all good', 'fine', 'good', 'better'],
- 'log_checkin',
+ 'LOG_CHECKIN',
  NULL, -- No severity for closures
  'Patient stable and doing well',
  true);
