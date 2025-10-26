@@ -106,6 +106,7 @@ export default function AITesterPage() {
   const [loadingInteractions, setLoadingInteractions] = useState(true);
   const [protocolProfile, setProtocolProfile] = useState<any>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
   const renderCountRef = React.useRef(0);
   
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
@@ -765,7 +766,22 @@ export default function AITesterPage() {
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      <Dialog>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          if (protocolProfile?.episode) {
+                            window.open(`/dashboard/protocol-config?condition=${protocolProfile.episode.condition_code}&risk=${protocolProfile.episode.risk_level}`, '_blank');
+                          } else {
+                            toast({ title: "Load profile first", description: "Click Profile to load config first" });
+                          }
+                        }}
+                        disabled={!testConfig.episodeId}
+                      >
+                        <Settings className="w-4 h-4 mr-2" />
+                        Edit Config
+                      </Button>
+                      <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
                         <DialogTrigger asChild>
                           <Button 
                             variant="outline" 
