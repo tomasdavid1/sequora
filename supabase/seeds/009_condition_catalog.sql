@@ -49,7 +49,7 @@ INSERT INTO public."ConditionCatalog" (
   'Other Condition',
   'Other medical conditions not classified in the primary TOC categories. Requires custom protocol configuration.',
   'Other',
-  ARRAY[],
+  ARRAY[]::TEXT[],
   true
 );
 
