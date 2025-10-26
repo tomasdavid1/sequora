@@ -80,6 +80,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get condition metadata (full name, description)
+    const { data: conditionMeta } = await supabase
+      .from('ConditionCatalog')
+      .select('full_name, description')
+      .eq('condition_code', episode.condition_code)
+      .single();
+    
+    const conditionFullName = conditionMeta?.full_name || condition;
+
     // Get red flag rules for the condition
     const { data: redFlagRules, error: rulesError } = await supabase
       .from('RedFlagRule')
@@ -133,14 +142,15 @@ export async function POST(request: NextRequest) {
 
     // Build dynamic condition context from database rules
     const conditionContext = `
-${getConditionFullName(condition)} Red Flags:
+${conditionFullName} Red Flags:
 ${redFlagRules.map(rule => `- ${rule.description} (Severity: ${rule.severity})`).join('\n')}
 `;
 
     // Analyze responses using LLM with database-driven prompt
     const analysisResult = await analyzeResponsesWithLLM(
       responses, 
-      condition, 
+      condition,
+      conditionFullName,
       redFlagRules,
       conditionContext,
       protocolConfig // Pass protocol config for system prompt
@@ -251,7 +261,8 @@ ${redFlagRules.map(rule => `- ${rule.description} (Severity: ${rule.severity})`)
 
 async function analyzeResponsesWithLLM(
   responses:  unknown[], 
-  condition: string, 
+  condition: string,
+  conditionFullName: string,
   redFlagRules:  unknown[],
   conditionContext: string,
   protocolConfig: any
@@ -263,7 +274,7 @@ async function analyzeResponsesWithLLM(
   
   // Use database-driven system prompt for analysis (risk-level specific)
   const systemPrompt = protocolConfig.system_prompt || 
-    `You are a medical AI assistant analyzing patient responses for ${condition} (${getConditionFullName(condition)}) in a Transition of Care program. Your job is to identify potential red flags that require nurse escalation.`;
+    `You are a medical AI assistant analyzing patient responses for ${condition} (${conditionFullName}) in a Transition of Care program. Your job is to identify potential red flags that require nurse escalation.`;
   
   // Prepare context for LLM
   const context = `
@@ -360,16 +371,6 @@ Respond in JSON format:
   } catch (error) {
     console.error('❌ [Analysis] LLM analysis error:', error);
     throw new Error(`Failed to analyze patient responses: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-
-function getConditionFullName(condition: string): string {
-  switch (condition) {
-    case 'HF': return 'Heart Failure';
-    case 'COPD': return 'Chronic Obstructive Pulmonary Disease';
-    case 'AMI': return 'Acute Myocardial Infarction';
-    case 'PNA': return 'Pneumonia';
-    default: return condition;
   }
 }
 

@@ -612,6 +612,39 @@ export type Database = {
           },
         ]
       }
+      ConditionCatalog: {
+        Row: {
+          abbreviation: string | null
+          active: boolean | null
+          condition_code: Database["public"]["Enums"]["condition_code"]
+          created_at: string | null
+          description: string | null
+          full_name: string
+          icd10_codes: string[] | null
+          updated_at: string | null
+        }
+        Insert: {
+          abbreviation?: string | null
+          active?: boolean | null
+          condition_code: Database["public"]["Enums"]["condition_code"]
+          created_at?: string | null
+          description?: string | null
+          full_name: string
+          icd10_codes?: string[] | null
+          updated_at?: string | null
+        }
+        Update: {
+          abbreviation?: string | null
+          active?: boolean | null
+          condition_code?: Database["public"]["Enums"]["condition_code"]
+          created_at?: string | null
+          description?: string | null
+          full_name?: string
+          icd10_codes?: string[] | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       Consent: {
         Row: {
           created_at: string | null
