@@ -39,10 +39,18 @@ INSERT INTO public."ProtocolContentPack" (
  true),
 
 ('HF', 'HF_WEIGHT_GAIN_5LB', 'RED_FLAG',
- ARRAY['gained 5 pounds', '5 pounds heavier', 'gained five pounds', 'up 5 pounds', '5 lbs up', 'gained weight', 'put on 5 pounds', 'put on 5 lbs', 'gained 5 lbs', 'weight gain', 'put on weight'],
+ ARRAY['gained 5 pounds', '5 pounds heavier', 'gained five pounds', 'up 5 pounds', '5 lbs up', 'put on 5 pounds', 'put on 5 lbs', 'gained 5 lbs'],
  'RAISE_FLAG',
  'HIGH',
  'Significant weight gain (5+ lbs in 1 week)',
+ true),
+
+-- Generic weight concern (visible to HIGH risk only) - asks for amount
+('HF', 'HF_WEIGHT_CONCERN', 'RED_FLAG',
+ ARRAY['gained weight', 'weight gain', 'put on weight', 'weight up', 'weight is up'],
+ 'ASK_MORE',
+ 'LOW',
+ 'Weight change reported - need specific amount',
  true),
 
 -- Moderate severity (visible to HIGH risk only)
