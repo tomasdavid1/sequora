@@ -6,6 +6,7 @@ import { Episode, Patient, OutreachResponse, OutreachAttempt, EscalationTask, Co
 import OpenAI from 'openai';
 import { 
   SeverityType,
+  ConditionCodeType,
   VALID_SEVERITIES,
   getPriorityFromSeverity,
   getSLAMinutesFromSeverity
@@ -18,7 +19,7 @@ const openai = new OpenAI({
 // Core agent interface
 interface CheckInRequest {
   patientId: string;
-  condition: string;
+  condition: ConditionCodeType;
   responses: PatientResponse[];
   channel: 'SMS' | 'VOICE' | 'WHATSAPP';
   sessionId: string;

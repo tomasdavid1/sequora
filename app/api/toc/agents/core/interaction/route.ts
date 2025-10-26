@@ -10,6 +10,8 @@ import { Database } from '@/database.types';
 import { 
   SeverityType,
   RiskLevelType,
+  ConditionCodeType,
+  EducationLevelType,
   VALID_SEVERITIES,
   getSeverityFilterForRiskLevel,
   getPriorityFromSeverity,
@@ -21,13 +23,14 @@ type SupabaseAdmin = SupabaseClient<Database>;
 
 // Type definitions for the interaction system
 interface ParsedResponse {
-  intent: string;
+  intent: string; // Could be enum: 'symptom_report' | 'medication_question' | 'general' | 'question'
   symptoms: string[];
-  severity: string;
+  severity: SeverityType | string; // AI returns SeverityType, fallback parsing returns string
   questions: string[];
-  sentiment: string;
+  sentiment: string; // Could be enum: 'distressed' | 'concerned' | 'neutral' | 'positive'
   confidence: number;
   rawInput: string;
+  normalized_text?: string;
   painScore?: number;
   weightChange?: string;
   medicationAdherence?: string;
@@ -40,7 +43,7 @@ interface ParsedResponse {
 interface DecisionHint {
   action: 'FLAG' | 'ASK_MORE' | 'CLOSE';
   flagType?: string;
-  severity?: string;
+  severity?: SeverityType;
   reason?: string;
   matchedPattern?: string; // Which text pattern triggered the rule
   ruleDescription?: string; // Database description of the rule
@@ -51,10 +54,10 @@ interface DecisionHint {
 // Extended type for ProtocolAssignment with nested relationships
 type ProtocolAssignmentWithRelations = ProtocolAssignment & {
   Episode?: {
-    condition_code: string;
-    risk_level: string | null;
+    condition_code: ConditionCodeType;
+    risk_level: RiskLevelType | null;
     Patient?: {
-      education_level: string | null;
+      education_level: EducationLevelType | null;
     };
   };
 };
