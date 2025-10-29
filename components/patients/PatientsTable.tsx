@@ -267,11 +267,96 @@ export function PatientsTable({
           searchable={true}
           searchPlaceholder="Search patients..."
           searchKeys={['name', 'condition', 'email', 'primary_phone']}
+          mobileCardView={true}
           getRowClassName={(row) => {
             if (row.status === 'ESCALATED') return 'bg-red-50 border-l-4 border-red-500';
             if (row.flags > 0) return 'bg-yellow-50 border-l-4 border-yellow-400';
             return '';
           }}
+          renderMobileCard={(row) => (
+            <div className="space-y-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onPatientClick?.(row);
+                    }}
+                    className="font-medium text-base text-blue-600 hover:underline text-left"
+                  >
+                    {row.name}
+                  </button>
+                  <div className="text-xs text-gray-500 mt-1">{row.email || 'No email'}</div>
+                </div>
+                <div className="flex gap-1">
+                  <Badge variant="outline">{row.condition}</Badge>
+                  {row.riskLevel && <Badge variant="outline" className="text-xs">{row.riskLevel}</Badge>}
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <span className="text-xs text-gray-500">Last Contact:</span>
+                  <div className="text-gray-700">
+                    {row.lastContact ? new Date(row.lastContact).toLocaleDateString() : 'Never'}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-500">Days Since Discharge:</span>
+                  <div className="text-gray-700">{row.daysSinceDischarge} days</div>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-500">Flags:</span>
+                  <div>
+                    {row.flags > 0 ? (
+                      <Badge variant="destructive">{row.flags}</Badge>
+                    ) : (
+                      <Badge variant="outline">0</Badge>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-500">Status:</span>
+                  <div>
+                    <Badge variant={
+                      row.status === 'ESCALATED' ? 'destructive' :
+                      row.status === 'ACTIVE' ? 'default' :
+                      'outline'
+                    }>
+                      {row.status}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-2 pt-2 border-t">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onContactClick?.(row);
+                  }}
+                >
+                  <Phone className="w-4 h-4 mr-1" />
+                  Contact
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onConversationClick?.(row);
+                  }}
+                >
+                  <MessageSquare className="w-4 h-4 mr-1" />
+                  History
+                </Button>
+              </div>
+            </div>
+          )}
         />
       </div>
 

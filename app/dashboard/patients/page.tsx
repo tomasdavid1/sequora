@@ -139,20 +139,24 @@ export default function PatientsPage() {
     : 0;
 
   return (
-      <div className="container mx-auto p-6 space-y-6">
+      <div className="container mx-auto p-4 md:p-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold">Patient Management</h1>
-            <p className="text-gray-600">View and manage all patients in the TOC program</p>
+            <h1 className="text-2xl sm:text-3xl font-bold">Patient Management</h1>
+            <p className="text-sm sm:text-base text-gray-600">View and manage all patients in the TOC program</p>
           </div>
-          <Button onClick={() => window.location.href = '/dashboard'} variant="outline">
+          <Button 
+            onClick={() => window.location.href = '/dashboard'} 
+            variant="outline"
+            className="w-full sm:w-auto"
+          >
             Back to Dashboard
           </Button>
         </div>
 
         {/* Analytics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Patients</CardTitle>

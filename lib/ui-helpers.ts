@@ -119,6 +119,33 @@ export function getConditionName(code: string): string {
 }
 
 /**
+ * Get condition color class
+ */
+export function getConditionColor(condition: string): string {
+  const colors: Record<string, string> = {
+    'HF': 'bg-red-100 text-red-800',
+    'COPD': 'bg-blue-100 text-blue-800',
+    'AMI': 'bg-orange-100 text-orange-800',
+    'PNA': 'bg-green-100 text-green-800',
+    'OTHER': 'bg-gray-100 text-gray-800'
+  };
+  return colors[condition] || 'bg-gray-100 text-gray-800';
+}
+
+/**
+ * Get risk level color class
+ */
+export function getRiskColor(risk: string): string {
+  const upperRisk = risk?.toUpperCase();
+  const colors: Record<string, string> = {
+    'HIGH': 'bg-red-100 text-red-800',
+    'MEDIUM': 'bg-yellow-100 text-yellow-800',
+    'LOW': 'bg-green-100 text-green-800'
+  };
+  return colors[upperRisk] || 'bg-gray-100 text-gray-800';
+}
+
+/**
  * Format days since discharge with color coding
  */
 export function getDaysSinceDischargeColor(days: number): string {

@@ -29,6 +29,8 @@ export interface DataTableProps<T> {
   searchable?: boolean; // Enable global search
   searchPlaceholder?: string;
   searchKeys?: (keyof T)[]; // Which fields to search (if not provided, searches all)
+  mobileCardView?: boolean; // Enable mobile card view instead of horizontal scroll
+  renderMobileCard?: (row: T, index: number) => React.ReactNode; // Custom mobile card renderer
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -42,7 +44,9 @@ export function DataTable<T extends Record<string, any>>({
   striped = false,
   searchable = false,
   searchPlaceholder = 'Search...',
-  searchKeys
+  searchKeys,
+  mobileCardView = false,
+  renderMobileCard
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [columnFilters, setColumnFilters] = React.useState<Record<number, string>>({});
@@ -181,92 +185,150 @@ export function DataTable<T extends Record<string, any>>({
           <p>No results found for "{searchTerm}"</p>
         </div>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full">
-        <thead className="bg-gray-50 border-b">
-          <tr>
-            {columns.map((column, index) => (
-              <th
-                key={index}
-                className={cn(
-                  'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider',
-                  column.headerClassName
-                )}
-              >
-                {column.header}
-              </th>
-            ))}
-          </tr>
-          {/* Filter Row */}
-          {showFilters && (
-            <tr className="bg-gray-100 border-t">
-              {columns.map((column, index) => (
-                <th key={index} className="px-4 py-2">
-                  {column.filterable === 'select' && column.filterOptions ? (
-                    <Select
-                      value={columnFilters[index] || 'ALL'}
-                      onValueChange={(value) => setColumnFilters({ ...columnFilters, [index]: value })}
-                    >
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="All" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ALL">All</SelectItem>
-                        {column.filterOptions.map(opt => (
-                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : column.filterable ? (
-                    <Input
-                      type="text"
-                      placeholder={column.filterPlaceholder || 'Filter...'}
-                      value={columnFilters[index] || ''}
-                      onChange={(e) => setColumnFilters({ ...columnFilters, [index]: e.target.value })}
-                      className="h-8 text-xs"
-                    />
-                  ) : null}
-                </th>
-              ))}
-            </tr>
+        <>
+          {/* Desktop Table View */}
+          <div className={cn("border rounded-lg overflow-hidden", mobileCardView && "hidden md:block")}>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    {columns.map((column, index) => (
+                      <th
+                        key={index}
+                        className={cn(
+                          'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap',
+                          column.headerClassName
+                        )}
+                      >
+                        {column.header}
+                      </th>
+                    ))}
+                  </tr>
+                  {/* Filter Row */}
+                  {showFilters && (
+                    <tr className="bg-gray-100 border-t">
+                      {columns.map((column, index) => (
+                        <th key={index} className="px-4 py-2">
+                          {column.filterable === 'select' && column.filterOptions ? (
+                            <Select
+                              value={columnFilters[index] || 'ALL'}
+                              onValueChange={(value) => setColumnFilters({ ...columnFilters, [index]: value })}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="All" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="ALL">All</SelectItem>
+                                {column.filterOptions.map(opt => (
+                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : column.filterable ? (
+                            <Input
+                              type="text"
+                              placeholder={column.filterPlaceholder || 'Filter...'}
+                              value={columnFilters[index] || ''}
+                              onChange={(e) => setColumnFilters({ ...columnFilters, [index]: e.target.value })}
+                              className="h-8 text-xs"
+                            />
+                          ) : null}
+                        </th>
+                      ))}
+                    </tr>
+                  )}
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredData.map((row, rowIndex) => {
+                    const rowClassName = getRowClassName ? getRowClassName(row) : '';
+                    const baseRowClass = cn(
+                      'transition-colors',
+                      hoverable && 'hover:bg-gray-50',
+                      striped && rowIndex % 2 === 0 && 'bg-gray-25',
+                      onRowClick && 'cursor-pointer',
+                      rowClassName
+                    );
+
+                    return (
+                      <tr
+                        key={rowIndex}
+                        className={baseRowClass}
+                        onClick={() => onRowClick?.(row)}
+                      >
+                        {columns.map((column, colIndex) => {
+                          const value = getCellValue(row, column);
+                          const cellContent = column.cell ? column.cell(value, row) : value;
+
+                          return (
+                            <td
+                              key={colIndex}
+                              className={cn('px-4 py-3', column.className)}
+                            >
+                              {cellContent}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Mobile Card View */}
+          {mobileCardView && (
+            <div className="md:hidden space-y-3">
+              {filteredData.map((row, rowIndex) => {
+                const rowClassName = getRowClassName ? getRowClassName(row) : '';
+                const baseCardClass = cn(
+                  'border rounded-lg p-4 transition-colors',
+                  hoverable && 'hover:bg-gray-50',
+                  onRowClick && 'cursor-pointer',
+                  rowClassName
+                );
+
+                return (
+                  <div
+                    key={rowIndex}
+                    className={baseCardClass}
+                    onClick={() => onRowClick?.(row)}
+                  >
+                    {renderMobileCard ? (
+                      renderMobileCard(row, rowIndex)
+                    ) : (
+                      // Default mobile card layout
+                      <div className="space-y-2">
+                        {columns.map((column, colIndex) => {
+                          // Skip rendering columns with headerClassName containing 'text-right' (usually action columns)
+                          if (column.headerClassName?.includes('text-right')) {
+                            const value = getCellValue(row, column);
+                            const cellContent = column.cell ? column.cell(value, row) : value;
+                            return (
+                              <div key={colIndex} className="pt-2 border-t">
+                                {cellContent}
+                              </div>
+                            );
+                          }
+                          
+                          const value = getCellValue(row, column);
+                          const cellContent = column.cell ? column.cell(value, row) : value;
+
+                          return (
+                            <div key={colIndex} className="flex justify-between items-start gap-2">
+                              <span className="text-xs font-medium text-gray-500 uppercase">{column.header}</span>
+                              <span className="text-sm text-right">{cellContent}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
-        </thead>
-        <tbody className="divide-y divide-gray-200">
-          {filteredData.map((row, rowIndex) => {
-            const rowClassName = getRowClassName ? getRowClassName(row) : '';
-            const baseRowClass = cn(
-              'transition-colors',
-              hoverable && 'hover:bg-gray-50',
-              striped && rowIndex % 2 === 0 && 'bg-gray-25',
-              onRowClick && 'cursor-pointer',
-              rowClassName
-            );
-
-            return (
-              <tr
-                key={rowIndex}
-                className={baseRowClass}
-                onClick={() => onRowClick?.(row)}
-              >
-                {columns.map((column, colIndex) => {
-                  const value = getCellValue(row, column);
-                  const cellContent = column.cell ? column.cell(value, row) : value;
-
-                  return (
-                    <td
-                      key={colIndex}
-                      className={cn('px-4 py-3', column.className)}
-                    >
-                      {cellContent}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+        </>
       )}
     </div>
   );

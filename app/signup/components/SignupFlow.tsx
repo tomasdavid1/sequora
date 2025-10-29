@@ -49,46 +49,6 @@ export function SignupFlow() {
 
   return (
     <div className="w-full max-w-md mx-auto">
-      {/* Progress Indicator */}
-      <div className="mb-8">
-        <div className="flex items-center justify-center gap-2">
-          {['email', 'dob', 'password'].map((step, index) => {
-            const stepIndex = ['email', 'dob', 'password'].indexOf(currentStep);
-            const currentIndex = ['email', 'dob', 'password'].indexOf(step);
-            const isCompleted = currentIndex < stepIndex || currentStep === 'complete';
-            const isCurrent = currentIndex === stepIndex && currentStep !== 'complete';
-            
-            return (
-              <React.Fragment key={step}>
-                {index > 0 && (
-                  <div 
-                    className={`h-0.5 w-12 ${
-                      isCompleted ? 'bg-emerald-600' : 'bg-gray-300'
-                    }`}
-                  />
-                )}
-                <div 
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                    isCompleted 
-                      ? 'bg-emerald-600 text-white' 
-                      : isCurrent
-                      ? 'bg-emerald-100 text-emerald-600 border-2 border-emerald-600'
-                      : 'bg-gray-200 text-gray-600'
-                  }`}
-                >
-                  {isCompleted ? '✓' : index + 1}
-                </div>
-              </React.Fragment>
-            );
-          })}
-        </div>
-        <div className="flex justify-between mt-2 text-xs text-gray-600">
-          <span>Email</span>
-          <span>Verify ID</span>
-          <span>Password</span>
-        </div>
-      </div>
-
       {/* Step Content */}
       <div className="bg-white rounded-lg shadow-lg p-8">
         {currentStep === 'email' && (

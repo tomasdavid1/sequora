@@ -5,7 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Mail, Loader2 } from 'lucide-react';
+import { Mail, Loader2, Info } from 'lucide-react';
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card';
 
 interface EmailStepProps {
   onEmailVerified: (email: string, patientData: any) => void;
@@ -61,18 +66,29 @@ export function EmailStep({ onEmailVerified }: EmailStepProps) {
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <div className="mx-auto w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
-          <Mail className="w-6 h-6 text-emerald-600" />
-        </div>
-        <h2 className="text-2xl font-bold mb-2">Welcome to Sequora</h2>
-        <p className="text-gray-600">
-          Let's get you set up with your post-discharge care account
+        <h2 className="text-xl font-semibold mb-1">Welcome!</h2>
+        <p className="text-sm text-gray-600">
+          First, let's check your records
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <Label htmlFor="email">Email Address</Label>
+          <div className="flex items-center gap-1 mb-1">
+            <Label htmlFor="email">Email Address</Label>
+            <HoverCard>
+              <HoverCardTrigger asChild>
+                <button type="button" className="inline-flex items-center">
+                  <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600" />
+                </button>
+              </HoverCardTrigger>
+              <HoverCardContent className="w-64 text-sm">
+                <p className="text-gray-700">
+                  Use the email address you provided at discharge. You may find this in your discharge papers.
+                </p>
+              </HoverCardContent>
+            </HoverCard>
+          </div>
           <Input
             id="email"
             type="email"
@@ -80,12 +96,8 @@ export function EmailStep({ onEmailVerified }: EmailStepProps) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={loading}
-            className="mt-1"
             autoFocus
           />
-          <p className="text-sm text-gray-500 mt-1">
-            Enter the email address provided to your care coordinator
-          </p>
         </div>
 
         {error && (

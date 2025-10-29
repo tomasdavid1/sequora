@@ -66,15 +66,6 @@ interface ChatMessage {
   };
 }
 
-interface TestScenario {
-  id: string;
-  name: string;
-  condition: string;
-  educationLevel: string;
-  patientInput: string;
-  description: string;
-}
-
 interface TestConfig {
   patientId: string;
   episodeId: string;
@@ -534,41 +525,7 @@ export default function AITesterPage() {
     );
   }
 
-  // Predefined test scenarios
-  const testScenarios: TestScenario[] = [
-    {
-      id: 'hf-low-chest-pain',
-      name: 'HF Low Ed - Chest Pain',
-      condition: 'HF',
-      educationLevel: 'LOW',
-      patientInput: 'I have chest pain and can\'t breathe',
-      description: 'Heart failure patient with low education reporting chest pain'
-    },
-    {
-      id: 'copd-high-shortness',
-      name: 'COPD High Ed - Shortness',
-      condition: 'COPD',
-      educationLevel: 'HIGH',
-      patientInput: 'I\'m experiencing increased dyspnea and my inhaler isn\'t helping',
-      description: 'COPD patient with high education reporting breathing issues'
-    },
-    {
-      id: 'ami-medium-fatigue',
-      name: 'AMI Medium Ed - Fatigue',
-      condition: 'AMI',
-      educationLevel: 'MEDIUM',
-      patientInput: 'I feel very tired and have some chest discomfort',
-      description: 'Heart attack patient with medium education reporting fatigue'
-    },
-    {
-      id: 'pna-medium-fever',
-      name: 'PNA Medium Ed - Fever',
-      condition: 'PNA',
-      educationLevel: 'MEDIUM',
-      patientInput: 'I have a fever of 102 and can\'t breathe well',
-      description: 'Pneumonia patient with medium education reporting fever'
-    }
-  ];
+  // Test scenarios imported from data/test-scenarios.ts
 
   const sendMessage = async (input: string) => {
     if (!input.trim() || loading) return;
@@ -732,15 +689,7 @@ export default function AITesterPage() {
     }
   };
 
-  const loadScenario = (scenario: TestScenario) => {
-    setTestConfig({
-      condition: scenario.condition,
-      educationLevel: scenario.educationLevel,
-      patientId: testConfig.patientId,
-      episodeId: testConfig.episodeId
-    });
-    setCurrentInput(scenario.patientInput);
-  };
+  
 
   const clearChat = () => {
     setMessages([]);
