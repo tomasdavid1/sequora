@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TasksTable } from '@/components/tasks/TasksTable';
 import { PatientInfoModal } from '@/components/patient/PatientInfoModal';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { 
   Users, 
   Activity, 
@@ -298,29 +299,27 @@ export default function AdminDashboard() {
           
           {conversationMessages.length > 0 ? (
             <div className="space-y-3">
-              {conversationMessages.map((message: any, idx: number) => (
-                <div key={idx} className={`p-3 rounded-lg ${
-                  message.role === 'user' || message.role === 'PATIENT'
-                    ? 'bg-blue-50 ml-8'
-                    : 'bg-gray-100 mr-8'
-                }`}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="outline" className="text-xs">
-                      {message.role === 'user' || message.role === 'PATIENT' ? 'Patient' : 'AI'}
-                    </Badge>
-                    <span className="text-xs text-gray-500">
-                      {new Date(message.timestamp || message.created_at).toLocaleTimeString()}
-                    </span>
+              {conversationMessages.map((message: any, idx: number) => {
+                const isPatient = message.role === 'user' || message.role === 'PATIENT';
+                return (
+                  <div key={idx} className={`p-3 rounded-lg ${
+                    isPatient ? 'bg-blue-50 ml-8' : 'bg-gray-100 mr-8'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="outline" className="text-xs">
+                        {isPatient ? 'Patient' : 'AI'}
+                      </Badge>
+                      <span className="text-xs text-gray-500">
+                        {new Date(message.timestamp || message.created_at).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                   </div>
-                  <p className="text-sm">{message.content}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500">
-              <MessageSquare className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <p>No messages found</p>
-            </div>
+            <EmptyState icon={MessageSquare} message="No messages found" />
           )}
         </DialogContent>
       </Dialog>

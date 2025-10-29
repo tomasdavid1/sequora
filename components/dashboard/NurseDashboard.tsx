@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { TasksTable } from '@/components/tasks/TasksTable';
 import { PatientsTable } from '@/components/patients/PatientsTable';
 import { PatientInfoModal } from '@/components/patient/PatientInfoModal';
+import { InteractionHistory } from '@/components/shared/InteractionHistory';
 import { useToast } from '@/hooks/use-toast';
 import { Patient } from '@/types';
 import { 
@@ -240,47 +241,10 @@ export default function NurseDashboard() {
             </DialogTitle>
           </DialogHeader>
           
-          {conversationData && conversationData.length > 0 ? (
-            <div className="space-y-4">
-              {conversationData.map((interaction: any, index: number) => (
-                <div key={interaction.id || index} className="border rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">{interaction.episode?.condition_code}</Badge>
-                      <Badge variant={interaction.status === 'ESCALATED' ? 'destructive' : 'default'}>
-                        {interaction.status}
-                      </Badge>
-                    </div>
-                    <span className="text-sm text-gray-500">
-                      {new Date(interaction.started_at).toLocaleString()}
-                    </span>
-            </div>
-            
-                  {interaction.messages && interaction.messages.length > 0 && (
-                    <div className="space-y-2">
-                      {interaction.messages.map((message: any, msgIndex: number) => (
-                        <div key={msgIndex} className={`p-3 rounded ${
-                          message.role === 'user' || message.role === 'PATIENT' 
-                            ? 'bg-blue-50' 
-                            : 'bg-gray-100'
-                        }`}>
-                          <div className="text-xs text-gray-500 mb-1">
-                            {message.role === 'user' || message.role === 'PATIENT' ? 'Patient' : 'AI'}
-                          </div>
-                          <p className="text-sm">{message.content}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <MessageSquare className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <p>No conversation history found</p>
-          </div>
-          )}
+          <InteractionHistory 
+            interactions={conversationData}
+            showEscalations={false}
+          />
         </DialogContent>
       </Dialog>
     </div>

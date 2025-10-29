@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConversationView } from '@/components/shared/ConversationView';
+import { getSeverityColor } from '@/lib/ui-helpers';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -120,8 +122,6 @@ export default function AITesterPage() {
   const [chatGroupBy, setChatGroupBy] = useState<'none' | 'condition' | 'patient' | 'risk'>('none');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const renderCountRef = React.useRef(0);
-  
-  const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
   // Track renders for debugging (using ref to avoid infinite loop)
   renderCountRef.current += 1;
@@ -167,10 +167,7 @@ export default function AITesterPage() {
     return groups;
   }, [interactions, chatGroupBy]);
 
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  // Auto-scroll now handled by ConversationView component
 
   // Fetch interactions function (reusable)
   const fetchInteractions = async (showLoader = false) => {
@@ -897,15 +894,7 @@ export default function AITesterPage() {
     setExpandedGroups(newExpanded);
   };
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'CRITICAL': return 'bg-red-100 text-red-800 border-red-200';
-      case 'HIGH': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'MODERATE': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'LOW': return 'bg-blue-100 text-blue-800 border-blue-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
+  // getSeverityColor now imported from @/lib/ui-helpers
 
   const getConditionColor = (condition: string) => {
     switch (condition) {
@@ -1246,168 +1235,20 @@ export default function AITesterPage() {
                   </div>
                 </CardHeader>
 
-                <CardContent className="flex-1 flex flex-col p-0 min-h-0">
-                  {/* Chat Messages */}
-                  <div className="flex-1 overflow-y-auto p-4 max-h-[450px]">
-                    <div className="space-y-4">
-                      {messages.length === 0 && (
-                        <div className="text-center py-8 text-gray-500">
-                          <Bot className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                          <p>Start a conversation to test the AI protocol system</p>
-                          <p className="text-sm">Try one of the test scenarios or type your own message</p>
-                        </div>
-                      )}
-                      
-                      {messages.map((message) => (
-                        <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[80%] rounded-lg p-3 ${
-                            message.role === 'user' 
-                              ? 'bg-blue-500 text-white' 
-                              : 'bg-gray-100 text-gray-900'
-                          }`}>
-                            <div className="flex items-center gap-2 mb-1">
-                              {message.role === 'assistant' && <Bot className="w-4 h-4" />}
-                              <span className="text-xs opacity-70">
-                                {message.timestamp.toLocaleTimeString()}
-                              </span>
-                              {/* Escalation badges */}
-                              {message.role === 'assistant' && message.metadata?.toolCalls && message.metadata.toolCalls.some((t: any) => (t.tool || t.name) === 'handoff_to_nurse') && (
-                                <Badge className="text-xs bg-red-500 text-white">🚨 Escalated</Badge>
-                              )}
-                              {message.role === 'assistant' && message.metadata?.toolCalls && message.metadata.toolCalls.some((t: any) => (t.tool || t.name) === 'raise_flag') && (
-                                <Badge className="text-xs bg-orange-500 text-white">⚠️ Flag Raised</Badge>
-                              )}
-                            </div>
-                            
-                            <div className="whitespace-pre-wrap">{message.content}</div>
-                            
-                            {/* Inline Flag Alert - Always visible when flags triggered */}
-                            {message.role === 'assistant' && message.metadata?.decisionHint?.action === 'FLAG' && (
-                              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <AlertTriangle className="w-4 h-4 text-red-600" />
-                                  <span className="font-semibold text-sm text-red-900">
-                                    {message.metadata.decisionHint.severity === 'CRITICAL' ? '🚨 CRITICAL FLAG' : '⚠️ FLAG RAISED'}
-                                  </span>
-                                </div>
-                                <div className="text-xs space-y-1 text-gray-700">
-                                  <div><strong>Rule:</strong> {message.metadata.decisionHint.flagType}</div>
-                                  <div><strong>Severity:</strong> <Badge className={getSeverityColor(message.metadata.decisionHint.severity)}>{message.metadata.decisionHint.severity}</Badge></div>
-                                  {message.metadata.decisionHint.matchedPattern && (
-                                    <div className="bg-yellow-50 px-2 py-1 rounded border border-yellow-200">
-                                      <strong>Matched Pattern:</strong> "{message.metadata.decisionHint.matchedPattern}"
-                                    </div>
-                                  )}
-                                  {message.metadata.decisionHint.reason && (
-                                    <div><strong>Reason:</strong> {message.metadata.decisionHint.reason}</div>
-                                  )}
-                                  {message.metadata.toolCalls && message.metadata.toolCalls.length > 0 && (
-                                    <div className="mt-2 pt-2 border-t border-red-200">
-                                      <strong>Action Taken:</strong>
-                                      {message.metadata.toolCalls.map((tool: any, idx: number) => (
-                                        <div key={idx} className="ml-2 text-emerald-700">
-                                          → {tool.tool || tool.name}: {tool.parameters?.reason || tool.parameters?.flagType || 'Escalated'}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                            
-                            {showMetadata && message.metadata && message.role === 'assistant' && (
-                              <div className="mt-3 pt-3 border-t border-gray-300">
-                                {/* Only show if there's actual data */}
-                                {(message.metadata.decisionHint || 
-                                  (message.metadata.toolCalls && message.metadata.toolCalls.length > 0) ||
-                                  message.metadata.parsedResponse ||
-                                  message.metadata.confidence_score ||
-                                  message.metadata.detected_intent) && (
-                                  <div className="space-y-2">
-                                    {/* Decision Hint */}
-                                    {message.metadata.decisionHint && (
-                                      <div>
-                                        <Badge variant="outline" className="text-xs">
-                                          Decision: {message.metadata.decisionHint.action}
-                                        </Badge>
-                                      </div>
-                                    )}
-                                    
-                                    {/* Tool Calls */}
-                                    {message.metadata.toolCalls && message.metadata.toolCalls.length > 0 && (
-                                      <div>
-                                        <div className="text-xs font-medium text-gray-700 mb-1">🔧 Tools Used:</div>
-                                        {message.metadata.toolCalls.map((tool: any, index: number) => (
-                                          <div key={index} className="text-xs bg-white border border-gray-200 p-2 rounded mb-1">
-                                            <div className="font-medium text-blue-700">{tool.tool || tool.name}</div>
-                                            {tool.parameters && Object.keys(tool.parameters).length > 0 && (
-                                              <pre className="text-gray-600 mt-1 text-[10px] overflow-x-auto">
-                                                {JSON.stringify(tool.parameters, null, 2)}
-                                              </pre>
-                                            )}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                    
-                                    {/* Detected Intent */}
-                                    {message.metadata.detected_intent && (
-                                      <div className="text-xs">
-                                        <span className="text-gray-600">Intent:</span>{' '}
-                                        <span className="font-medium">{message.metadata.detected_intent}</span>
-                                      </div>
-                                    )}
-                                    
-                                    {/* Confidence Score */}
-                                    {message.metadata.confidence_score && (
-                                      <div className="text-xs">
-                                        <span className="text-gray-600">Confidence:</span>{' '}
-                                        <span className="font-medium">{(message.metadata.confidence_score * 100).toFixed(0)}%</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      
-                      {loading && (
-                        <div className="flex justify-start">
-                          <div className="bg-gray-100 rounded-lg p-3 flex items-center gap-2">
-                            <Bot className="w-4 h-4" />
-                            <div className="flex gap-1">
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Scroll anchor */}
-                      <div ref={messagesEndRef} />
-                    </div>
-                  </div>
-                  
-                  <div className="border-t border-gray-200 p-4 flex-shrink-0">
-                    <div className="flex gap-2">
-                      <Input
-                        value={currentInput}
-                        onChange={(e) => setCurrentInput(e.target.value)}
-                        placeholder="Type a patient message to test..."
-                        onKeyPress={(e) => e.key === 'Enter' && sendMessage(currentInput)}
-                        disabled={loading}
-                      />
-                      <Button 
-                        onClick={() => sendMessage(currentInput)} 
-                        disabled={loading || !currentInput.trim()}
-                      >
-                        <Send className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
+                <CardContent className="flex-1 flex flex-col p-0 min-h-0 max-h-[550px]">
+                  {/* Chat Messages - Using shared ConversationView component */}
+                  <ConversationView
+                    messages={messages}
+                    loading={loading}
+                    showEscalations={true}
+                    showMetadata={showMetadata}
+                    showMessageInput={true}
+                    currentInput={currentInput}
+                    onInputChange={setCurrentInput}
+                    onSendMessage={sendMessage}
+                    placeholder="Type a patient message to test..."
+                    emptyMessage="Start a conversation to test the AI protocol system"
+                  />
                 </CardContent>
               </Card>
             </div>

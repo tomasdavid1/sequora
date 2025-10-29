@@ -9,6 +9,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PatientsTable } from '@/components/patients/PatientsTable';
 import { PatientInfoModal } from '@/components/patient/PatientInfoModal';
+import { InteractionHistory } from '@/components/shared/InteractionHistory';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { 
   Users, 
   TrendingUp, 
@@ -274,77 +276,10 @@ export default function PatientsPage() {
               </DialogTitle>
             </DialogHeader>
             
-            {conversationData && conversationData.length > 0 ? (
-              <div className="space-y-4">
-                {conversationData.map((interaction: any, index: number) => (
-                  <div key={interaction.id || index} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">
-                          {interaction.episode?.condition_code || 'Unknown'}
-                        </Badge>
-                        <Badge variant="secondary">
-                          {interaction.episode?.education_level || 'Unknown'} Education
-                        </Badge>
-                        <Badge variant={interaction.status === 'completed' ? 'default' : 'secondary'}>
-                          {interaction.status}
-                        </Badge>
-                      </div>
-                      <span className="text-sm text-gray-500">
-                        {new Date(interaction.started_at).toLocaleString()}
-                      </span>
-                    </div>
-                    
-                    {interaction.messages && interaction.messages.length > 0 && (
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-sm text-gray-700">Messages:</h4>
-                        {interaction.messages.map((message: any, msgIndex: number) => (
-                          <div key={msgIndex} className="bg-gray-50 p-3 rounded">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Badge variant="outline" className="text-xs">
-                                {message.role}
-                              </Badge>
-                              <span className="text-xs text-gray-500">
-                                {new Date(message.timestamp).toLocaleTimeString()}
-                              </span>
-                            </div>
-                            <p className="text-sm">{message.content}</p>
-                            
-                            {message.tool_calls && message.tool_calls.length > 0 && (
-                              <div className="mt-2">
-                                <h5 className="text-xs font-medium text-gray-600 mb-1">Tool Calls:</h5>
-                                {message.tool_calls.map((toolCall: any, toolIndex: number) => (
-                                  <div key={toolIndex} className="bg-blue-50 p-2 rounded text-xs">
-                                    <div className="font-medium text-blue-800">{toolCall.function.name}</div>
-                                    <div className="text-blue-600">
-                                      {JSON.stringify(JSON.parse(toolCall.function.arguments), null, 2)}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    
-                    {interaction.metadata && (
-                      <div className="mt-2">
-                        <h5 className="text-xs font-medium text-gray-600 mb-1">Metadata:</h5>
-                        <pre className="text-xs bg-gray-100 p-2 rounded overflow-x-auto">
-                          {JSON.stringify(interaction.metadata, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <MessageSquare className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                <p>No conversation history found for this patient.</p>
-              </div>
-            )}
+            <InteractionHistory 
+              interactions={conversationData}
+              showEscalations={true}
+            />
           </DialogContent>
         </Dialog>
 
