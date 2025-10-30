@@ -1,17 +1,13 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { EscalationTask, Patient, Episode } from '@/types';
 
-export interface Task {
-  id: string;
-  episode_id: string;
-  severity: string;
-  priority: string;
-  status: string;
-  reason_codes: string[];
-  sla_due_at: string;
-  created_at: string;
-  patient?: any;
-  episode?: any;
-  [key: string]: any;
+// Extended task type with relations populated
+export interface TaskWithRelations extends EscalationTask {
+  patient?: Patient;
+  episode?: Episode;
+  patientName?: string;
+  condition?: string;
+  risk_level?: string;
 }
 
 interface UseTasksOptions {
@@ -27,7 +23,7 @@ export function useTasks(options: UseTasksOptions = {}) {
     status
   } = options;
 
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<TaskWithRelations[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,7 +46,7 @@ export function useTasks(options: UseTasksOptions = {}) {
       const taskList = data.tasks || [];
       
       setTasks(taskList);
-      console.log('✅ [useTasks] Loaded', taskList.length, 'tasks');
+      console.log('✅ [useTasks] Loaded', taskList.length, 'tasks from', apiEndpoint);
       
       return taskList;
     } catch (err) {
@@ -84,11 +80,11 @@ export function useTasks(options: UseTasksOptions = {}) {
   }, [fetchTasks]);
 
   // Auto-fetch on mount if enabled
-  useState(() => {
+  useEffect(() => {
     if (autoFetch) {
       fetchTasks();
     }
-  });
+  }, [autoFetch, fetchTasks]);
 
   return {
     tasks,

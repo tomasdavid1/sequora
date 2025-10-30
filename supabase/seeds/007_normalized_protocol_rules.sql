@@ -51,7 +51,7 @@ INSERT INTO public."ProtocolContentPack" (
  true),
 
 -- Generic weight concern (visible to HIGH risk only) - asks for amount
-('HF', 'HF_WEIGHT_CONCERN', 'RED_FLAG',
+('HF', 'HF_WEIGHT_CONCERN', 'CLARIFICATION',
  ARRAY['gained weight', 'weight gain', 'put on weight', 'weight up', 'weight is up'],
  'ASK_MORE',
  'LOW',
@@ -77,7 +77,7 @@ INSERT INTO public."ProtocolContentPack" (
  true),
 
 -- Low severity / Educational (visible to HIGH risk only)
-('HF', 'HF_MEDICATION_MISSED', 'RED_FLAG',
+('HF', 'HF_MEDICATION_MISSED', 'CLARIFICATION',
  ARRAY['missed medication', 'forgot pills', 'didnt take medication', 'ran out of medication', 'no refills'],
  'ASK_MORE',
  'LOW',
@@ -85,11 +85,28 @@ INSERT INTO public."ProtocolContentPack" (
  'Which medication did you miss? How many doses?',
  true),
 
+-- Vague symptoms that need clarification
+('HF', 'HF_VAGUE_DISCOMFORT', 'CLARIFICATION',
+ ARRAY['discomfort', 'off', 'tired', 'weird', 'not right', 'strange', 'uncomfortable', 'heavy', 'not feeling well'],
+ 'ASK_MORE',
+ 'LOW',
+ 'Vague symptoms reported - need specific details',
+ 'Can you tell me more specifically what you\'re experiencing? For example, are you having trouble breathing, chest pain, or swelling?',
+ true),
+
+('HF', 'HF_VAGUE_BREATHING', 'CLARIFICATION',
+ ARRAY['breathing different', 'breathing weird', 'breathing off', 'breathing not right', 'breathing strange'],
+ 'ASK_MORE',
+ 'LOW',
+ 'Vague breathing concern - need specifics',
+ 'Can you describe what\'s different about your breathing? Are you short of breath, wheezing, or having trouble catching your breath?',
+ true),
+
 -- Closures (patient doing well)
 ('HF', 'HF_DOING_WELL', 'CLOSURE',
  ARRAY['feeling good', 'doing well', 'feeling great', 'no problems', 'all good', 'fine', 'good', 'better'],
  'LOG_CHECKIN',
- NULL, -- No severity for closures
+ 'STABLE', -- STABLE severity for closures
  'Patient stable and doing well',
  NULL,
  true);
@@ -152,11 +169,28 @@ INSERT INTO public."ProtocolContentPack" (
  NULL,
  true),
 
+-- Vague symptoms that need clarification for COPD
+('COPD', 'COPD_VAGUE_BREATHING', 'CLARIFICATION',
+ ARRAY['breathing different', 'breathing weird', 'breathing off', 'breathing not right', 'breathing strange', 'breathing worse'],
+ 'ASK_MORE',
+ 'LOW',
+ 'Vague breathing concern - need specifics',
+ 'Can you describe what\'s different about your breathing? Are you more short of breath than usual, wheezing, or having trouble with activities?',
+ true),
+
+('COPD', 'COPD_VAGUE_COUGH', 'CLARIFICATION',
+ ARRAY['coughing more', 'cough different', 'cough worse', 'coughing weird', 'coughing off'],
+ 'ASK_MORE',
+ 'LOW',
+ 'Vague cough concern - need specifics',
+ 'Can you tell me more about your cough? Is it more frequent, producing more mucus, or different in any way?',
+ true),
+
 -- Closures
 ('COPD', 'COPD_DOING_WELL', 'CLOSURE',
  ARRAY['breathing good', 'breathing fine', 'feeling good', 'doing well', 'no problems', 'all good', 'fine', 'good', 'better'],
  'LOG_CHECKIN',
- NULL,
+ 'STABLE', -- STABLE severity for closures
  'Patient stable and doing well',
  NULL,
  true);
@@ -174,12 +208,13 @@ FROM public."ProtocolContentPack"
 WHERE condition_code IN ('HF', 'COPD')
 ORDER BY 
   condition_code,
+  rule_type,
   CASE severity
     WHEN 'CRITICAL' THEN 1
     WHEN 'HIGH' THEN 2
     WHEN 'MODERATE' THEN 3
     WHEN 'LOW' THEN 4
-    ELSE 5
-  END,
-  rule_type;
+    WHEN 'STABLE' THEN 5
+    ELSE 6
+  END;
 

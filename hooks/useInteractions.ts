@@ -1,17 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { AgentInteraction, AgentMessage, Patient, Episode } from '@/types';
 
-export interface Interaction {
-  id: string;
-  patient_id: string;
-  episode_id: string;
-  status: string;
-  started_at: string;
-  completed_at?: string;
-  summary?: string;
-  patient?: any;
-  episode?: any;
-  messages?: any[];
-  [key: string]: any;
+// Extended interaction type with relations populated
+export interface InteractionWithRelations extends AgentInteraction {
+  patient?: Patient;
+  episode?: Episode;
+  messages?: AgentMessage[];
 }
 
 interface UseInteractionsOptions {
@@ -25,7 +19,7 @@ export function useInteractions(options: UseInteractionsOptions = {}) {
     autoFetch = false 
   } = options;
 
-  const [interactions, setInteractions] = useState<Interaction[]>([]);
+  const [interactions, setInteractions] = useState<InteractionWithRelations[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,7 +28,7 @@ export function useInteractions(options: UseInteractionsOptions = {}) {
     setError(null);
     
     try {
-      console.log('🔄 [useInteractions] Fetching interactions...');
+      console.log('🔄 [useInteractions] Fetching from', apiEndpoint);
       const response = await fetch(apiEndpoint);
       
       if (!response.ok) {
@@ -45,7 +39,7 @@ export function useInteractions(options: UseInteractionsOptions = {}) {
       const interactionList = data.interactions || [];
       
       setInteractions(interactionList);
-      console.log('✅ [useInteractions] Loaded', interactionList.length, 'interactions');
+      console.log('✅ [useInteractions] Loaded', interactionList.length, 'interactions from', apiEndpoint);
       
       return interactionList;
     } catch (err) {
@@ -109,11 +103,11 @@ export function useInteractions(options: UseInteractionsOptions = {}) {
   }, []);
 
   // Auto-fetch on mount if enabled
-  useState(() => {
+  useEffect(() => {
     if (autoFetch) {
       fetchInteractions(true);
     }
-  });
+  }, [autoFetch, fetchInteractions]);
 
   return {
     interactions,

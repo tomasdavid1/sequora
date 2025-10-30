@@ -6,7 +6,8 @@
 -- ============================================================================
 
 -- Interaction Type (currently TEXT with CHECK constraint)
-CREATE TYPE IF NOT EXISTS "public"."interaction_type" AS ENUM (
+DO $$ BEGIN
+    CREATE TYPE "public"."interaction_type" AS ENUM (
     'VOICE_CALL',
     'SMS',
     'WHATSAPP',

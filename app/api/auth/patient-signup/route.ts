@@ -100,6 +100,22 @@ export async function POST(request: NextRequest) {
       console.log('✅ [Patient Signup] User record created/updated');
     }
 
+    // Update Patient record with auth_user_id for proper 1:1 linkage
+    const { error: patientUpdateError } = await supabase
+      .from('Patient')
+      .update({
+        auth_user_id: authUser.user?.id,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', patientId);
+
+    if (patientUpdateError) {
+      console.error('⚠️ [Patient Signup] Error linking Patient to auth_user_id:', patientUpdateError);
+      // Don't fail - trigger will sync this eventually
+    } else {
+      console.log('✅ [Patient Signup] Patient linked to auth_user_id:', authUser.user?.id);
+    }
+
     console.log('✅ [Patient Signup] Patient account created successfully');
 
     return NextResponse.json({

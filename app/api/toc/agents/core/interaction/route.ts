@@ -666,18 +666,18 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
   // Use the centralized severity filter from enums
   const severityFilter = getSeverityFilterForRiskLevel(riskLevel as RiskLevelType);
 
-  // Query red flags (now using proper columns, not JSONB!)
-  const { data: redFlagData, error: redFlagError } = await supabase
+  // Query red flags and clarifications (now using proper columns, not JSONB!)
+  const { data: ruleData, error: ruleError } = await supabase
     .from('ProtocolContentPack')
     .select('rule_code, text_patterns, action_type, severity, message, numeric_follow_up_question')
     .eq('condition_code', conditionCode)
-    .eq('rule_type', 'RED_FLAG')
+    .in('rule_type', ['RED_FLAG', 'CLARIFICATION'])
     .in('severity', severityFilter)
     .eq('active', true);
 
-  if (redFlagError) {
-    console.error('❌ [Protocol Rules] Database error fetching red flags:', redFlagError);
-    throw new Error(`Failed to load red flag rules: ${redFlagError.message}`);
+  if (ruleError) {
+    console.error('❌ [Protocol Rules] Database error fetching red flags and clarifications:', ruleError);
+    throw new Error(`Failed to load red flag and clarification rules: ${ruleError.message}`);
   }
 
   // Query closures
@@ -694,9 +694,9 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
   }
 
   // Validate we got data back
-  if (!redFlagData) {
-    console.error('❌ [Protocol Rules] Red flag query returned null');
-    throw new Error('Failed to load red flag rules - database returned no data');
+  if (!ruleData) {
+    console.error('❌ [Protocol Rules] Rule query returned null');
+    throw new Error('Failed to load rules - database returned no data');
   }
 
   if (!closureData) {
@@ -705,7 +705,7 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
   }
 
   // Transform to DSL format expected by evaluateRulesDSL
-  const redFlags = redFlagData.map(rule => {
+  const redFlags = ruleData.map(rule => {
     if (!rule.rule_code || !rule.severity || !rule.message) {
       console.error('❌ [Protocol Rules] Invalid red flag rule:', rule);
       throw new Error(`Red flag rule missing required fields: ${JSON.stringify(rule)}`);
@@ -1025,15 +1025,26 @@ async function evaluateRulesDSL(
         ? MESSAGE_GUIDANCE.MODERATE(ruleMatch.matchedPattern || '')
         : MESSAGE_GUIDANCE.LOW(ruleMatch.matchedPattern || '');
       
+      // Map action_type to decision hint action
+      let decisionAction: 'FLAG' | 'ASK_MORE';
+      if (rule.flag.action === 'HANDOFF_TO_NURSE' || rule.flag.action === 'RAISE_FLAG') {
+        decisionAction = 'FLAG';
+      } else if (rule.flag.action === 'ASK_MORE') {
+        decisionAction = 'ASK_MORE';
+      } else {
+        console.warn(`⚠️ [Rules Engine] Unknown action_type: ${rule.flag.action}, defaulting to FLAG`);
+        decisionAction = 'FLAG';
+      }
+
       return {
-        action: 'FLAG' as const,
+        action: decisionAction,
         flagType: rule.flag.type,
         severity: finalSeverity,
         reason: rule.flag.message,
         matchedPattern: ruleMatch.matchedPattern,
         ruleDescription: rule.flag.message,
         messageGuidance: messageGuidance,
-        followUp: []
+        followUp: decisionAction === 'ASK_MORE' ? [rule.flag.numeric_follow_up || 'Can you tell me more about that?'] : []
       };
     }
   }

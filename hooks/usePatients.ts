@@ -1,25 +1,26 @@
 import { useState, useEffect, useCallback } from 'react';
-
-export interface Patient {
-  id: string;
-  patientId?: string;
-  name: string;
-  first_name?: string;
-  last_name?: string;
-  email: string | null;
-  primary_phone?: string;
-  condition: string;
-  riskLevel?: string;
-  lastContact?: string;
-  daysSinceDischarge: number;
-  flags: number;
-  status: string;
-  dischargeDate?: string;
-}
+import { Patient, Episode } from '@/types';
 
 interface UsePatientsOptions {
   apiEndpoint?: string;
   autoFetch?: boolean;
+}
+
+// Extended Patient type for frontend display (combines Patient + Episode + computed fields)
+// Inherits all Patient fields from database, adds computed fields from API transformations
+export interface PatientWithEpisodeData extends Patient {
+  // Computed fields added by API endpoints (from joins and calculations)
+  name?: string; // Computed: first_name + last_name (for display)
+  condition?: string; // From joined Episode.condition_code
+  riskLevel?: string; // From joined Episode.risk_level  
+  lastContact?: string; // Computed from OutreachAttempt.completed_at
+  daysSinceDischarge?: number; // Computed from Episode.discharge_at
+  flags?: number; // Computed: COUNT of active EscalationTasks
+  status?: string; // Computed: ACTIVE | ESCALATED | COMPLETED
+  dischargeDate?: string; // From joined Episode.discharge_at
+  
+  // Alternative field naming (some APIs use this)
+  patientId?: string; // Alias for 'id'
 }
 
 export function usePatients(options: UsePatientsOptions = {}) {
@@ -28,7 +29,7 @@ export function usePatients(options: UsePatientsOptions = {}) {
     autoFetch = false 
   } = options;
 
-  const [patients, setPatients] = useState<Patient[]>([]);
+  const [patients, setPatients] = useState<PatientWithEpisodeData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,17 +38,25 @@ export function usePatients(options: UsePatientsOptions = {}) {
     setError(null);
     
     try {
-      const response = await fetch(apiEndpoint);
+      // Add cache-busting query parameter to ensure fresh data
+      const separator = apiEndpoint.includes('?') ? '&' : '?';
+      const url = `${apiEndpoint}${separator}_t=${Date.now()}`;
+      
+      const response = await fetch(url, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      });
       
       if (!response.ok) {
         throw new Error(`Failed to fetch patients: ${response.statusText}`);
       }
       
       const data = await response.json();
-      setPatients(data.patients || []);
-      
-      console.log('✅ [usePatients] Loaded', data.patients?.length || 0, 'patients');
-      return data.patients || [];
+      const patientList = data.patients || [];
+      setPatients(patientList);
+      return patientList;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load patients';
       console.error('❌ [usePatients] Error:', errorMessage);

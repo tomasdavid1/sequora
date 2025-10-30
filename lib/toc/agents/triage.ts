@@ -129,7 +129,7 @@ export class TriageAgent {
 
   // Severity helpers
   private getMaxSeverity(severities: RedFlagSeverity[]): RedFlagSeverity {
-    const order: RedFlagSeverity[] = ['CRITICAL', 'HIGH', 'MODERATE', 'LOW', 'NONE'];
+    const order: RedFlagSeverity[] = ['CRITICAL', 'HIGH', 'MODERATE', 'LOW', 'NONE', 'POSITIVE', 'STABLE'];
     for (const sev of order) {
       if (severities.includes(sev)) return sev;
     }
@@ -151,7 +151,9 @@ export class TriageAgent {
       HIGH: 120,       // 2 hours
       MODERATE: 1440,  // 24 hours
       LOW: 2880,       // 48 hours
-      NONE: 2880
+      NONE: 2880,      // 48 hours
+      POSITIVE: 0,     // No SLA needed - positive outcome
+      STABLE: 0        // No SLA needed - stable outcome
     };
 
     const minutes = slaDurations[severity];

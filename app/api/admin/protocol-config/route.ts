@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { ConditionCodeType, RiskLevelType } from '@/lib/enums';
 
+// Force dynamic rendering for this API route
 export const dynamic = 'force-dynamic';
+import { ConditionCodeType, RiskLevelType } from '@/lib/enums';
 
 // GET: List all protocol configs
 export async function GET(request: NextRequest) {

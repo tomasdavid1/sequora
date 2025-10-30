@@ -23,17 +23,41 @@ import {
   Lock,
   MessageSquare,
   BarChart3,
-  Phone
+  Phone,
+  RotateCw
 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Patient, Episode } from '@/types';
 
 export default function PatientsPage() {
   const { ProtectionWrapper } = useProtectedPage();
   const { patients, loading, error, refreshPatients } = usePatients({
-    apiEndpoint: '/api/toc/nurse/patients',
+    apiEndpoint: '/api/admin/patients',
     autoFetch: true
   });
   const analytics = usePatientAnalytics(patients);
+  
+  // Extract categorized patients from API response
+  const [allPatients, setAllPatients] = useState<any[]>([]);
+  const [pendingPatients, setPendingPatients] = useState<any[]>([]);
+  const [activatedPatients, setActivatedPatients] = useState<any[]>([]);
+  const [counts, setCounts] = useState<any>({});
+  
+  useEffect(() => {
+    if (patients && Array.isArray(patients)) {
+      // If the API returns categorized data, use it
+      if (patients.length > 0 && (patients[0] as any).hasOwnProperty('hasAccount')) {
+        setAllPatients(patients);
+        setPendingPatients(patients.filter((p: any) => !p.hasAccount && p.tocStatus === 'ACTIVE'));
+        setActivatedPatients(patients.filter((p: any) => p.hasAccount));
+      } else {
+        // Fallback to treating all as allPatients
+        setAllPatients(patients);
+        setPendingPatients([]);
+        setActivatedPatients([]);
+      }
+    }
+  }, [patients]);
   
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
   const [conversationData, setConversationData] = useState<any[]>([]);
@@ -176,23 +200,49 @@ export default function PatientsPage() {
           </Card>
         </div>
 
-        {/* Patients List */}
+        {/* Patients List with Categories */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <CardTitle>All Patients</CardTitle>
-                <Badge variant="secondary" className="text-xs">
-                  {patients.length} Total
-                </Badge>
+                <CardTitle>Patient Management</CardTitle>
+                <div className="flex gap-2">
+                  <Badge variant="secondary" className="text-xs">
+                    {allPatients.length} Total
+                  </Badge>
+                  <Badge variant="outline" className="text-xs">
+                    {pendingPatients.length} Pending
+                  </Badge>
+                  <Badge variant="default" className="text-xs">
+                    {activatedPatients.length} Activated
+                  </Badge>
+                </div>
               </div>
-              <Button 
-                size="sm"
-                onClick={refreshPatients}
-                disabled={loading}
-              >
-                {loading ? 'Loading...' : 'Refresh'}
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  size="sm"
+                  variant="secondary"
+                  onClick={async () => {
+                    await refreshPatients();
+                  }}
+                  disabled={loading}
+                  className="bg-white hover:bg-gray-50"
+                >
+                  <RotateCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                  {loading ? 'Refreshing...' : 'Refresh'}
+                </Button>
+                <Button 
+                  size="sm"
+                  onClick={() => {
+                    // Trigger add patient modal in the PatientsTable
+                    const addButton = document.querySelector('[data-add-patient-trigger]') as HTMLButtonElement;
+                    if (addButton) addButton.click();
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Add Patient
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -213,24 +263,89 @@ export default function PatientsPage() {
                 </AlertDescription>
               </Alert>
             ) : (
-              <PatientsTable 
-                patients={patients}
-                loading={loading}
-                showAddPatient={true}
-                onPatientAdded={refreshPatients}
-                onPatientClick={(patient) => {
-                  setSelectedPatient(patient);
-                  setShowPatientModal(true);
-                }}
-                onContactClick={(patient) => {
-                  setContactPatient(patient);
-                  setShowContactModal(true);
-                }}
-                onConversationClick={handlePatientClick}
-              />
+              <Tabs defaultValue="all" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="all">
+                    All Patients ({allPatients.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="pending">
+                    Pending ({pendingPatients.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="activated">
+                    Activated ({activatedPatients.length})
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="all" className="mt-4">
+                  <PatientsTable 
+                    patients={allPatients}
+                    loading={loading}
+                    showAddPatient={false}
+                    onPatientAdded={refreshPatients}
+                    onPatientClick={(patient) => {
+                      setSelectedPatient(patient);
+                      setShowPatientModal(true);
+                    }}
+                    onContactClick={(patient) => {
+                      setContactPatient(patient);
+                      setShowContactModal(true);
+                    }}
+                    onConversationClick={handlePatientClick}
+                  />
+                </TabsContent>
+                
+                <TabsContent value="pending" className="mt-4">
+                  <PatientsTable 
+                    patients={pendingPatients}
+                    loading={loading}
+                    showAddPatient={false}
+                    onPatientAdded={refreshPatients}
+                    onPatientClick={(patient) => {
+                      setSelectedPatient(patient);
+                      setShowPatientModal(true);
+                    }}
+                    onContactClick={(patient) => {
+                      setContactPatient(patient);
+                      setShowContactModal(true);
+                    }}
+                    onConversationClick={handlePatientClick}
+                  />
+                </TabsContent>
+                
+                <TabsContent value="activated" className="mt-4">
+                  <PatientsTable 
+                    patients={activatedPatients}
+                    loading={loading}
+                    showAddPatient={false}
+                    onPatientAdded={refreshPatients}
+                    onPatientClick={(patient) => {
+                      setSelectedPatient(patient);
+                      setShowPatientModal(true);
+                    }}
+                    onContactClick={(patient) => {
+                      setContactPatient(patient);
+                      setShowContactModal(true);
+                    }}
+                    onConversationClick={handlePatientClick}
+                  />
+                </TabsContent>
+              </Tabs>
             )}
           </CardContent>
         </Card>
+
+        {/* Hidden PatientsTable for Add Patient Modal */}
+        <div className="hidden">
+          <PatientsTable 
+            patients={[]}
+            loading={false}
+            showAddPatient={true}
+            onPatientAdded={refreshPatients}
+            onPatientClick={() => {}}
+            onContactClick={() => {}}
+            onConversationClick={() => {}}
+          />
+        </div>
 
         {/* Conversation Modal */}
         <Dialog open={showConversationModal} onOpenChange={setShowConversationModal}>

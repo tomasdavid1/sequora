@@ -113,7 +113,11 @@ export function PatientsTable({
         setShowAddPatientModal(false);
         setParsedData(null);
         setValidationErrors([]);
-        onPatientAdded?.();
+        
+        // Wait a moment for database to propagate, then refresh
+        setTimeout(async () => {
+          await onPatientAdded?.();
+        }, 500);
       } else {
         toast({
           title: "Error",
@@ -149,6 +153,25 @@ export function PatientsTable({
           <div className="text-xs text-gray-500 mt-1">
             {row.email || 'No email'}
           </div>
+          <div className="flex items-center gap-1 mt-1">
+            <Badge 
+              variant={row.hasAccount ? "default" : "secondary"} 
+              className="text-xs"
+            >
+              {row.accountStatus === 'ACTIVE' ? '✓ Active' : 
+               row.accountStatus === 'INACTIVE' ? '⚠ Inactive' : 
+               '✗ No Account'}
+            </Badge>
+            {row.tocStatus && (
+              <Badge 
+                variant={row.tocStatus === 'ACTIVE' ? "destructive" : 
+                        row.tocStatus === 'EXTENDED' ? "secondary" : "outline"} 
+                className="text-xs"
+              >
+                {row.tocStatus}
+              </Badge>
+            )}
+          </div>
         </div>
       )
     },
@@ -160,12 +183,15 @@ export function PatientsTable({
         { label: 'HF', value: 'HF' },
         { label: 'COPD', value: 'COPD' },
         { label: 'AMI', value: 'AMI' },
-        { label: 'PNA', value: 'PNA' }
+        { label: 'PNA', value: 'PNA' },
+        { label: 'N/A', value: 'N/A' }
       ],
       cell: (value, row) => (
         <div className="flex items-center gap-1">
           <Badge variant="outline">{value}</Badge>
-          {row.riskLevel && <Badge variant="outline" className="text-xs">{row.riskLevel}</Badge>}
+          {row.riskLevel && row.riskLevel !== 'N/A' && (
+            <Badge variant="outline" className="text-xs">{row.riskLevel}</Badge>
+          )}
         </div>
       )
     },
@@ -181,8 +207,10 @@ export function PatientsTable({
     {
       header: 'Days Since Discharge',
       accessor: 'daysSinceDischarge',
-      cell: (value) => (
-        <div className="text-sm">{value} days</div>
+      cell: (value, row) => (
+        <div className="text-sm text-gray-600">
+          {value !== null ? `${value} days` : row.tocStatus === 'NO_EPISODE' ? 'No Episode' : 'N/A'}
+        </div>
       )
     },
     {
@@ -252,7 +280,10 @@ export function PatientsTable({
       <div className="space-y-4">
         {showAddPatient && (
           <div className="flex justify-end">
-            <Button onClick={() => setShowAddPatientModal(true)}>
+            <Button 
+              onClick={() => setShowAddPatientModal(true)}
+              data-add-patient-trigger
+            >
               <UserPlus className="w-4 h-4 mr-2" />
               Add Patient
             </Button>

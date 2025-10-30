@@ -42,11 +42,13 @@ import {
   Send,
   CheckCircle, 
   Clock, 
-  User, 
+  User,
+  Users, 
   Brain,
   Zap,
   Activity,
   ChevronDown,
+  RotateCw,
   ChevronUp,
   Trash2,
   FileText,
@@ -146,17 +148,13 @@ export default function AITesterPage() {
   const [showPatientSelector, setShowPatientSelector] = useState(false);
   const [selectedPatientForChat, setSelectedPatientForChat] = useState<any>(null);
   const [availableEpisodes, setAvailableEpisodes] = useState<any[]>([]);
+  const [refreshingPatientData, setRefreshingPatientData] = useState(false);
   const [chatGroupBy, setChatGroupBy] = useState<'none' | 'condition' | 'patient' | 'risk'>('none');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const renderCountRef = React.useRef(0);
 
   // Track renders for debugging (using ref to avoid infinite loop)
   renderCountRef.current += 1;
-  console.log(`🎨 [AITester] Component render #${renderCountRef.current}`, {
-    interactionsLength: interactions.length,
-    currentInteractionId,
-    messagesLength: messages.length
-  });
 
   // Group interactions based on selected grouping
   const groupedInteractions = React.useMemo(() => {
@@ -322,11 +320,8 @@ export default function AITesterPage() {
       const episodeData = await episodeResponse.json();
       const updatedEpisode = episodeData.episode;
       
-      console.log('✅ Episode updated:', updatedEpisode);
-
       // If condition_code or risk_level changed, protocol assignment needs updating
       if (editingEpisode.condition_code || editingEpisode.risk_level) {
-        console.log('🔄 Recreating protocol assignment due to episode changes');
         
         // First, deactivate old protocol assignment
         const deactivateResponse = await fetch(`/api/admin/protocol-assignments?episodeId=${protocolProfile.episode.id}`, {
@@ -359,7 +354,6 @@ export default function AITesterPage() {
         }
         
         const assignmentData = await assignmentResponse.json();
-        console.log('✅ New protocol assignment created:', assignmentData);
       }
 
       // Update test config with the ACTUAL updated episode values from API
@@ -384,7 +378,7 @@ export default function AITesterPage() {
       try {
         await fetchProtocolProfile();
       } catch (profileError) {
-        console.log('Profile refresh skipped - will load on next message');
+        // Profile refresh skipped - will load on next message
       }
       
     } catch (error) {
@@ -408,11 +402,13 @@ export default function AITesterPage() {
     
     if (episodes.length > 0 && !testConfig.episodeId) {
       const firstEpisode = episodes[0];
+      // Find the patient for this episode
+      const episodePatient = patients.find(p => p.id === firstEpisode.patient_id);
       setTestConfig(prev => ({ 
         ...prev, 
         episodeId: firstEpisode.id,
         condition: firstEpisode.condition_code,
-        educationLevel: firstEpisode.Patient?.education_level || 'MEDIUM'
+        educationLevel: episodePatient?.education_level || 'MEDIUM'
       }));
     }
   }, [patients, episodes, testConfig.patientId, testConfig.episodeId]);
@@ -478,8 +474,7 @@ export default function AITesterPage() {
   const sendMessage = async (input: string) => {
     if (!input.trim() || loading) return;
 
-    console.log('💬 [AITester] Sending message:', input);
-    console.log('📍 [AITester] Current interaction ID:', currentInteractionId);
+    // Send message to AI agent
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -510,12 +505,10 @@ export default function AITesterPage() {
       });
 
       const result = await response.json();
-      console.log('📥 [AITester] API response:', result);
       
       // Check for tool calls and show escalation toasts
       if (result.toolResults && Array.isArray(result.toolResults)) {
         result.toolResults.forEach((toolResult: any) => {
-          console.log('🔧 [AITester] Tool called:', toolResult);
           const toolName = toolResult.tool || toolResult.name;
           
           if (toolName === 'handoff_to_nurse') {
@@ -548,7 +541,6 @@ export default function AITesterPage() {
         
         if (isTemporaryId) {
           // Replace temporary placeholder with real interaction
-          console.log('🔄 [AITester] Replacing temp ID:', currentInteractionId, '→', result.interactionId);
           setCurrentInteractionId(result.interactionId);
           
           // Update the placeholder interaction with the real ID
@@ -564,12 +556,10 @@ export default function AITesterPage() {
           }
           
           // Fetch fresh data in the background to get complete info
-          console.log('🔄 [AITester] Scheduling background refetch...');
           setTimeout(() => fetchInteractions(), 500);
           setTimeout(() => fetchInteractions(), 1500);
         } else if (!currentInteractionId) {
           // No placeholder was created (old flow for backwards compatibility)
-          console.log('🆕 [AITester] New interaction created:', result.interactionId);
           setCurrentInteractionId(result.interactionId);
           
           const tempInteraction = {
@@ -599,7 +589,6 @@ export default function AITesterPage() {
             messages: []
           } as InteractionWithRelations;
           
-          console.log('✨ [AITester] Adding optimistic interaction to sidebar');
           setInteractions(prev => [tempInteraction, ...prev]);
           
           setTimeout(() => fetchInteractions(), 500);
@@ -622,7 +611,6 @@ export default function AITesterPage() {
       };
 
       setMessages(prev => [...prev, assistantMessage]);
-      console.log('✅ [AITester] Message sent successfully');
     } catch (error) {
       console.error('❌ [AITester] Error sending message:', error);
       const errorMessage: ChatMessage = {
@@ -685,18 +673,19 @@ export default function AITesterPage() {
   };
 
   const createNewChat = async () => {
-    // Refresh patient and episode data to get latest
-    console.log('🔄 [AITester] Refreshing patient/episode data before opening selector...');
-    await Promise.all([refreshPatients(), refreshEpisodes()]);
-    console.log('✅ [AITester] Data refreshed. Patients:', patients.length, 'Episodes:', episodes.length);
-    
-    // Open patient selector
+    // Open patient selector first
     setShowPatientSelector(true);
+    setRefreshingPatientData(true);
+    
+    // Refresh data to get latest
+    try {
+      await Promise.all([refreshPatients(), refreshEpisodes()]);
+    } finally {
+      setRefreshingPatientData(false);
+    }
   };
 
   const handlePatientSelected = (patient: any) => {
-    console.log('🔍 [AITester] Patient selected:', patient);
-    console.log('🔍 [AITester] Available episodes for patient:', episodes.filter(e => e.patient_id === patient.id));
     
     setSelectedPatientForChat(patient);
     // Fetch episodes for this patient
@@ -755,7 +744,6 @@ export default function AITesterPage() {
       messages: []
     } as InteractionWithRelations;
     
-    console.log('✨ [AITester] Creating new chat with selected patient:', selectedPatientForChat.first_name);
     setCurrentInteractionId(tempId);
     setSelectedInteraction(placeholderInteraction);
     setInteractions(prev => [placeholderInteraction, ...prev]);
@@ -767,7 +755,6 @@ export default function AITesterPage() {
   };
 
   const loadConversation = (interaction: InteractionWithRelations) => {
-    console.log('📂 [AITester] Loading conversation:', interaction.id);
     setSelectedInteraction(interaction);
     setCurrentInteractionId(interaction.id); // Set the current interaction ID
     
@@ -785,7 +772,6 @@ export default function AITesterPage() {
         } as any : undefined
       }));
       setMessages(chatMessages);
-      console.log('💬 [AITester] Loaded messages:', chatMessages.length);
     }
     // Update test config based on the interaction
     if (interaction.patient && interaction.episode) {
@@ -1000,17 +986,19 @@ export default function AITesterPage() {
                       </p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 sm:flex-shrink-0">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={openPatientConfigModal}
-                        disabled={!testConfig.episodeId}
-                        className="w-full sm:w-auto"
-                      >
-                        <Settings className="w-4 h-4 mr-2" />
-                        <span className="hidden sm:inline">Patient Config</span>
-                        <span className="sm:hidden">Config</span>
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={openPatientConfigModal}
+                          disabled={!testConfig.episodeId}
+                          className="w-full sm:w-auto"
+                        >
+                          <Settings className="w-4 h-4 mr-2" />
+                          <span className="hidden sm:inline">Patient Config</span>
+                          <span className="sm:hidden">Config</span>
+                        </Button>
+                      </div>
                       <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
                         <DialogTrigger asChild>
                           <Button 
@@ -1042,9 +1030,9 @@ export default function AITesterPage() {
                                   Patient Information
                                 </h3>
                                 <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                                  <div><span className="font-medium">Name:</span> {protocolProfile.patient.first_name} {protocolProfile.patient.last_name}</div>
-                                  <div><span className="font-medium">Email:</span> {protocolProfile.patient.email}</div>
-                                  <div><span className="font-medium">DOB:</span> {protocolProfile.patient.date_of_birth ? new Date(protocolProfile.patient.date_of_birth).toLocaleDateString() : 'N/A'}</div>
+                                  <div><span className="font-medium">Name:</span> {protocolProfile.patient?.first_name} {protocolProfile.patient?.last_name}</div>
+                                  <div><span className="font-medium">Email:</span> {protocolProfile.patient?.email}</div>
+                                  <div><span className="font-medium">DOB:</span> {protocolProfile.patient?.date_of_birth ? new Date(protocolProfile.patient.date_of_birth).toLocaleDateString() : 'N/A'}</div>
                                 </div>
                               </div>
 
@@ -1094,7 +1082,7 @@ export default function AITesterPage() {
                                   <div>
                                     <Label className="text-sm font-medium mb-2 block">Education Level</Label>
                                     <Select
-                                      value={editingPatient.education_level ?? protocolProfile.patient.education_level}
+                                      value={editingPatient.education_level ?? protocolProfile.patient?.education_level}
                                       onValueChange={(value) => setEditingPatient({ ...editingPatient, education_level: value })}
                                     >
                                       <SelectTrigger>
@@ -1181,38 +1169,127 @@ export default function AITesterPage() {
           </div>
 
           {/* Patient Selector Modal */}
-          <Dialog open={showPatientSelector} onOpenChange={setShowPatientSelector}>
-            <DialogContent className="max-w-2xl">
+          <Dialog open={showPatientSelector} onOpenChange={(open) => {
+            setShowPatientSelector(open);
+            if (!open) {
+              // Reset selection when closing
+              setSelectedPatientForChat(null);
+              setAvailableEpisodes([]);
+            }
+          }}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Select Patient for New Chat</DialogTitle>
               </DialogHeader>
               
               <div className="space-y-4">
-                {!selectedPatientForChat ? (
+                {refreshingPatientData ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto mb-4"></div>
+                    <p className="text-sm text-gray-600">Loading patients and episodes...</p>
+                  </div>
+                ) : !selectedPatientForChat ? (
                   <>
-                    <p className="text-sm text-gray-600">Choose a patient to start a conversation:</p>
+                    <div className="flex items-center justify-end mb-2">
+                      <Button 
+                        variant="secondary" 
+                        size="sm"
+                        disabled={refreshingPatientData}
+                        onClick={async () => {
+                          setRefreshingPatientData(true);
+                          try {
+                            await Promise.all([refreshPatients(), refreshEpisodes()]);
+                            toast({ title: 'Data refreshed', description: `${patients.length} patients, ${episodes.length} episodes` });
+                          } finally {
+                            setRefreshingPatientData(false);
+                          }
+                        }}
+                        className="bg-white hover:bg-gray-50"
+                      >
+                        <RotateCw className={`w-4 h-4 ${refreshingPatientData ? 'animate-spin' : ''}`} />
+                      </Button>
+                    </div>
                     <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {patients.map((patient: any) => {
-                        // Get patient's episodes to show their conditions
-                        const patientEpisodes = episodes.filter(e => e.patient_id === patient.id);
-                        const conditions = [...new Set(patientEpisodes.map(ep => ep.condition_code))];
-                        const riskLevels = [...new Set(patientEpisodes.map(ep => ep.risk_level))];
-                        
-                        return (
-                          <button
-                            key={patient.id}
-                            onClick={() => handlePatientSelected(patient)}
-                            className="w-full p-4 border rounded-lg hover:bg-blue-50 hover:border-blue-300 text-left transition-colors"
-                          >
-                            <div className="font-medium">{patient.first_name} {patient.last_name}</div>
-                            <div className="text-sm text-gray-600 mt-1">
-                              {patient.email} • {conditions.length > 0 ? (
-                                <span className="font-semibold">{conditions.join(', ')}</span>
-                              ) : 'No episodes'} {riskLevels.length > 0 && `• ${riskLevels.join(', ')} Risk`}
-                            </div>
-                          </button>
-                        );
-                      })}
+                      {patients.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">
+                          <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                          <p className="mb-3">No patients available</p>
+                          <div className="flex items-center justify-center gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => window.location.href = '/dashboard/patients'}
+                            >
+                              Add Patients
+                            </Button>
+                            <Button 
+                              variant="secondary" 
+                              size="sm"
+                              disabled={refreshingPatientData}
+                              onClick={async () => {
+                                setRefreshingPatientData(true);
+                                try {
+                                  await Promise.all([refreshPatients(), refreshEpisodes()]);
+                                  toast({ title: 'Data refreshed', description: `${patients.length} patients, ${episodes.length} episodes` });
+                                } finally {
+                                  setRefreshingPatientData(false);
+                                }
+                              }}
+                              className="bg-white hover:bg-gray-50"
+                            >
+                              <RotateCw className={`w-4 h-4 ${refreshingPatientData ? 'animate-spin' : ''}`} />
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        patients.map((patient: any) => {
+                          // Get patient's episodes to show their conditions
+                          const patientEpisodes = episodes.filter(e => e.patient_id === patient.id);
+                          const conditions = [...new Set(patientEpisodes.map(ep => ep.condition_code))];
+                          const riskLevels = [...new Set(patientEpisodes.map(ep => ep.risk_level))];
+                          const hasEpisodes = patientEpisodes.length > 0;
+                          
+                          return (
+                            <button
+                              key={patient.id}
+                              onClick={() => handlePatientSelected(patient)}
+                              disabled={!hasEpisodes}
+                              className={`w-full p-4 border rounded-lg text-left transition-colors ${
+                                hasEpisodes 
+                                  ? 'hover:bg-blue-50 hover:border-blue-300 cursor-pointer' 
+                                  : 'opacity-50 cursor-not-allowed bg-gray-50'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <div className="font-medium">{patient.first_name} {patient.last_name}</div>
+                                  <div className="text-sm text-gray-600 mt-1">
+                                    {patient.email}
+                                  </div>
+                                </div>
+                                <div className="flex flex-col gap-1 items-end">
+                                  {conditions.length > 0 ? (
+                                    conditions.map(cond => (
+                                      <Badge key={cond} variant="outline" className="text-xs">
+                                        {cond}
+                                      </Badge>
+                                    ))
+                                  ) : (
+                                    <Badge variant="destructive" className="text-xs">
+                                      No Episodes
+                                    </Badge>
+                                  )}
+                                  {riskLevels.length > 0 && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {riskLevels[0]} Risk
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
                     </div>
                   </>
                 ) : (
@@ -1467,17 +1544,32 @@ export default function AITesterPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex justify-end gap-2 pt-4 border-t">
-                    <Button variant="outline" onClick={() => {
-                      setShowPatientConfigModal(false);
-                      setEditingConfig({});
-                    }}>
-                      Cancel
+                  <div className="flex justify-between items-center pt-4 border-t">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        if (protocolProfile?.protocolConfig?.id) {
+                          window.open(`/dashboard/protocol-config/${protocolProfile.protocolConfig.id}`, '_blank');
+                        }
+                      }}
+                      disabled={!protocolProfile?.protocolConfig?.id}
+                      className="flex items-center gap-2"
+                    >
+                      <Settings2 className="w-4 h-4" />
+                      Edit in Detail View
                     </Button>
-                    <Button onClick={savePatientConfig}>
-                      <Save className="w-4 h-4 mr-2" />
-                      Save & Test
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => {
+                        setShowPatientConfigModal(false);
+                        setEditingConfig({});
+                      }}>
+                        Cancel
+                      </Button>
+                      <Button onClick={savePatientConfig}>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save & Test
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}

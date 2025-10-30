@@ -12,27 +12,9 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Save, Brain, Eye } from 'lucide-react';
+import { Save, Brain, Eye, Plus, Trash2 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
-
-interface ProtocolConfig {
-  id: string;
-  condition_code: string;
-  risk_level: string;
-  critical_confidence_threshold: number;
-  low_confidence_threshold: number;
-  vague_symptoms: string[];
-  enable_sentiment_boost: boolean;
-  distressed_severity_upgrade: string;
-  route_medication_questions_to_info: boolean;
-  route_general_questions_to_info: boolean;
-  detect_multiple_symptoms: boolean;
-  system_prompt: string | null;
-  active: boolean;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-}
+import { ProtocolConfig, ProtocolContentPack } from '@/types';
 
 export default function ProtocolConfigPage() {
   const router = useRouter();
@@ -40,8 +22,6 @@ export default function ProtocolConfigPage() {
   const [configs, setConfigs] = useState<ProtocolConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [editedConfig, setEditedConfig] = useState<Partial<ProtocolConfig>>({});
-  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
-  const [selectedConfig, setSelectedConfig] = useState<ProtocolConfig | null>(null);
   
   // Define table columns
   const columns: Column<ProtocolConfig>[] = [
@@ -124,13 +104,11 @@ export default function ProtocolConfigPage() {
           size="sm"
           variant="ghost"
           onClick={() => {
-            setSelectedConfig(row);
-            setEditedConfig(row);
-            setDetailsModalOpen(true);
+            router.push(`/dashboard/protocol-config/${row.id}`);
           }}
         >
           <Eye className="w-4 h-4 mr-1" />
-          View/Edit
+          View Details
         </Button>
       )
     }
@@ -167,6 +145,7 @@ export default function ProtocolConfigPage() {
     }
   };
 
+
   const saveConfig = async (id: string) => {
     try {
       const response = await fetch(`/api/admin/protocol-config/${id}`, {
@@ -200,6 +179,7 @@ export default function ProtocolConfigPage() {
       });
     }
   };
+
 
   const getRiskBadgeVariant = (riskLevel: string) => {
     switch (riskLevel) {
@@ -308,9 +288,7 @@ export default function ProtocolConfigPage() {
                       variant="ghost"
                       className="w-full"
                       onClick={() => {
-                        setSelectedConfig(row);
-                        setEditedConfig(row);
-                        setDetailsModalOpen(true);
+                        router.push(`/dashboard/protocol-config/${row.id}`);
                       }}
                     >
                       <Eye className="w-4 h-4 mr-1" />
@@ -323,173 +301,6 @@ export default function ProtocolConfigPage() {
           </CardContent>
         </Card>
 
-        {/* Details/Edit Modal */}
-        <Dialog open={detailsModalOpen} onOpenChange={setDetailsModalOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Brain className="w-5 h-5" />
-                Protocol Configuration Details
-              </DialogTitle>
-              <DialogDescription>
-                {selectedConfig && (
-                  <span>
-                    {selectedConfig.condition_code} • {selectedConfig.risk_level} Risk
-                  </span>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-            
-            {selectedConfig && (
-              <div className="space-y-6">
-                {/* System Prompt - Most Important */}
-                <div>
-                  <Label htmlFor="system_prompt" className="text-base font-semibold flex items-center gap-2 mb-3">
-                    <Brain className="w-5 h-5" />
-                    AI System Prompt
-                  </Label>
-                  <Textarea
-                    id="system_prompt"
-                    value={editedConfig.system_prompt ?? selectedConfig.system_prompt ?? ''}
-                    onChange={(e) => setEditedConfig({ ...editedConfig, system_prompt: e.target.value })}
-                    rows={6}
-                    className="font-mono text-sm"
-                    placeholder="Enter the AI system prompt that defines personality and behavior..."
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    This prompt defines how the AI interacts with patients of this condition and risk level
-                  </p>
-                </div>
-
-                {/* Decision Thresholds */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="critical_threshold">Critical Confidence Threshold</Label>
-                    <Input
-                      id="critical_threshold"
-                      type="number"
-                      step="0.05"
-                      min="0"
-                      max="1"
-                      value={editedConfig.critical_confidence_threshold ?? selectedConfig.critical_confidence_threshold}
-                      onChange={(e) => setEditedConfig({
-                        ...editedConfig,
-                        critical_confidence_threshold: parseFloat(e.target.value)
-                      })}
-                    />
-                    <p className="text-xs text-gray-500 mt-1">AI escalates if confidence {'>'} this value</p>
-                  </div>
-                  <div>
-                    <Label htmlFor="low_threshold">Low Confidence Threshold</Label>
-                    <Input
-                      id="low_threshold"
-                      type="number"
-                      step="0.05"
-                      min="0"
-                      max="1"
-                      value={editedConfig.low_confidence_threshold ?? selectedConfig.low_confidence_threshold}
-                      onChange={(e) => setEditedConfig({
-                        ...editedConfig,
-                        low_confidence_threshold: parseFloat(e.target.value)
-                      })}
-                    />
-                    <p className="text-xs text-gray-500 mt-1">AI asks more questions if confidence {'<'} this</p>
-                  </div>
-                </div>
-
-                {/* Vague Symptoms */}
-                <div>
-                  <Label htmlFor="vague_symptoms">Vague Symptoms (comma-separated)</Label>
-                  <Input
-                    id="vague_symptoms"
-                    value={
-                      editedConfig.vague_symptoms 
-                        ? editedConfig.vague_symptoms.join(', ')
-                        : selectedConfig.vague_symptoms?.join(', ') || ''
-                    }
-                    onChange={(e) => setEditedConfig({
-                      ...editedConfig,
-                      vague_symptoms: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
-                    })}
-                    placeholder="discomfort, off, tired, weird..."
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Words that trigger clarifying questions</p>
-                </div>
-
-                {/* Sentiment Boost */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="sentiment_boost">Enable Sentiment Boost</Label>
-                      <p className="text-xs text-gray-500">Upgrade severity when patient is distressed</p>
-                    </div>
-                    <Switch
-                      id="sentiment_boost"
-                      checked={editedConfig.enable_sentiment_boost ?? selectedConfig.enable_sentiment_boost}
-                      onCheckedChange={(checked) => setEditedConfig({
-                        ...editedConfig,
-                        enable_sentiment_boost: checked
-                      })}
-                    />
-                  </div>
-                  
-                  {(editedConfig.enable_sentiment_boost ?? selectedConfig.enable_sentiment_boost) && (
-                    <div>
-                      <Label htmlFor="distressed_upgrade">Distressed Severity Upgrade</Label>
-                      <Select
-                        value={editedConfig.distressed_severity_upgrade ?? selectedConfig.distressed_severity_upgrade}
-                        onValueChange={(value) => setEditedConfig({
-                          ...editedConfig,
-                          distressed_severity_upgrade: value
-                        })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="CRITICAL">CRITICAL</SelectItem>
-                          <SelectItem value="HIGH">HIGH</SelectItem>
-                          <SelectItem value="MODERATE">MODERATE</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-gray-500 mt-1">Severity level when patient is distressed</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Notes */}
-                <div>
-                  <Label htmlFor="notes">Internal Notes</Label>
-                  <Textarea
-                    id="notes"
-                    value={editedConfig.notes ?? selectedConfig.notes ?? ''}
-                    onChange={(e) => setEditedConfig({ ...editedConfig, notes: e.target.value })}
-                    rows={3}
-                    placeholder="Internal notes about this configuration..."
-                  />
-                </div>
-
-                {/* Actions */}
-                <div className="flex justify-end gap-2 pt-4 border-t">
-                  <Button variant="outline" onClick={() => {
-                    setDetailsModalOpen(false);
-                    setEditedConfig({});
-                  }}>
-                    Cancel
-                  </Button>
-                  <Button onClick={async () => {
-                    await saveConfig(selectedConfig.id);
-                    setDetailsModalOpen(false);
-                    setEditedConfig({});
-                  }}>
-                    <Save className="w-4 h-4 mr-2" />
-                    Save Changes
-                  </Button>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
     </div>
   );
 }

@@ -1308,6 +1308,7 @@ export type Database = {
         Row: {
           address: string | null
           alt_phone: string | null
+          auth_user_id: string | null
           caregiver_name: string | null
           caregiver_phone: string | null
           caregiver_preferred_channel:
@@ -1336,6 +1337,7 @@ export type Database = {
         Insert: {
           address?: string | null
           alt_phone?: string | null
+          auth_user_id?: string | null
           caregiver_name?: string | null
           caregiver_phone?: string | null
           caregiver_preferred_channel?:
@@ -1364,6 +1366,7 @@ export type Database = {
         Update: {
           address?: string | null
           alt_phone?: string | null
+          auth_user_id?: string | null
           caregiver_name?: string | null
           caregiver_phone?: string | null
           caregiver_preferred_channel?:
@@ -1389,7 +1392,15 @@ export type Database = {
           updated_at?: string | null
           zip?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "Patient_auth_user_id_fkey"
+            columns: ["auth_user_id"]
+            isOneToOne: true
+            referencedRelation: "User"
+            referencedColumns: ["auth_user_id"]
+          },
+        ]
       }
       ProgramKPI: {
         Row: {
@@ -1896,7 +1907,14 @@ export type Database = {
         | "NO_CONTACT"
         | "DECLINED"
         | "EXCLUDED"
-      red_flag_severity: "NONE" | "LOW" | "MODERATE" | "HIGH" | "CRITICAL"
+      red_flag_severity:
+        | "NONE"
+        | "LOW"
+        | "MODERATE"
+        | "HIGH"
+        | "CRITICAL"
+        | "POSITIVE"
+        | "STABLE"
       response_type:
         | "SINGLE_CHOICE"
         | "MULTI_CHOICE"
@@ -1905,7 +1923,7 @@ export type Database = {
         | "YES_NO"
       risk_level: "LOW" | "MEDIUM" | "HIGH"
       risk_model_type: "HOSPITAL" | "LACE" | "LACE_PLUS" | "CUSTOM"
-      rule_type: "RED_FLAG" | "CLOSURE" | "QUESTION"
+      rule_type: "RED_FLAG" | "CLOSURE" | "QUESTION" | "CLARIFICATION"
       task_priority: "LOW" | "NORMAL" | "HIGH" | "URGENT"
       task_status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CANCELLED" | "EXPIRED"
       transport_status:
@@ -2118,7 +2136,15 @@ export const Constants = {
         "DECLINED",
         "EXCLUDED",
       ],
-      red_flag_severity: ["NONE", "LOW", "MODERATE", "HIGH", "CRITICAL"],
+      red_flag_severity: [
+        "NONE",
+        "LOW",
+        "MODERATE",
+        "HIGH",
+        "CRITICAL",
+        "POSITIVE",
+        "STABLE",
+      ],
       response_type: [
         "SINGLE_CHOICE",
         "MULTI_CHOICE",
@@ -2128,7 +2154,7 @@ export const Constants = {
       ],
       risk_level: ["LOW", "MEDIUM", "HIGH"],
       risk_model_type: ["HOSPITAL", "LACE", "LACE_PLUS", "CUSTOM"],
-      rule_type: ["RED_FLAG", "CLOSURE", "QUESTION"],
+      rule_type: ["RED_FLAG", "CLOSURE", "QUESTION", "CLARIFICATION"],
       task_priority: ["LOW", "NORMAL", "HIGH", "URGENT"],
       task_status: ["OPEN", "IN_PROGRESS", "RESOLVED", "CANCELLED", "EXPIRED"],
       transport_status: [

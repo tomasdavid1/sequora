@@ -1,24 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { AgentInteraction, AgentMessage, Episode } from '@/types';
 
-export interface ConversationMessage {
-  id: string;
-  role: string;
-  content: string;
-  timestamp?: string;
-  created_at?: string;
-  metadata?: any;
-}
-
-export interface Conversation {
-  id: string;
-  started_at: string;
-  status: string;
-  summary?: string;
-  episode?: {
-    condition_code?: string;
-    education_level?: string;
-  };
-  messages?: ConversationMessage[];
+// Extended conversation type (AgentInteraction with messages)
+export interface ConversationWithMessages extends AgentInteraction {
+  episode?: Episode;
+  messages?: AgentMessage[];
 }
 
 interface UseConversationsOptions {
@@ -29,7 +15,7 @@ interface UseConversationsOptions {
 export function useConversations(options: UseConversationsOptions = {}) {
   const { patientId, autoFetch = false } = options;
 
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversations, setConversations] = useState<ConversationWithMessages[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,11 +56,11 @@ export function useConversations(options: UseConversationsOptions = {}) {
   }, [patientId]);
 
   // Auto-fetch on mount if enabled and patientId provided
-  useState(() => {
+  useEffect(() => {
     if (autoFetch && patientId) {
       fetchConversations();
     }
-  });
+  }, [autoFetch, patientId, fetchConversations]);
 
   const refreshConversations = fetchConversations;
 

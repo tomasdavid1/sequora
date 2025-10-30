@@ -31,7 +31,9 @@ export const VALID_SEVERITIES: readonly SeverityType[] = [
   'LOW',
   'MODERATE',
   'HIGH',
-  'CRITICAL'
+  'CRITICAL',
+  'POSITIVE',
+  'STABLE'
 ] as const;
 
 export function isValidSeverity(value: unknown): value is SeverityType {
@@ -189,6 +191,8 @@ export function getPriorityFromSeverity(severity: SeverityType): TaskPriorityTyp
       return 'NORMAL';
     case 'LOW':
     case 'NONE':
+    case 'POSITIVE':
+    case 'STABLE':
       return 'LOW';
     default:
       // TypeScript exhaustiveness check
@@ -211,7 +215,10 @@ export function getSLAMinutesFromSeverity(severity: SeverityType): number {
     case 'LOW':
       return 480; // 8 hours
     case 'NONE':
-      return 0; // 24 hours
+      return 0; // No SLA needed
+    case 'POSITIVE':
+    case 'STABLE':
+      return 0; // No SLA needed - these are positive outcomes
     default:
       const _exhaustive: never = severity;
       throw new Error(`Unhandled severity: ${_exhaustive}`);
@@ -342,7 +349,8 @@ export type RuleTypeType = Database['public']['Enums']['rule_type'];
 export const VALID_RULE_TYPES: readonly RuleTypeType[] = [
   'RED_FLAG',
   'CLOSURE',
-  'QUESTION'
+  'QUESTION',
+  'CLARIFICATION'
 ] as const;
 
 export function isValidRuleType(value: unknown): value is RuleTypeType {

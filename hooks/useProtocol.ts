@@ -1,12 +1,20 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { 
+  ProtocolAssignment, 
+  ProtocolConfig,
+  Episode, 
+  Patient,
+  ProtocolContentPack,
+  RedFlagRule
+} from '@/types';
 
 export interface ProtocolProfile {
-  protocolAssignment: any;
-  protocolConfig: any;
-  episode: any;
-  patient?: any;
-  activeProtocolRules: any[];
-  redFlagRules: any[];
+  protocolAssignment: ProtocolAssignment;
+  protocolConfig: ProtocolConfig;
+  episode: Episode;
+  patient?: Patient;
+  activeProtocolRules: ProtocolContentPack[]; // Protocol rules from ProtocolContentPack table
+  redFlagRules: RedFlagRule[];
   checkInFrequency: number;
 }
 
@@ -161,11 +169,11 @@ export function useProtocol(options: UseProtocolOptions = {}) {
   }, []);
 
   // Auto-fetch on mount if enabled
-  useState(() => {
+  useEffect(() => {
     if (autoFetch && episodeId) {
       fetchProtocolProfile();
     }
-  });
+  }, [autoFetch, episodeId, fetchProtocolProfile]);
 
   return {
     protocolProfile,

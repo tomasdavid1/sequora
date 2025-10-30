@@ -49,6 +49,16 @@ export type ProtocolAssignment = Database['public']['Tables']['ProtocolAssignmen
 export type ProtocolAssignmentInsert = Database['public']['Tables']['ProtocolAssignment']['Insert'];
 export type ProtocolAssignmentUpdate = Database['public']['Tables']['ProtocolAssignment']['Update'];
 
+// Protocol configuration (DB-backed)
+export type ProtocolConfig = Database['public']['Tables']['ProtocolConfig']['Row'];
+export type ProtocolConfigInsert = Database['public']['Tables']['ProtocolConfig']['Insert'];
+export type ProtocolConfigUpdate = Database['public']['Tables']['ProtocolConfig']['Update'];
+
+// Protocol content pack (rules/patterns)
+export type ProtocolContentPack = Database['public']['Tables']['ProtocolContentPack']['Row'];
+export type ProtocolContentPackInsert = Database['public']['Tables']['ProtocolContentPack']['Insert'];
+export type ProtocolContentPackUpdate = Database['public']['Tables']['ProtocolContentPack']['Update'];
+
 export type RedFlagRule = Database['public']['Tables']['RedFlagRule']['Row'];
 export type RedFlagRuleInsert = Database['public']['Tables']['RedFlagRule']['Insert'];
 export type RedFlagRuleUpdate = Database['public']['Tables']['RedFlagRule']['Update'];

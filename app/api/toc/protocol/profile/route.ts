@@ -73,10 +73,10 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching red flag rules:', rulesError);
     }
 
-    // Query active protocol rules from ProtocolContentPack
+    // Query active protocol rules from ProtocolContentPack - return full objects
     const { data: activeRules, error: activeRulesError } = await supabase
       .from('ProtocolContentPack')
-      .select('rule_code, rule_type, text_patterns, action_type, severity, message')
+      .select('*')
       .eq('condition_code', protocol.Episode.condition_code as ConditionCodeType)
       .in('severity', severityFilter)
       .eq('active', true);
@@ -98,29 +98,17 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching protocol config:', configError);
     }
 
-    // Build profile response
+    // Build profile response - match ProtocolProfile interface
     const profile = {
-      patient: protocol.Episode.Patient,
+      protocolAssignment: protocol, // Full ProtocolAssignment object
+      protocolConfig: protocolConfig,
       episode: {
         id: protocol.Episode.id,
         condition_code: protocol.Episode.condition_code,
         risk_level: protocol.Episode.risk_level
       },
-      protocol: {
-        id: protocol.id,
-        condition_code: protocol.condition_code,
-        risk_level: protocol.risk_level,
-        assigned_at: protocol.assigned_at
-      },
-      protocolConfig: protocolConfig,
-      activeProtocolRules: (activeRules || []).map(rule => ({
-        rule_code: rule.rule_code,
-        rule_type: rule.rule_type,
-        text_patterns: rule.text_patterns,
-        action_type: rule.action_type,
-        severity: rule.severity,
-        message: rule.message
-      })),
+      patient: protocol.Episode.Patient,
+      activeProtocolRules: activeRules || [], 
       redFlagRules: redFlagRules || [],
       checkInFrequency: riskLevel === 'HIGH' ? 12 : riskLevel === 'MEDIUM' ? 24 : 48
     };

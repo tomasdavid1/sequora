@@ -1,15 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-
-export interface Episode {
-  id: string;
-  patient_id: string;
-  condition_code: string;
-  risk_level: string;
-  discharge_at: string;
-  education_level?: string;
-  medications?: any[];
-  [key: string]: any;
-}
+import { Episode } from '@/types';
 
 interface UseEpisodesOptions {
   apiEndpoint?: string;
@@ -45,10 +35,7 @@ export function useEpisodes(options: UseEpisodesOptions = {}) {
       
       const data = await response.json();
       const episodeList = data.episodes || [];
-      
       setEpisodes(episodeList);
-      console.log('✅ [useEpisodes] Loaded', episodeList.length, 'episodes');
-      
       return episodeList;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load episodes';
