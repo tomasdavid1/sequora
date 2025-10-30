@@ -55,7 +55,7 @@ export function useProtocolConfig(options: UseProtocolConfigOptions = {}): UsePr
     if (!config) return;
     
     try {
-      const response = await fetch(`/api/admin/protocol-content-pack?condition_code=${config.condition_code}`);
+      const response = await fetch(`/api/admin/protocol-rules`);
       const data = await response.json();
 
       if (data.rules) {
@@ -125,7 +125,7 @@ export function useProtocolConfig(options: UseProtocolConfigOptions = {}): UsePr
           : (rule.text_patterns as string || '').split(',').map(s => s.trim()).filter(Boolean)
       };
 
-      const response = await fetch('/api/admin/protocol-content-pack', {
+      const response = await fetch('/api/admin/protocol-rules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(ruleData)
@@ -150,7 +150,7 @@ export function useProtocolConfig(options: UseProtocolConfigOptions = {}): UsePr
 
   const deleteRule = useCallback(async (ruleId: string): Promise<boolean> => {
     try {
-      const response = await fetch(`/api/admin/protocol-content-pack?id=${ruleId}`, {
+      const response = await fetch(`/api/admin/protocol-rules/${ruleId}`, {
         method: 'DELETE'
       });
 
