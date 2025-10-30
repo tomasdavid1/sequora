@@ -6,6 +6,9 @@ export async function POST(request: NextRequest) {
   try {
     const { email, password, patientId } = await request.json();
 
+    console.log('🔐 [Patient Signup] Starting signup for:', email);
+    console.log('🔐 [Patient Signup] Password length:', password?.length);
+
     if (!email || !password || !patientId) {
       return NextResponse.json(
         { error: 'Email, password, and patient ID are required' },
@@ -32,6 +35,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create auth user
+    console.log('🔐 [Patient Signup] Creating auth user...');
     const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
       email: email.toLowerCase(),
       password: password,
@@ -43,6 +47,15 @@ export async function POST(request: NextRequest) {
         role: 'PATIENT'
       }
     });
+
+    if (authUser?.user) {
+      console.log('✅ [Patient Signup] Auth user created successfully:', {
+        id: authUser.user.id,
+        email: authUser.user.email,
+        email_confirmed_at: authUser.user.email_confirmed_at,
+        confirmed_at: authUser.user.confirmed_at
+      });
+    }
 
     if (authError) {
       console.error('Error creating auth user:', authError);

@@ -225,14 +225,18 @@ export default function ProtocolConfigPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-4 md:p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Protocol Configuration</h1>
-          <p className="text-gray-600">AI decision parameters for each condition + risk level</p>
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold">Protocol Configuration</h1>
+          <p className="text-sm sm:text-base text-gray-600">AI decision parameters for each condition + risk level</p>
         </div>
-        <Button variant="outline" onClick={() => router.back()}>
+        <Button 
+          variant="outline" 
+          onClick={() => router.back()}
+          className="w-full sm:w-auto sm:flex-shrink-0"
+        >
           ← Back
         </Button>
       </div>
@@ -255,6 +259,66 @@ export default function ProtocolConfigPage() {
               searchable={true}
               searchPlaceholder="Search by condition, risk level, notes..."
               searchKeys={['condition_code', 'risk_level', 'notes', 'system_prompt']}
+              mobileCardView={true}
+              renderMobileCard={(row) => (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex gap-2">
+                      <Badge>{row.condition_code}</Badge>
+                      <Badge variant={
+                        row.risk_level === 'HIGH' ? 'destructive' : 
+                        row.risk_level === 'MEDIUM' ? 'default' : 
+                        'outline'
+                      }>
+                        {row.risk_level}
+                      </Badge>
+                    </div>
+                    <Badge variant={row.active ? 'default' : 'destructive'}>
+                      {row.active ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-xs text-gray-500">Critical Threshold:</span>
+                      <div className={getThresholdColor(row.critical_confidence_threshold)}>
+                        {(row.critical_confidence_threshold * 100).toFixed(0)}%
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-500">Low Threshold:</span>
+                      <div className={getThresholdColor(row.low_confidence_threshold, true)}>
+                        {(row.low_confidence_threshold * 100).toFixed(0)}%
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {row.enable_sentiment_boost && (
+                    <div className="text-xs">
+                      <span className="text-gray-500">Sentiment:</span>{' '}
+                      <Badge variant="outline" className="text-emerald-600">
+                        {row.distressed_severity_upgrade}
+                      </Badge>
+                    </div>
+                  )}
+                  
+                  <div className="pt-2 border-t">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="w-full"
+                      onClick={() => {
+                        setSelectedConfig(row);
+                        setEditedConfig(row);
+                        setDetailsModalOpen(true);
+                      }}
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      View/Edit
+                    </Button>
+                  </div>
+                </div>
+              )}
             />
           </CardContent>
         </Card>

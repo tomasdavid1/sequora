@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Mail, Loader2, Info } from 'lucide-react';
+import { Heart, Loader2, Info } from 'lucide-react';
 import {
   HoverCard,
   HoverCardContent,
@@ -64,22 +64,27 @@ export function EmailStep({ onEmailVerified }: EmailStepProps) {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-xl font-semibold mb-1">Welcome!</h2>
-        <p className="text-sm text-gray-600">
-          First, let's check your records
-        </p>
+    <div className="space-y-8">
+      <div className="text-center space-y-3">
+        <div className="mx-auto w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
+          <Heart className="w-6 h-6 text-emerald-600" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 mb-1">Sequora</h2>
+          <p className="text-sm text-gray-600">
+            First, let's check your records
+          </p>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <div className="flex items-center gap-1 mb-1">
-            <Label htmlFor="email">Email Address</Label>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="email" className="text-base">Email Address</Label>
             <HoverCard>
               <HoverCardTrigger asChild>
                 <button type="button" className="inline-flex items-center">
-                  <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600" />
+                  <Info className="w-4 h-4 text-gray-400 hover:text-gray-600" />
                 </button>
               </HoverCardTrigger>
               <HoverCardContent className="w-64 text-sm">
@@ -97,6 +102,7 @@ export function EmailStep({ onEmailVerified }: EmailStepProps) {
             onChange={(e) => setEmail(e.target.value)}
             disabled={loading}
             autoFocus
+            className="h-11"
           />
         </div>
 
@@ -108,7 +114,7 @@ export function EmailStep({ onEmailVerified }: EmailStepProps) {
 
         <Button 
           type="submit" 
-          className="w-full" 
+          className="w-full h-11" 
           disabled={loading}
         >
           {loading ? (
@@ -122,7 +128,7 @@ export function EmailStep({ onEmailVerified }: EmailStepProps) {
         </Button>
       </form>
 
-      <div className="text-center text-sm text-gray-500">
+      <div className="text-center text-sm text-gray-500 pt-2">
         Already have an account?{' '}
         <a href="/login" className="text-emerald-600 hover:underline">
           Sign in

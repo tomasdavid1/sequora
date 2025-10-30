@@ -85,14 +85,18 @@ export default function LoginPage() {
     setError('');
 
     try {
+      console.log('🔐 [Login] Attempting login with email:', email);
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
+        console.error('🔐 [Login] Error:', error);
         setError(error.message);
       } else {
+        console.log('✅ [Login] Success:', { userId: data.user?.id, email: data.user?.email });
         // Get user role from User table after successful login
         const { data: userData, error: userError } = await supabase
           .from('User')

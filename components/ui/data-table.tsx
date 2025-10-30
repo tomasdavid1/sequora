@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Search, Filter, X } from 'lucide-react';
 
 export interface Column<T> {
@@ -118,10 +119,64 @@ export function DataTable<T extends Record<string, any>>({
   }, [data, searchTerm, columnFilters, searchable, searchKeys, columns, hasActiveFilters]);
 
   if (loading) {
+    // Show skeleton loaders for both desktop and mobile views
     return (
-      <div className="text-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500 mx-auto"></div>
-        <p className="mt-2 text-sm text-gray-600">Loading...</p>
+      <div className="space-y-3">
+        {/* Search skeleton */}
+        {searchable && (
+          <Skeleton className="h-10 w-full" />
+        )}
+        
+        {/* Desktop table skeleton */}
+        <div className={cn("border rounded-lg overflow-hidden", mobileCardView && "hidden md:block")}>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  {columns.map((column, index) => (
+                    <th
+                      key={index}
+                      className={cn(
+                        'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider',
+                        column.headerClassName
+                      )}
+                    >
+                      {column.header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {[...Array(5)].map((_, rowIndex) => (
+                  <tr key={rowIndex}>
+                    {columns.map((column, colIndex) => (
+                      <td key={colIndex} className={cn('px-4 py-3', column.className)}>
+                        <Skeleton className="h-5 w-full" />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Mobile card skeleton */}
+        {mobileCardView && (
+          <div className="md:hidden space-y-3">
+            {[...Array(3)].map((_, index) => (
+              <div key={index} className="border rounded-lg p-4 space-y-3">
+                <Skeleton className="h-6 w-3/4" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-2/3" />
+                <div className="flex gap-2 pt-2">
+                  <Skeleton className="h-8 flex-1" />
+                  <Skeleton className="h-8 flex-1" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }

@@ -176,18 +176,25 @@ export default function AuditLogPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-4 md:p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Audit Log</h1>
-          <p className="text-gray-600">View all interactions with protocol snapshots</p>
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold">Audit Log</h1>
+          <p className="text-sm sm:text-base text-gray-600">View all interactions with protocol snapshots</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => window.location.href = '/dashboard'}>
+        <div className="flex flex-col sm:flex-row gap-2 sm:flex-shrink-0">
+          <Button 
+            variant="outline" 
+            onClick={() => window.location.href = '/dashboard'}
+            className="w-full sm:w-auto"
+          >
             Back to Dashboard
           </Button>
-          <Button onClick={fetchAuditLog}>
+          <Button 
+            onClick={fetchAuditLog}
+            className="w-full sm:w-auto"
+          >
             Refresh
           </Button>
         </div>
@@ -208,6 +215,53 @@ export default function AuditLogPage() {
             searchPlaceholder="Search by patient, condition, summary..."
             searchKeys={['patient_name', 'condition_code', 'summary', 'status']}
             hoverable={true}
+            mobileCardView={true}
+            renderMobileCard={(row) => (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-sm">{row.patient_name}</div>
+                    <div className="text-xs text-gray-500">
+                      {new Date(row.started_at).toLocaleString()}
+                    </div>
+                  </div>
+                  <Badge variant={
+                    row.status === 'ESCALATED' ? 'destructive' : 
+                    row.status === 'COMPLETED' ? 'default' : 
+                    'outline'
+                  }>
+                    {row.status}
+                  </Badge>
+                </div>
+                
+                <div className="flex gap-2">
+                  <Badge variant="outline" className="text-xs">{row.condition_code}</Badge>
+                  <Badge variant="outline" className="text-xs">{row.risk_level}</Badge>
+                </div>
+                
+                {row.summary && (
+                  <div className="text-sm text-gray-700 line-clamp-2">
+                    {row.summary}
+                  </div>
+                )}
+                
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>{row.message_count || 0} messages</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedEntry(row);
+                      setShowDetailsModal(true);
+                    }}
+                  >
+                    <FileText className="w-4 h-4 mr-1" />
+                    View
+                  </Button>
+                </div>
+              </div>
+            )}
           />
         </CardContent>
       </Card>

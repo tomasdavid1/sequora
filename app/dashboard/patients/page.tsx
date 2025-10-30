@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import { useProtectedPage } from '@/hooks/useProtectedPage';
+import { usePatients } from '@/hooks/usePatients';
+import { usePatientAnalytics } from '@/hooks/usePatientAnalytics';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +13,7 @@ import { PatientsTable } from '@/components/patients/PatientsTable';
 import { PatientInfoModal } from '@/components/patient/PatientInfoModal';
 import { InteractionHistory } from '@/components/shared/InteractionHistory';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { Skeleton } from '@/components/ui/skeleton';
 import { 
   Users, 
   TrendingUp, 
@@ -25,50 +28,19 @@ import {
 import { Patient, Episode } from '@/types';
 
 export default function PatientsPage() {
-  const { user, loading: authLoading } = useAuth();
-  const [patients, setPatients] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { ProtectionWrapper } = useProtectedPage();
+  const { patients, loading, error, refreshPatients } = usePatients({
+    apiEndpoint: '/api/toc/nurse/patients',
+    autoFetch: true
+  });
+  const analytics = usePatientAnalytics(patients);
+  
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
   const [conversationData, setConversationData] = useState<any[]>([]);
   const [showConversationModal, setShowConversationModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [contactPatient, setContactPatient] = useState<any>(null);
   const [showPatientModal, setShowPatientModal] = useState(false);
-
-  useEffect(() => {
-    fetchPatients();
-  }, []);
-
-  const fetchPatients = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await fetch('/api/toc/nurse/patients');
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('❌ Failed to fetch patients:', response.status, errorData);
-        setError(errorData.error || `API returned status ${response.status}`);
-        return;
-      }
-      
-      const data = await response.json();
-      
-      if (!data.patients) {
-        console.error('❌ Patients API returned no data:', data);
-        setError('Invalid response from server - missing patients data');
-        return;
-      }
-      
-      setPatients(data.patients);
-    } catch (error) {
-      console.error('❌ [PatientsPage] Error fetching patients:', error);
-      setError(error instanceof Error ? error.message : 'Failed to fetch patients');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchConversationData = async (patientId: string) => {
     try {
@@ -89,54 +61,12 @@ export default function PatientsPage() {
     await fetchConversationData(patient.id);
   };
 
-  if (authLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+  // Show loading or unauthorized screen if needed
+  if (ProtectionWrapper) {
+    return ProtectionWrapper;
   }
 
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Alert className="max-w-md">
-          <Lock className="h-4 w-4" />
-          <AlertDescription>
-            Please log in to access the patients page.
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
-  // Calculate analytics (only if patients loaded successfully)
-  const activePatients = patients.filter(p => {
-    if (!p.dischargeDate) {
-      console.error(`❌ Patient ${p.id} missing dischargeDate`);
-      return false;
-    }
-    const daysSince = Math.floor((Date.now() - new Date(p.dischargeDate).getTime()) / (1000 * 60 * 60 * 24));
-    return daysSince <= 30;
-  });
-  
-  const patientsWithFlags = patients.filter(p => {
-    if (p.flags === undefined || p.flags === null) {
-      console.error(`❌ Patient ${p.id} missing flags count`);
-      return false;
-    }
-    return p.flags > 0;
-  });
-  
-  const avgDaysSinceDischarge = patients.length > 0
-    ? Math.round(patients.reduce((sum, p) => {
-        if (p.daysSinceDischarge === undefined || p.daysSinceDischarge === null) {
-          console.error(`❌ Patient ${p.id} missing daysSinceDischarge`);
-          return sum;
-        }
-        return sum + p.daysSinceDischarge;
-      }, 0) / patients.length)
-    : 0;
+  // Analytics calculated by usePatientAnalytics hook
 
   return (
       <div className="container mx-auto p-4 md:p-6 space-y-6">
@@ -163,10 +93,19 @@ export default function PatientsPage() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{patients.length}</div>
-              <p className="text-xs text-muted-foreground">
-                {activePatients.length} active in 30-day window
-              </p>
+              {loading ? (
+                <>
+                  <Skeleton className="h-8 w-16 mb-1" />
+                  <Skeleton className="h-4 w-40" />
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">{analytics.total}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {analytics.active} active in 30-day window
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -176,10 +115,19 @@ export default function PatientsPage() {
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{activePatients.length}</div>
-              <p className="text-xs text-muted-foreground">
-                Within 30-day TOC window
-              </p>
+              {loading ? (
+                <>
+                  <Skeleton className="h-8 w-16 mb-1" />
+                  <Skeleton className="h-4 w-36" />
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">{analytics.active}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Within 30-day TOC window
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -189,10 +137,19 @@ export default function PatientsPage() {
               <AlertTriangle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{patientsWithFlags.length}</div>
-              <p className="text-xs text-muted-foreground">
-                Require attention
-              </p>
+              {loading ? (
+                <>
+                  <Skeleton className="h-8 w-16 mb-1" />
+                  <Skeleton className="h-4 w-28" />
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-orange-600">{analytics.withFlags}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Require attention
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -202,10 +159,19 @@ export default function PatientsPage() {
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{avgDaysSinceDischarge}</div>
-              <p className="text-xs text-muted-foreground">
-                Across all patients
-              </p>
+              {loading ? (
+                <>
+                  <Skeleton className="h-8 w-16 mb-1" />
+                  <Skeleton className="h-4 w-32" />
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">{analytics.avgDaysSinceDischarge}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Across all patients
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -222,7 +188,7 @@ export default function PatientsPage() {
               </div>
               <Button 
                 size="sm"
-                onClick={fetchPatients}
+                onClick={refreshPatients}
                 disabled={loading}
               >
                 {loading ? 'Loading...' : 'Refresh'}
@@ -240,23 +206,18 @@ export default function PatientsPage() {
                     variant="outline" 
                     size="sm" 
                     className="mt-3"
-                    onClick={fetchPatients}
+                    onClick={refreshPatients}
                   >
                     Retry
                   </Button>
                 </AlertDescription>
               </Alert>
-            ) : loading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-2 text-gray-600">Loading patients...</p>
-              </div>
             ) : (
               <PatientsTable 
                 patients={patients}
                 loading={loading}
                 showAddPatient={true}
-                onPatientAdded={fetchPatients}
+                onPatientAdded={refreshPatients}
                 onPatientClick={(patient) => {
                   setSelectedPatient(patient);
                   setShowPatientModal(true);

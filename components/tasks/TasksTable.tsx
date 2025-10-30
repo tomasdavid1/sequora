@@ -218,6 +218,7 @@ export function TasksTable({
         searchable={true}
         searchPlaceholder="Search tasks..."
         searchKeys={['patientName', 'reason_codes', 'severity', 'condition']}
+        mobileCardView={true}
         getRowClassName={(row) => {
           const isOverdue = new Date(row.sla_due_at) < new Date() && row.status === 'OPEN';
           const isCritical = row.severity === 'CRITICAL';
@@ -227,6 +228,107 @@ export function TasksTable({
           if (row.severity === 'HIGH') return 'bg-yellow-50 border-l-4 border-yellow-400';
           
           return '';
+        }}
+        renderMobileCard={(row) => {
+          const isOverdue = new Date(row.sla_due_at) < new Date() && row.status === 'OPEN';
+          const timeToBreachMins = Math.floor((new Date(row.sla_due_at).getTime() - Date.now()) / (1000 * 60));
+          
+          return (
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onPatientClick?.(row.patient);
+                    }}
+                    className="font-medium text-base text-blue-600 hover:underline text-left"
+                  >
+                    {row.patientName}
+                  </button>
+                  <div className="flex items-center gap-1 mt-1 flex-wrap">
+                    <Badge variant="outline" className="text-xs">{row.condition}</Badge>
+                    {row.risk_level && <Badge variant="outline" className="text-xs">{row.risk_level}</Badge>}
+                  </div>
+                </div>
+                <div className="flex gap-1 flex-shrink-0">
+                  <Badge variant={
+                    row.severity === 'CRITICAL' ? 'destructive' : 
+                    row.severity === 'HIGH' ? 'default' : 
+                    'outline'
+                  }>
+                    {row.severity}
+                  </Badge>
+                  <Badge variant={
+                    row.status === 'OPEN' ? 'destructive' : 
+                    row.status === 'IN_PROGRESS' ? 'default' : 
+                    'outline'
+                  }>
+                    {row.status}
+                  </Badge>
+                </div>
+              </div>
+              
+              <div>
+                <span className="text-xs text-gray-500">Reason:</span>
+                <div className="text-sm text-gray-800 mt-1">{row.reason_codes?.join(', ')}</div>
+              </div>
+              
+              <div className="flex items-center justify-between text-sm">
+                <div className={`font-medium ${isOverdue ? 'text-red-600' : 'text-gray-700'}`}>
+                  {isOverdue 
+                    ? `⚠️ Overdue ${Math.abs(timeToBreachMins)}m`
+                    : timeToBreachMins < 60
+                    ? `Due in ${timeToBreachMins}m`
+                    : `Due in ${Math.round(timeToBreachMins / 60)}h`}
+                </div>
+              </div>
+              
+              <div className="flex gap-2 pt-2 border-t">
+                {row.agent_interaction_id && (
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="flex-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onConversationClick?.(row.agent_interaction_id);
+                    }}
+                  >
+                    <MessageSquare className="w-4 h-4 mr-1" />
+                    Chat
+                  </Button>
+                )}
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  className="flex-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedTask(row);
+                    setShowFlagDetailsModal(true);
+                  }}
+                >
+                  <FileText className="w-4 h-4 mr-1" />
+                  Details
+                </Button>
+                {row.status === 'OPEN' && (
+                  <Button 
+                    size="sm" 
+                    variant={isOverdue ? "destructive" : "default"}
+                    className={`flex-1 ${isOverdue ? "animate-pulse" : ""}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedTask(row);
+                      setShowResolveModal(true);
+                    }}
+                  >
+                    {isOverdue ? '🚨 ACTION' : 'Resolve'}
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
         }}
       />
 

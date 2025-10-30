@@ -3,6 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { usePatients } from '@/hooks/usePatients';
+import { useEpisodes } from '@/hooks/useEpisodes';
+import { useInteractions } from '@/hooks/useInteractions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConversationView } from '@/components/shared/ConversationView';
 import { getSeverityColor } from '@/lib/ui-helpers';
@@ -856,19 +859,26 @@ export default function AITesterPage() {
   };
 
   return (
-      <div className="container mx-auto p-6">
+      <div className="container mx-auto p-4 md:p-6">
         <div className="space-y-6">
           {/* Header - Same as AdminDashboard */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold">AI Protocol Tester</h1>
-              <p className="text-gray-600">Test AI interactions and protocol responses</p>
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-bold">AI Protocol Tester</h1>
+              <p className="text-sm sm:text-base text-gray-600">Test AI interactions and protocol responses</p>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => window.location.href = '/dashboard'}>
+            <div className="flex flex-col sm:flex-row gap-2 sm:flex-shrink-0">
+              <Button 
+                variant="outline" 
+                onClick={() => window.location.href = '/dashboard'}
+                className="w-full sm:w-auto"
+              >
                 Back to Dashboard
               </Button>
-              <Button onClick={createNewChat}>
+              <Button 
+                onClick={createNewChat}
+                className="w-full sm:w-auto"
+              >
                 <Plus className="w-4 h-4 mr-2" />
                 New Chat
               </Button>
@@ -1002,21 +1012,23 @@ export default function AITesterPage() {
             <div className="lg:col-span-2">
               <Card className="h-[600px] flex flex-col">
                 <CardHeader className="flex-shrink-0">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        {selectedInteraction ? 
-                          (selectedInteraction.id.startsWith('temp-') 
-                            ? 'New Chat'
-                            : selectedInteraction.patient 
-                              ? `${selectedInteraction.patient.first_name} ${selectedInteraction.patient.last_name}` 
-                              : 'Unknown Patient') : 
-                          'New Chat'}
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:justify-between">
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="flex items-center gap-2 flex-wrap">
+                        <span className="truncate">
+                          {selectedInteraction ? 
+                            (selectedInteraction.id.startsWith('temp-') 
+                              ? 'New Chat'
+                              : selectedInteraction.patient 
+                                ? `${selectedInteraction.patient.first_name} ${selectedInteraction.patient.last_name}` 
+                                : 'Unknown Patient') : 
+                            'New Chat'}
+                        </span>
                         {selectedInteraction?.id.startsWith('temp-') && (
-                          <Badge className="text-xs bg-green-100 text-green-700">New</Badge>
+                          <Badge className="text-xs bg-green-100 text-green-700 flex-shrink-0">New</Badge>
                         )}
                       </CardTitle>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-xs sm:text-sm text-gray-600 mt-1">
                         {testConfig.condition} • {testConfig.educationLevel}
                         {selectedInteraction && !selectedInteraction.id.startsWith('temp-') && (
                           <span className="ml-2 text-xs text-gray-500">
@@ -1025,15 +1037,17 @@ export default function AITesterPage() {
                         )}
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2 sm:flex-shrink-0">
                       <Button 
                         variant="outline" 
                         size="sm"
                         onClick={openPatientConfigModal}
                         disabled={!testConfig.episodeId}
+                        className="w-full sm:w-auto"
                       >
                         <Settings className="w-4 h-4 mr-2" />
-                        Patient Config
+                        <span className="hidden sm:inline">Patient Config</span>
+                        <span className="sm:hidden">Config</span>
                       </Button>
                       <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
                         <DialogTrigger asChild>
@@ -1042,6 +1056,7 @@ export default function AITesterPage() {
                             size="sm"
                             onClick={fetchProtocolProfile}
                             disabled={!testConfig.episodeId}
+                            className="w-full sm:w-auto"
                           >
                             <FileText className="w-4 h-4 mr-2" />
                             Profile

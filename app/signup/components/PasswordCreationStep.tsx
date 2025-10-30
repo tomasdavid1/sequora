@@ -71,7 +71,7 @@ export function PasswordCreationStep({
       if (result.success) {
         onComplete();
       } else {
-        setError(result.error || 'Failed to create account. Please try again.');
+        setError(result.error || 'Failed to set up your account. Please try again.');
       }
     } catch (err) {
       console.error('Signup error:', err);
@@ -82,37 +82,34 @@ export function PasswordCreationStep({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <Button
         variant="ghost"
         size="sm"
         onClick={onBack}
-        className="mb-4"
+        className="-ml-2"
       >
         <ChevronLeft className="w-4 h-4 mr-1" />
         Back
       </Button>
 
-      <div className="text-center">
-        <div className="mx-auto w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
+      <div className="text-center space-y-3">
+        <div className="mx-auto w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
           <Lock className="w-6 h-6 text-emerald-600" />
         </div>
-        <h2 className="text-2xl font-bold mb-2">
-          Hello, {patientData.first_name}! 👋
-        </h2>
-        <p className="text-gray-600">
-          Create a secure password for your account
-        </p>
-      </div>
-
-      <div className="bg-gray-50 rounded-lg p-4">
-        <p className="text-sm text-gray-600 mb-1">Account for</p>
-        <p className="font-medium">{email}</p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <Label htmlFor="password">Password</Label>
+          <h2 className="text-xl font-semibold mb-1">
+            Hello, {patientData.first_name}!
+          </h2>
+          <p className="text-sm text-gray-600">
+            Set your password
+          </p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-2">
+          <Label htmlFor="password" className="text-base">Password</Label>
           <Input
             id="password"
             type="password"
@@ -120,13 +117,13 @@ export function PasswordCreationStep({
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             disabled={loading}
-            className="mt-1"
+            className="h-11"
             autoFocus
           />
         </div>
 
-        <div>
-          <Label htmlFor="confirmPassword">Confirm Password</Label>
+        <div className="space-y-2">
+          <Label htmlFor="confirmPassword" className="text-base">Confirm Password</Label>
           <Input
             id="confirmPassword"
             type="password"
@@ -134,33 +131,33 @@ export function PasswordCreationStep({
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             disabled={loading}
-            className="mt-1"
+            className="h-11"
           />
         </div>
 
         {/* Password Requirements */}
-        <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-          <p className="text-sm font-medium text-gray-700 mb-2">Password must:</p>
+        <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+          <p className="text-xs font-medium text-gray-700 mb-1">Password must:</p>
           <div className="space-y-1">
-            <div className="flex items-center gap-2 text-sm">
+            <div className="flex items-center gap-2 text-xs">
               <CheckCircle 
-                className={`w-4 h-4 ${passwordRequirements.minLength ? 'text-green-600' : 'text-gray-400'}`}
+                className={`w-3.5 h-3.5 ${passwordRequirements.minLength ? 'text-green-600' : 'text-gray-400'}`}
               />
               <span className={passwordRequirements.minLength ? 'text-green-700' : 'text-gray-600'}>
                 Be at least 8 characters
               </span>
             </div>
-            <div className="flex items-center gap-2 text-sm">
+            <div className="flex items-center gap-2 text-xs">
               <CheckCircle 
-                className={`w-4 h-4 ${passwordRequirements.hasLetter ? 'text-green-600' : 'text-gray-400'}`}
+                className={`w-3.5 h-3.5 ${passwordRequirements.hasLetter ? 'text-green-600' : 'text-gray-400'}`}
               />
               <span className={passwordRequirements.hasLetter ? 'text-green-700' : 'text-gray-600'}>
                 Contain at least one letter
               </span>
             </div>
-            <div className="flex items-center gap-2 text-sm">
+            <div className="flex items-center gap-2 text-xs">
               <CheckCircle 
-                className={`w-4 h-4 ${passwordRequirements.hasNumber ? 'text-green-600' : 'text-gray-400'}`}
+                className={`w-3.5 h-3.5 ${passwordRequirements.hasNumber ? 'text-green-600' : 'text-gray-400'}`}
               />
               <span className={passwordRequirements.hasNumber ? 'text-green-700' : 'text-gray-600'}>
                 Contain at least one number
@@ -177,16 +174,16 @@ export function PasswordCreationStep({
 
         <Button 
           type="submit" 
-          className="w-full" 
+          className="w-full h-11" 
           disabled={loading || !isPasswordValid}
         >
           {loading ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Creating Account...
+              Setting up...
             </>
           ) : (
-            'Create Account'
+            'Complete Setup'
           )}
         </Button>
       </form>

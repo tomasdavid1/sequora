@@ -11,7 +11,10 @@ import { TasksTable } from '@/components/tasks/TasksTable';
 import { PatientsTable } from '@/components/patients/PatientsTable';
 import { PatientInfoModal } from '@/components/patient/PatientInfoModal';
 import { InteractionHistory } from '@/components/shared/InteractionHistory';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { usePatients } from '@/hooks/usePatients';
+import { useTasks } from '@/hooks/useTasks';
 import { Patient } from '@/types';
 import { 
   Users, 
@@ -23,9 +26,17 @@ import {
 
 export default function NurseDashboard() {
   const { toast } = useToast();
-  const [patients, setPatients] = useState<any[]>([]);
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { patients, loading: loadingPatients, refreshPatients } = usePatients({ 
+    apiEndpoint: '/api/toc/nurse/patients',
+    autoFetch: true 
+  });
+  const { tasks, loading: loadingTasks, refreshTasks } = useTasks({ 
+    apiEndpoint: '/api/toc/nurse/tasks',
+    autoFetch: true 
+  });
+  
+  const loading = loadingPatients || loadingTasks;
+  
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
   const [conversationData, setConversationData] = useState<any[]>([]);
   const [showConversationModal, setShowConversationModal] = useState(false);
@@ -33,25 +44,8 @@ export default function NurseDashboard() {
   const [contactPatient, setContactPatient] = useState<any>(null);
   const [showPatientModal, setShowPatientModal] = useState(false);
 
-  useEffect(() => {
-    fetchNurseData();
-  }, []);
-
   const fetchNurseData = async () => {
-    try {
-      const [patientsRes, tasksRes] = await Promise.all([
-        fetch('/api/toc/nurse/patients'),
-        fetch('/api/toc/nurse/tasks')
-      ]);
-
-      const patientsData = await patientsRes.json();
-      const tasksData = await tasksRes.json();
-
-      setPatients(patientsData.patients || []);
-      setTasks(tasksData.tasks || []);
-    } catch (error) {
-      console.error('Error fetching nurse data:', error);
-    }
+    await Promise.all([refreshPatients(), refreshTasks()]);
   };
 
   const fetchConversationData = async (patientId: string) => {
@@ -74,25 +68,34 @@ export default function NurseDashboard() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-4 md:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Nurse Dashboard</h1>
-          <p className="text-gray-600">Manage patients and escalation tasks</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Nurse Dashboard</h1>
+          <p className="text-sm sm:text-base text-gray-600">Manage patients and escalation tasks</p>
         </div>
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">My Patients</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{patients.length}</div>
-            <p className="text-xs text-muted-foreground">In 30-day window</p>
+            {loading ? (
+              <>
+                <Skeleton className="h-8 w-16 mb-1" />
+                <Skeleton className="h-4 w-32" />
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{patients.length}</div>
+                <p className="text-xs text-muted-foreground">In 30-day window</p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -102,8 +105,17 @@ export default function NurseDashboard() {
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{tasks.filter(t => t.status === 'OPEN').length}</div>
-            <p className="text-xs text-muted-foreground">Requiring attention</p>
+            {loading ? (
+              <>
+                <Skeleton className="h-8 w-16 mb-1" />
+                <Skeleton className="h-4 w-32" />
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{tasks.filter(t => t.status === 'OPEN').length}</div>
+                <p className="text-xs text-muted-foreground">Requiring attention</p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -113,10 +125,19 @@ export default function NurseDashboard() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
-              {patients.filter(p => p.status === 'ESCALATED').length}
-            </div>
-            <p className="text-xs text-muted-foreground">High priority</p>
+            {loading ? (
+              <>
+                <Skeleton className="h-8 w-16 mb-1" />
+                <Skeleton className="h-4 w-32" />
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-red-600">
+                  {patients.filter(p => p.status === 'ESCALATED').length}
+                </div>
+                <p className="text-xs text-muted-foreground">High priority</p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

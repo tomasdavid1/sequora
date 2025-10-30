@@ -114,50 +114,10 @@ export async function POST(request: NextRequest) {
 
       // Generate invitation link and send welcome email to patient
       try {
-        // First, check if email already exists in auth
-        const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-        const emailExists = existingUsers?.users?.some(u => u.email === patientData.email);
-        
-        if (emailExists) {
-          console.error('❌ [Upload Patient] Email already registered - rolling back patient and episode');
-          
-          // Rollback: Delete the patient (cascade deletes episode)
-          await supabaseAdmin
-            .from('Patient')
-            .delete()
-            .eq('id', patient.id);
-          
-          return NextResponse.json(
-            { 
-              error: 'Email already registered',
-              details: 'A user with this email address already exists in the system. Please use a different email or contact the existing patient.',
-              code: 'email_exists'
-            },
-            { status: 409 }
-          );
-        }
-        
-        // Generate magic link for invitation
-        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-          type: 'magiclink',
-          email: patientData.email,
-          options: {
-            data: {
-              patient_id: patient.id,
-              first_name: patientData.firstName,
-              last_name: patientData.lastName,
-              role: 'PATIENT'
-            }
-          }
-        });
-
-        if (linkError || !linkData.properties?.action_link) {
-          console.error('❌ [Upload Patient] Failed to generate invite link:', linkError);
-          throw new Error('Failed to generate invitation link');
-        }
-
-        const inviteLink = linkData.properties.action_link;
-        console.log('🔗 [Upload Patient] Generated invite link for:', patientData.email);
+        // Generate simple signup link (not a magic link - auth user created during signup)
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+        const inviteLink = `${appUrl}/signup`;
+        console.log('🔗 [Upload Patient] Invitation link for:', patientData.email);
         
         // Send welcome email via Edge Function
         const emailResponse = await fetch(

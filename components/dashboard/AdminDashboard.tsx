@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { TasksTable } from '@/components/tasks/TasksTable';
 import { PatientInfoModal } from '@/components/patient/PatientInfoModal';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { Skeleton } from '@/components/ui/skeleton';
 import { 
   Users, 
   Activity, 
@@ -42,7 +43,7 @@ export default function AdminDashboard() {
 
   const [tasks, setTasks] = useState<any[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [selectedPatientInfo, setSelectedPatientInfo] = useState<any>(null);
   const [showConversationHistoryModal, setShowConversationHistoryModal] = useState(false);
@@ -86,6 +87,7 @@ export default function AdminDashboard() {
     // Fetch admin dashboard data
     const fetchAdminData = async () => {
       try {
+        setLoading(true);
         // Fetch real stats from the hospital stats API
         const statsResponse = await fetch('/api/toc/hospital/stats?range=30d');
         if (!statsResponse.ok) {
@@ -127,6 +129,8 @@ export default function AdminDashboard() {
         console.error('❌ [AdminDashboard] Error fetching admin data:', error);
         // Keep existing state on error - don't reset to zeros
         // This prevents UI from showing misleading "0" values when there's actually an error
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -138,21 +142,30 @@ export default function AdminDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">TOC Admin Dashboard</h1>
-          <p className="text-gray-600">Transition of Care Management Platform</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">TOC Admin Dashboard</h1>
+          <p className="text-sm sm:text-base text-gray-600">Transition of Care Management Platform</p>
         </div>
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Episodes</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalEpisodes}</div>
-            <p className="text-xs text-muted-foreground">Discharges tracked</p>
+            {loading ? (
+              <>
+                <Skeleton className="h-8 w-16 mb-1" />
+                <Skeleton className="h-4 w-32" />
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats.totalEpisodes}</div>
+                <p className="text-xs text-muted-foreground">Discharges tracked</p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -162,8 +175,17 @@ export default function AdminDashboard() {
             <MessageSquare className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.outreachCoverage}%</div>
-            <p className="text-xs text-muted-foreground">Target: ≥85%</p>
+            {loading ? (
+              <>
+                <Skeleton className="h-8 w-16 mb-1" />
+                <Skeleton className="h-4 w-24" />
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats.outreachCoverage}%</div>
+                <p className="text-xs text-muted-foreground">Target: ≥85%</p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -173,8 +195,17 @@ export default function AdminDashboard() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.completion72h}%</div>
-            <p className="text-xs text-muted-foreground">Target: ≥70%</p>
+            {loading ? (
+              <>
+                <Skeleton className="h-8 w-16 mb-1" />
+                <Skeleton className="h-4 w-24" />
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats.completion72h}%</div>
+                <p className="text-xs text-muted-foreground">Target: ≥70%</p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

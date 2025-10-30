@@ -119,14 +119,18 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="container mx-auto p-6 max-w-4xl">
+      <div className="container mx-auto p-4 md:p-6 max-w-4xl">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold">Settings</h1>
-            <p className="text-gray-600">Manage your account and preferences</p>
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-6">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold">Settings</h1>
+            <p className="text-sm sm:text-base text-gray-600">Manage your account and preferences</p>
           </div>
-          <Button variant="outline" onClick={() => router.push('/dashboard')}>
+          <Button 
+            variant="outline" 
+            onClick={() => router.push('/dashboard')}
+            className="w-full sm:w-auto sm:flex-shrink-0"
+          >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Dashboard
           </Button>
@@ -135,15 +139,15 @@ export default function SettingsPage() {
         {/* User Info Card */}
         <Card className="mb-6">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <Avatar className="h-20 w-20">
-                <AvatarFallback className="bg-emerald-100 text-emerald-700 text-2xl">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <Avatar className="h-16 w-16 sm:h-20 sm:w-20 flex-shrink-0">
+                <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xl sm:text-2xl">
                   {name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
                 </AvatarFallback>
               </Avatar>
-              <div>
-                <h2 className="text-2xl font-bold">{name || email}</h2>
-                <p className="text-gray-600">{email}</p>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-xl sm:text-2xl font-bold truncate">{name || email}</h2>
+                <p className="text-sm sm:text-base text-gray-600 truncate">{email}</p>
               </div>
             </div>
           </CardContent>
@@ -151,18 +155,18 @@ export default function SettingsPage() {
 
         {/* Settings Tabs */}
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="profile">
-              <User className="w-4 h-4 mr-2" />
-              Profile
+          <TabsList className="grid w-full grid-cols-3 gap-1">
+            <TabsTrigger value="profile" className="flex items-center gap-1 sm:gap-2">
+              <User className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="text-xs sm:text-sm">Profile</span>
             </TabsTrigger>
-            <TabsTrigger value="security">
-              <Lock className="w-4 h-4 mr-2" />
-              Password
+            <TabsTrigger value="security" className="flex items-center gap-1 sm:gap-2">
+              <Lock className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="text-xs sm:text-sm">Password</span>
             </TabsTrigger>
-            <TabsTrigger value="notifications">
-              <Bell className="w-4 h-4 mr-2" />
-              Notifications
+            <TabsTrigger value="notifications" className="flex items-center gap-1 sm:gap-2">
+              <Bell className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="text-xs sm:text-sm">Notifications</span>
             </TabsTrigger>
           </TabsList>
 
