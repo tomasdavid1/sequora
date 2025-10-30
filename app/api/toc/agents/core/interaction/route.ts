@@ -17,7 +17,9 @@ import {
   MessageType,
   TaskStatusType,
   TaskPriorityType,
+  RuleTypeType,
   VALID_SEVERITIES,
+  VALID_RULE_TYPES,
   getSeverityFilterForRiskLevel,
   getPriorityFromSeverity,
   getSLAMinutesFromSeverity,
@@ -378,9 +380,10 @@ export async function POST(request: NextRequest) {
     const medList = (medications || []) as any[];
     
     // Now call the combined parse and respond function DIRECTLY
+    // Pass the already-parsed response to avoid duplicate parsing
     const combinedResult = await parseAndRespondDirect({
       condition: protocolAssignment.condition_code,
-      educationLevel: protocolAssignment.Episode?.Patient?.education_level || 'MEDIUM',
+      educationLevel: protocolAssignment.Episode?.Patient?.education_level,
       patientInput: patientInput,
       conversationHistory: conversationHistory,
       protocolPatterns: allPatterns,
@@ -393,7 +396,8 @@ export async function POST(request: NextRequest) {
       hasBeenContactedBefore: hasBeenContactedBefore,
       wellnessConfirmationCount: wellnessConfirmationCount,
       checklistQuestions: checklistQuestions,
-      currentSeverityThreshold: protocolAssignment.risk_level
+      currentSeverityThreshold: protocolAssignment.risk_level,
+      parsedResponse: parsedResponse // Pass the already-parsed response
     });
     
     if (!combinedResult.success) {
@@ -769,7 +773,10 @@ async function getProtocolConfig(conditionCode: ConditionCode, riskLevel: RiskLe
   console.log(`⚙️ [Protocol Config] Loaded config for ${conditionCode} + ${riskLevel}`, {
     critical_threshold: config.critical_confidence_threshold,
     low_threshold: config.low_confidence_threshold,
-    vague_symptoms_count: config.vague_symptoms?.length || 0
+    vague_symptoms_count: config.vague_symptoms?.length || 0,
+    multiple_symptom_escalation: config.enable_multiple_symptom_escalation,
+    symptom_threshold: config.multiple_symptom_threshold,
+    moderate_concern_escalation: config.enable_moderate_concern_escalation
   });
 
   return config;
@@ -781,11 +788,12 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
   const severityFilter = getSeverityFilterForRiskLevel(riskLevel as RiskLevelType);
 
   // Query red flags and clarifications (now using proper columns, not JSONB!)
+  const redFlagRuleTypes: RuleTypeType[] = ['RED_FLAG', 'CLARIFICATION'];
   const { data: ruleData, error: ruleError } = await supabase
     .from('ProtocolContentPack')
     .select('rule_code, text_patterns, action_type, severity, message, numeric_follow_up_question, question_text, follow_up_question, question_category, is_critical, requires_specific_answer')
     .eq('condition_code', conditionCode)
-    .in('rule_type', ['RED_FLAG', 'CLARIFICATION'])
+    .in('rule_type', redFlagRuleTypes)
     .in('severity', severityFilter)
     .eq('active', true);
 
@@ -799,7 +807,7 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
     .from('ProtocolContentPack')
     .select('rule_code, text_patterns, action_type, message, question_text, follow_up_question, question_category, is_critical, requires_specific_answer')
     .eq('condition_code', conditionCode)
-    .eq('rule_type', 'CLOSURE')
+    .eq('rule_type', 'CLOSURE' as RuleTypeType)
     .eq('active', true);
 
   if (closureError) {
@@ -897,7 +905,7 @@ async function parsePatientInputForDecisionHint(
   });
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-4",
     messages: parseMessages as any,
     response_format: { type: "json_object" },
     temperature: 0.1,
@@ -962,7 +970,9 @@ async function evaluateRulesDSL(
     critical_threshold: CRITICAL_CONFIDENCE_THRESHOLD,
     low_threshold: LOW_CONFIDENCE_THRESHOLD,
     vague_symptoms_count: VAGUE_SYMPTOMS.length,
-    sentiment_boost: protocolConfig.enable_sentiment_boost
+    sentiment_boost: protocolConfig.enable_sentiment_boost,
+    multiple_symptom_escalation: protocolConfig.enable_multiple_symptom_escalation,
+    moderate_concern_escalation: protocolConfig.enable_moderate_concern_escalation
   });
   
   // ENHANCEMENT 1: AI Severity Override - CRITICAL
@@ -994,16 +1004,17 @@ async function evaluateRulesDSL(
     };
   }
   
-  // ENHANCEMENT 1.75: Multiple concerning symptoms safety net
-  // If patient reports 2+ symptoms AND moderate+ severity, escalate
+  // ENHANCEMENT 1.75: Multiple concerning symptoms safety net (now data-driven)
+  // If patient reports multiple symptoms AND moderate+ severity, escalate (if enabled)
   // Note: symptoms array is validated in parser - guaranteed to exist
   const symptomCount = parsedResponse.symptoms.length;
-  const hasMultipleSymptoms = symptomCount >= 2;
+  const symptomThreshold = protocolConfig.multiple_symptom_threshold || 2;
+  const hasMultipleSymptoms = symptomCount >= symptomThreshold;
   const hasConcerningSeverity = ['MODERATE', 'HIGH', 'CRITICAL'].includes(parsedResponse.severity);
   const hasConcernedSentiment = ['concerned', 'distressed'].includes(parsedResponse.sentiment);
   
-  if (hasMultipleSymptoms && hasConcerningSeverity && parsedResponse.confidence > LOW_CONFIDENCE_THRESHOLD) {
-    console.log(`⚠️ [Rules Engine] Multiple symptoms (${symptomCount}) + ${parsedResponse.severity} severity - escalating as safety net`);
+  if (protocolConfig.enable_multiple_symptom_escalation && hasMultipleSymptoms && hasConcerningSeverity && parsedResponse.confidence > LOW_CONFIDENCE_THRESHOLD) {
+    console.log(`⚠️ [Rules Engine] Multiple symptoms (${symptomCount}) + ${parsedResponse.severity} severity - escalating as configured`);
     return {
       action: 'FLAG' as const,
       flagType: 'MULTIPLE_SYMPTOMS_MODERATE',
@@ -1016,10 +1027,10 @@ async function evaluateRulesDSL(
     };
   }
   
-  // ENHANCEMENT 1.8: MODERATE severity with concerning sentiment
-  // If AI assesses MODERATE severity AND patient sounds concerned/distressed, flag it
-  if (parsedResponse.severity === 'MODERATE' && hasConcernedSentiment && parsedResponse.confidence > LOW_CONFIDENCE_THRESHOLD) {
-    console.log(`⚠️ [Rules Engine] MODERATE severity + ${parsedResponse.sentiment} sentiment - escalating due to patient concern`);
+  // ENHANCEMENT 1.8: MODERATE severity with concerning sentiment (now data-driven)
+  // If AI assesses MODERATE severity AND patient sounds concerned/distressed, flag it (if enabled)
+  if (protocolConfig.enable_moderate_concern_escalation && parsedResponse.severity === 'MODERATE' && hasConcernedSentiment && parsedResponse.confidence > LOW_CONFIDENCE_THRESHOLD) {
+    console.log(`⚠️ [Rules Engine] MODERATE severity + ${parsedResponse.sentiment} sentiment - escalating as configured`);
     return {
       action: 'FLAG' as const,
       flagType: 'MODERATE_WITH_CONCERN',

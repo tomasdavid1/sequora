@@ -125,8 +125,8 @@ Your tool: count_wellness_confirmation(isConfirmation: true, areaConfirmed: "med
 - **Defensive/avoidant responses**: Don't pressure, acknowledge their discomfort, move to a different area. You can circle back later if needed.
 
 === DECISION GUIDANCE ===
-Decision Hint: ${JSON.stringify(decisionHint)}
-${decisionHint.messageGuidance ? `\nMessage Guidance: ${decisionHint.messageGuidance}\n` : ''}
+Decision Hint: ${typeof decisionHint === 'object' ? JSON.stringify(decisionHint) : decisionHint}
+${decisionHint?.messageGuidance ? `\nMessage Guidance: ${decisionHint.messageGuidance}\n` : ''}
 
 ⚠️ SAFETY FIRST: Red flags ALWAYS take precedence over closing. When in doubt, escalate.`;
 

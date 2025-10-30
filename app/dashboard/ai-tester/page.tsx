@@ -507,6 +507,31 @@ export default function AITesterPage() {
 
       const result = await response.json();
       
+      // Check if response was successful
+      if (response.status !== 200 || result.error) {
+        console.error('❌ [AITester] API error:', result.error || 'Unknown error');
+        toast({
+          title: "Error",
+          description: result.error || "Failed to generate response. Please try again.",
+          variant: "destructive"
+        });
+        setLoading(false);
+        return;
+      }
+      
+      // Validate that we have a response message
+      const responseMessage = result.message || result.aiResponse || result.response;
+      if (!responseMessage || responseMessage === 'No response generated') {
+        console.error('❌ [AITester] No valid response from AI');
+        toast({
+          title: "AI Error",
+          description: "The AI failed to generate a response. This may be a system error.",
+          variant: "destructive"
+        });
+        setLoading(false);
+        return;
+      }
+      
       // Check for tool calls and show escalation toasts
       if (result.toolResults && Array.isArray(result.toolResults)) {
         result.toolResults.forEach((toolResult: any) => {
@@ -603,7 +628,7 @@ export default function AITesterPage() {
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: result.message || result.aiResponse || result.response || 'No response generated',
+        content: responseMessage,
         timestamp: new Date(),
         metadata: {
           protocolAssignment: result.protocolAssignment,

@@ -1563,9 +1563,12 @@ export type Database = {
           critical_confidence_threshold: number
           detect_multiple_symptoms: boolean
           distressed_severity_upgrade: string | null
+          enable_moderate_concern_escalation: boolean
+          enable_multiple_symptom_escalation: boolean
           enable_sentiment_boost: boolean
           id: string
           low_confidence_threshold: number
+          multiple_symptom_threshold: number
           notes: string | null
           risk_level: Database["public"]["Enums"]["risk_level"]
           route_general_questions_to_info: boolean
@@ -1581,9 +1584,12 @@ export type Database = {
           critical_confidence_threshold?: number
           detect_multiple_symptoms?: boolean
           distressed_severity_upgrade?: string | null
+          enable_moderate_concern_escalation?: boolean
+          enable_multiple_symptom_escalation?: boolean
           enable_sentiment_boost?: boolean
           id?: string
           low_confidence_threshold?: number
+          multiple_symptom_threshold?: number
           notes?: string | null
           risk_level: Database["public"]["Enums"]["risk_level"]
           route_general_questions_to_info?: boolean
@@ -1599,9 +1605,12 @@ export type Database = {
           critical_confidence_threshold?: number
           detect_multiple_symptoms?: boolean
           distressed_severity_upgrade?: string | null
+          enable_moderate_concern_escalation?: boolean
+          enable_multiple_symptom_escalation?: boolean
           enable_sentiment_boost?: boolean
           id?: string
           low_confidence_threshold?: number
+          multiple_symptom_threshold?: number
           notes?: string | null
           risk_level?: Database["public"]["Enums"]["risk_level"]
           route_general_questions_to_info?: boolean

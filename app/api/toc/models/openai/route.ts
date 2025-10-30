@@ -28,6 +28,7 @@ export async function parseAndRespondDirect(input: {
   wellnessConfirmationCount?: number;
   checklistQuestions?: Array<{category: string, question: string, follow_up?: string, is_critical?: boolean}>;
   currentSeverityThreshold?: string;
+  parsedResponse?: any; // Optional: if already parsed, skip duplicate parsing
 }) {
   // Pass wellnessConfirmationCount to the combined handler
   const result = await handleParseAndRespond(input as any, {});
@@ -80,52 +81,61 @@ export async function POST(request: NextRequest) {
 // Combined parse and respond - runs both operations in sequence
 async function handleParseAndRespond(input: Record<string, unknown>, options: Record<string, unknown>) {
   try {
-    // Step 1: Parse the patient input
-    console.log('🔍 [Parse & Respond] Step 1: Parsing patient input');
+    // Step 1: Parse the patient input (skip if already parsed)
+    let parsedResponse: any;
     
-    const parseInput = {
-      condition: input.condition,
-      educationLevel: input.educationLevel,
-      patientInput: input.patientInput,
-      conversationHistory: input.conversationHistory || [],
-      protocolPatterns: input.protocolPatterns || [],
-      patternsRequiringNumbers: input.patternsRequiringNumbers || [],
-      symptomCategories: input.symptomCategories || [],
-      severityMapping: input.severityMapping,
-      wellnessConfirmationCount: input.wellnessConfirmationCount || 0
-    };
-    
-    const parseMessages = buildParseMessages({
-      condition: parseInput.condition as string,
-      protocolPatterns: parseInput.protocolPatterns as string[],
-      patternsRequiringNumbers: parseInput.patternsRequiringNumbers as string[],
-      symptomCategories: parseInput.symptomCategories as Array<{category: string, patterns: string[], examples: string[]}>,
-      conversationHistory: parseInput.conversationHistory as Array<{role: string, content: string}>,
-      patientInput: parseInput.patientInput as string,
-      severityMapping: parseInput.severityMapping as Record<string, { escalation: string; timeUrgency: string; examples: string[] }>,
-      wellnessConfirmationCount: parseInput.wellnessConfirmationCount as number
-    });
+    if (input.parsedResponse) {
+      // Reuse existing parsed response to avoid duplicate parsing
+      console.log('🔄 [Parse & Respond] Reusing existing parsed response');
+      parsedResponse = input.parsedResponse;
+    } else {
+      // Do fresh parse if not provided
+      console.log('🔍 [Parse & Respond] Step 1: Parsing patient input');
+      
+      const parseInput = {
+        condition: input.condition,
+        educationLevel: input.educationLevel,
+        patientInput: input.patientInput,
+        conversationHistory: input.conversationHistory || [],
+        protocolPatterns: input.protocolPatterns || [],
+        patternsRequiringNumbers: input.patternsRequiringNumbers || [],
+        symptomCategories: input.symptomCategories || [],
+        severityMapping: input.severityMapping,
+        wellnessConfirmationCount: input.wellnessConfirmationCount || 0
+      };
+      
+      const parseMessages = buildParseMessages({
+        condition: parseInput.condition as string,
+        protocolPatterns: parseInput.protocolPatterns as string[],
+        patternsRequiringNumbers: parseInput.patternsRequiringNumbers as string[],
+        symptomCategories: parseInput.symptomCategories as Array<{category: string, patterns: string[], examples: string[]}>,
+        conversationHistory: parseInput.conversationHistory as Array<{role: string, content: string}>,
+        patientInput: parseInput.patientInput as string,
+        severityMapping: parseInput.severityMapping as Record<string, { escalation: string; timeUrgency: string; examples: string[] }>,
+        wellnessConfirmationCount: parseInput.wellnessConfirmationCount as number
+      });
 
-    const parseCompletion = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Supports JSON mode, faster and cheaper than gpt-4
-      messages: parseMessages as any,
-      response_format: { type: "json_object" },
-      temperature: 0.1,
-      max_tokens: 300
-    });
+      const parseCompletion = await openai.chat.completions.create({
+        model: "gpt-4o-mini", // Supports JSON mode, faster and cheaper than gpt-4
+        messages: parseMessages as any,
+        response_format: { type: "json_object" },
+        temperature: 0.1,
+        max_tokens: 300
+      });
 
-    const parseText = parseCompletion.choices[0]?.message?.content || '{}';
-    console.log('📊 [Parse & Respond] Parsed response:', parseText);
-    
-    const parsedResponse = JSON.parse(parseText);
-    
-    // Validate critical fields from AI parser
-    if (!Array.isArray(parsedResponse.symptoms)) {
-      throw new Error('AI parser must return symptoms array (can be empty)');
-    }
-    
-    if (parsedResponse.confidence === undefined || parsedResponse.confidence === null) {
-      throw new Error('AI parser must return confidence score (0.0-1.0)');
+      const parseText = parseCompletion.choices[0]?.message?.content || '{}';
+      console.log('📊 [Parse & Respond] Parsed response:', parseText);
+      
+      parsedResponse = JSON.parse(parseText);
+      
+      // Validate critical fields from AI parser
+      if (!Array.isArray(parsedResponse.symptoms)) {
+        throw new Error('AI parser must return symptoms array (can be empty)');
+      }
+      
+      if (parsedResponse.confidence === undefined || parsedResponse.confidence === null) {
+        throw new Error('AI parser must return confidence score (0.0-1.0)');
+      }
     }
 
     // Step 2: Generate response based on parsed data
@@ -135,7 +145,7 @@ async function handleParseAndRespond(input: Record<string, unknown>, options: Re
       condition: input.condition,
       educationLevel: input.educationLevel,
       medications: input.medications || [],
-      patientResponses: parseInput.patientInput,
+      patientResponses: input.patientInput, // Use input.patientInput instead of parseInput.patientInput
       decisionHint: input.decisionHint,
       context: input.context,
       isFirstMessageInCurrentChat: input.isFirstMessageInCurrentChat,
@@ -157,19 +167,29 @@ async function handleParseAndRespond(input: Record<string, unknown>, options: Re
 
     // Build complete messages array with system prompt, conversation history, and current response
     const history = responseInput.conversationHistory as Array<{role: string, content: string}>;
-    const responseMessages = buildResponseMessages({
-      context: responseInput.context as string,
-      educationLevel: responseInput.educationLevel as string || 'MEDIUM',
-      medications: medList,
-      checklistQuestions: checklistQ,
-      wellnessConfirmationCount: responseInput.wellnessConfirmationCount as number || 0,
-      decisionHint: hint,
-      conversationHistory: history,
-      patientResponse: responseInput.patientResponses as string,
-      coveredCategories: responseInput.coveredCategories as string[],
-      currentSeverityThreshold: responseInput.currentSeverityThreshold as string
-    });
+    
+    console.log('📝 [Parse & Respond] Building response messages with decision hint:', JSON.stringify(hint).substring(0, 200));
+    let responseMessages;
+    try {
+      responseMessages = buildResponseMessages({
+        context: responseInput.context as string,
+        educationLevel: responseInput.educationLevel as string || 'MEDIUM',
+        medications: medList,
+        checklistQuestions: checklistQ,
+        wellnessConfirmationCount: responseInput.wellnessConfirmationCount as number || 0,
+        decisionHint: hint,
+        conversationHistory: history,
+        patientResponse: responseInput.patientResponses as string,
+        coveredCategories: responseInput.coveredCategories as string[],
+        currentSeverityThreshold: responseInput.currentSeverityThreshold as string
+      });
+      console.log('✅ [Parse & Respond] Response messages built successfully');
+    } catch (buildError) {
+      console.error('❌ [Parse & Respond] Error building response messages:', buildError);
+      throw new Error(`Failed to build response messages: ${buildError instanceof Error ? buildError.message : 'Unknown error'}`);
+    }
 
+    console.log('🚀 [Parse & Respond] Calling OpenAI for response generation...');
     const responseCompletion = await openai.chat.completions.create({
       model: "gpt-4",
       messages: responseMessages as any,
@@ -178,6 +198,7 @@ async function handleParseAndRespond(input: Record<string, unknown>, options: Re
       temperature: 0.2,
       max_tokens: 500
     });
+    console.log('✅ [Parse & Respond] OpenAI response received');
 
     const message = responseCompletion.choices[0]?.message;
     if (!message) {
@@ -231,7 +252,7 @@ async function handleParseAndRespond(input: Record<string, unknown>, options: Re
       response: cleanedResponse,
       toolCalls: toolCalls,
       type: 'parse_and_respond',
-      tokensUsed: (parseCompletion.usage?.total_tokens || 0) + (responseCompletion.usage?.total_tokens || 0)
+      tokensUsed: responseCompletion.usage?.total_tokens || 0
     });
 
   } catch (error) {
