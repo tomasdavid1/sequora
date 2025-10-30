@@ -4,8 +4,7 @@ import {
   ProtocolConfig,
   Episode, 
   Patient,
-  ProtocolContentPack,
-  RedFlagRule
+  ProtocolContentPack
 } from '@/types';
 
 export interface ProtocolProfile {
@@ -14,7 +13,7 @@ export interface ProtocolProfile {
   episode: Episode;
   patient?: Patient;
   activeProtocolRules: ProtocolContentPack[]; // Protocol rules from ProtocolContentPack table
-  redFlagRules: RedFlagRule[];
+  redFlagRules: ProtocolContentPack[];
   checkInFrequency: number;
 }
 

@@ -23,6 +23,7 @@ import {
   getSLAMinutesFromSeverity,
   isValidSeverity
 } from '@/lib/enums';
+import { parseAndRespondDirect } from '@/app/api/toc/models/openai/route';
 
 type SupabaseAdmin = SupabaseClient<Database>;
 
@@ -43,6 +44,9 @@ interface ParsedResponse {
   breathingStatus?: string;
   complications: string[];
   aiResponse?: string;
+  coveredCategories?: string[]; // Health areas already discussed (from AI parser)
+  wellnessConfirmationCount?: number; // Wellness confirmation count from parser
+  newWellnessConfirmations?: string[]; // NEW confirmations in this message only
 }
 
 interface DecisionHint {
@@ -236,18 +240,73 @@ export async function POST(request: NextRequest) {
       .flatMap((r: any) => r.if.any_text || [])
       .filter((p: string) => !/\d/.test(p)); // Generic patterns without numbers
     
-    // 5. Parse the patient input using LLM with protocol patterns
-    const parsedResponse = await parsePatientInputWithProtocol(
-      patientInput, 
-      protocolAssignment,
-      conversationHistory,
-      allPatterns, // Pass database patterns to AI
-      patternsWithNumbers // Patterns that need numbers
-    );
+    // Extract checklist questions for AI to use as inspiration
+    const checklistQuestions = [
+      ...protocolRules.red_flags
+        .filter((r: any) => r.flag.question_text)
+        .map((r: any) => ({
+          category: r.flag.question_category,
+          question: r.flag.question_text,
+          follow_up: r.flag.follow_up_question,
+          is_critical: r.flag.is_critical,
+          requires_specific_answer: r.flag.requires_specific_answer
+        })),
+      ...protocolRules.closures
+        .filter((c: any) => c.then.question_text)
+        .map((c: any) => ({
+          category: c.then.question_category,
+          question: c.then.question_text,
+          follow_up: c.then.follow_up_question,
+          is_critical: c.then.is_critical,
+          requires_specific_answer: c.then.requires_specific_answer
+        }))
+    ];
     
-    // 6. Evaluate rules DSL to get decision hint (using protocol config)
-    // Pass wellness confirmation count to allow closure after sufficient verification
-    const decisionHint = await evaluateRulesDSL(parsedResponse, protocolAssignment, protocolConfig, supabase, wellnessConfirmationCount);
+    // Extract symptom categories dynamically from database (grouped by question_category)
+    const symptomCategories: Record<string, { patterns: string[], examples: string[] }> = {};
+    
+    // Process red flags
+    protocolRules.red_flags.forEach((r: any) => {
+      const category = r.flag.question_category;
+      if (category) {
+        if (!symptomCategories[category]) {
+          symptomCategories[category] = { patterns: [], examples: [] };
+        }
+        // Add patterns from this rule
+        if (r.if.any_text && Array.isArray(r.if.any_text)) {
+          symptomCategories[category].patterns.push(...r.if.any_text);
+        }
+        // Use question_text as an example description
+        if (r.flag.question_text && !symptomCategories[category].examples.includes(r.flag.question_text)) {
+          symptomCategories[category].examples.push(r.flag.question_text);
+        }
+      }
+    });
+    
+    // Process closures
+    protocolRules.closures.forEach((c: any) => {
+      const category = c.then.question_category;
+      if (category) {
+        if (!symptomCategories[category]) {
+          symptomCategories[category] = { patterns: [], examples: [] };
+        }
+        // Add patterns from this rule
+        if (c.if.any_text && Array.isArray(c.if.any_text)) {
+          symptomCategories[category].patterns.push(...c.if.any_text);
+        }
+        // Use question_text as an example description
+        if (c.then.question_text && !symptomCategories[category].examples.includes(c.then.question_text)) {
+          symptomCategories[category].examples.push(c.then.question_text);
+        }
+      }
+    });
+    
+    // Convert to array format for easier use in prompts
+    const symptomCategoriesArray = Object.entries(symptomCategories).map(([category, data]) => ({
+      category,
+      patterns: [...new Set(data.patterns)], // Remove duplicates
+      examples: data.examples
+    }));
     
     // 6. Check if this patient has been contacted before and fetch summaries
     const { data: allInteractions } = await supabase
@@ -283,21 +342,76 @@ export async function POST(request: NextRequest) {
       currentInteractionId: interactionId
     });
     
-    // 5. Generate AI response with tools (AI handles escalation messages naturally via decisionHint)
-    console.log('🤖 [Interaction] Generating AI response with decision hint:', decisionHint.action);
+    // 5. Combined parse and respond - runs both operations in sequence without HTTP overhead
+    console.log('🚀 [Interaction] Running combined parse and respond');
     
-    const aiResponse = await generateAIResponseWithTools(
-      parsedResponse, 
-      protocolAssignment, 
-      decisionHint,
-      patientId,
-      episodeId,
-      protocolConfig,
-      previousSummaries,
-      isFirstMessageInCurrentChat,
-      hasBeenContactedBefore,
+    // First, we need to get the parsed response to evaluate decision hint
+    // So we do a minimal parse first
+    const parsedResponse = await parsePatientInputForDecisionHint(
+      patientInput,
+      protocolAssignment,
+      conversationHistory,
+      allPatterns,
+      patternsWithNumbers,
+      symptomCategoriesArray,
       wellnessConfirmationCount
     );
+    
+    // Evaluate rules DSL to get decision hint (using protocol config)
+    const decisionHint = await evaluateRulesDSL(parsedResponse, protocolAssignment, protocolConfig, supabase, wellnessConfirmationCount);
+    
+    // Build conversation context
+    let conversationContext: string;
+    if (!hasBeenContactedBefore) {
+      conversationContext = `This is your VERY FIRST contact with this patient since their hospital discharge for ${protocolAssignment.condition_code}. Introduce yourself warmly as their post-discharge care coordinator. Explain that you'll be checking in with them regularly during their recovery.`;
+    } else if (isFirstMessageInCurrentChat) {
+      const historyContext = previousSummaries ? `\n\nPREVIOUS INTERACTIONS:\n${previousSummaries}\n\nUse this context to reference past issues (e.g., "How's the weight gain going?" or "Any improvement with the swelling?")` : '';
+      conversationContext = `This patient has been contacted before as part of their post-discharge care. This is a NEW follow-up check-in. Greet them warmly and ask how they've been doing since your last contact. DO NOT introduce yourself as if it's the first time - they know who you are.${historyContext}`;
+    } else {
+      conversationContext = `You are continuing an ONGOING conversation with this patient in their current check-in. Continue naturally from the previous messages.`;
+    }
+    
+    const fullContext = `${protocolConfig.system_prompt} ${conversationContext} Use the decision hint to guide your response and call appropriate tools.`;
+    
+    // Get medications
+    const medications = protocolAssignment.Episode?.medications;
+    const medList = (medications || []) as any[];
+    
+    // Now call the combined parse and respond function DIRECTLY
+    const combinedResult = await parseAndRespondDirect({
+      condition: protocolAssignment.condition_code,
+      educationLevel: protocolAssignment.Episode?.Patient?.education_level || 'MEDIUM',
+      patientInput: patientInput,
+      conversationHistory: conversationHistory,
+      protocolPatterns: allPatterns,
+      patternsRequiringNumbers: patternsWithNumbers,
+      symptomCategories: symptomCategoriesArray,
+      medications: medList,
+      decisionHint: decisionHint as any,
+      context: fullContext,
+      isFirstMessageInCurrentChat: isFirstMessageInCurrentChat,
+      hasBeenContactedBefore: hasBeenContactedBefore,
+      wellnessConfirmationCount: wellnessConfirmationCount,
+      checklistQuestions: checklistQuestions,
+      currentSeverityThreshold: protocolAssignment.risk_level
+    });
+    
+    if (!combinedResult.success) {
+      console.error('❌ [Interaction] Combined parse and respond failed:', combinedResult.error);
+      throw new Error(`AI processing failed: ${combinedResult.error || 'Unknown error'}`);
+    }
+    
+    if (!combinedResult.response) {
+      console.error('❌ [Interaction] No response from combined operation');
+      throw new Error('AI failed to generate response');
+    }
+    
+    // Build aiResponse object from combined result
+    const aiResponse = {
+      response: combinedResult.response,
+      toolCalls: combinedResult.toolCalls || [],
+      parsed: combinedResult.parsed
+    };
     
     // The AI naturally generates appropriate messages based on decisionHint:
     // - FLAG → Explains symptom concern + nurse callback
@@ -437,7 +551,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 9. Handle tool calls from AI response
-    const toolResults = await handleToolCalls(aiResponse.toolCalls, patientId, episodeId, supabase, activeInteractionId);
+    const toolResults = await handleToolCalls(aiResponse.toolCalls, patientId, episodeId, supabase, activeInteractionId, aiResponse.parsed?.newWellnessConfirmations);
 
     // 10. Check if interaction should end and generate summary
     // End when: escalation happens (handoff/raise_flag) OR patient is doing well (log_checkin)
@@ -669,7 +783,7 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
   // Query red flags and clarifications (now using proper columns, not JSONB!)
   const { data: ruleData, error: ruleError } = await supabase
     .from('ProtocolContentPack')
-    .select('rule_code, text_patterns, action_type, severity, message, numeric_follow_up_question')
+    .select('rule_code, text_patterns, action_type, severity, message, numeric_follow_up_question, question_text, follow_up_question, question_category, is_critical, requires_specific_answer')
     .eq('condition_code', conditionCode)
     .in('rule_type', ['RED_FLAG', 'CLARIFICATION'])
     .in('severity', severityFilter)
@@ -683,7 +797,7 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
   // Query closures
   const { data: closureData, error: closureError } = await supabase
     .from('ProtocolContentPack')
-    .select('rule_code, text_patterns, action_type, message')
+    .select('rule_code, text_patterns, action_type, message, question_text, follow_up_question, question_category, is_critical, requires_specific_answer')
     .eq('condition_code', conditionCode)
     .eq('rule_type', 'CLOSURE')
     .eq('active', true);
@@ -717,7 +831,12 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
         action: rule.action_type,
         severity: rule.severity,
         message: rule.message,
-        numeric_follow_up: rule.numeric_follow_up_question
+        numeric_follow_up: rule.numeric_follow_up_question,
+        question_text: rule.question_text,
+        follow_up_question: rule.follow_up_question,
+        question_category: rule.question_category,
+        is_critical: rule.is_critical,
+        requires_specific_answer: rule.requires_specific_answer
       }
     };
   });
@@ -731,7 +850,12 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
       if: { any_text: rule.text_patterns },
       then: {
         action: rule.action_type,
-        message: rule.message
+        message: rule.message,
+        question_text: rule.question_text,
+        follow_up_question: rule.follow_up_question,
+        question_category: rule.question_category,
+        is_critical: rule.is_critical,
+        requires_specific_answer: rule.requires_specific_answer
       }
     };
   });
@@ -742,66 +866,54 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
   };
 }
 
-// Parse patient input with protocol context
-async function parsePatientInputWithProtocol(
-  input: string, 
+// Minimal parse function for decision hint evaluation (no HTTP call)
+async function parsePatientInputForDecisionHint(
+  input: string,
   protocolAssignment: ProtocolAssignmentWithRelations,
   conversationHistory: Array<{role: string, content: string}> = [],
   protocolPatterns: string[] = [],
-  patternsRequiringNumbers: string[] = []
-) {
-  console.log('🔍 [Parser] Requesting structured symptom extraction from AI');
-  console.log('💬 [Parser] Using', conversationHistory.length, 'previous messages for context');
-  console.log('🎯 [Parser] Using', protocolPatterns.length, 'protocol patterns from database');
-  console.log('🔢 [Parser] Patterns requiring numbers:', patternsRequiringNumbers.length);
+  patternsRequiringNumbers: string[] = [],
+  symptomCategories: any[] = [],
+  wellnessConfirmationCount: number = 0
+): Promise<ParsedResponse> {
+  // Import OpenAI and builders at function level to avoid circular dependencies
+  const { default: OpenAI } = await import('openai');
+  const { buildParseMessages } = await import('@/app/api/toc/models/openai/builders/parse-prompt-builder');
   
-  // Call OpenAI directly with structured output request
-  const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      operation: 'parse_patient_input',
-      input: {
-        condition: protocolAssignment.condition_code,
-        educationLevel: protocolAssignment.Episode?.Patient?.education_level, // NOT NULL in DB
-        patientInput: input,
-        conversationHistory: conversationHistory,
-        protocolPatterns: protocolPatterns, // Database patterns for AI to match against
-        patternsRequiringNumbers: patternsRequiringNumbers, // Patterns that need specific amounts
-        requestStructuredOutput: true
-      }
-    })
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+  
+  console.log('🔍 [Decision Parser] Extracting structured symptom data');
+  
+  const parseMessages = buildParseMessages({
+    condition: protocolAssignment.condition_code,
+    protocolPatterns: protocolPatterns,
+    patternsRequiringNumbers: patternsRequiringNumbers,
+    symptomCategories: symptomCategories,
+    conversationHistory: conversationHistory,
+    patientInput: input,
+    wellnessConfirmationCount: wellnessConfirmationCount
   });
 
-  if (!response.ok) {
-    console.error('❌ [Parser] AI API returned error status:', response.status);
-    throw new Error(`AI parsing service unavailable (HTTP ${response.status}). Please try again.`);
-  }
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: parseMessages as any,
+    response_format: { type: "json_object" },
+    temperature: 0.1,
+    max_tokens: 300
+  });
 
-    const result = await response.json();
-  console.log('📊 [Parser] AI extracted:', result.parsed);
+  const responseText = completion.choices[0]?.message?.content || '{}';
+  const parsed = JSON.parse(responseText);
   
-  if (!result.success) {
-    console.error('❌ [Parser] AI parsing failed:', result.error);
-    throw new Error(`Failed to parse patient input: ${result.error || 'AI service error'}`);
-  }
-
-  if (!result.parsed) {
-    console.error('❌ [Parser] AI returned success but no parsed data');
-    throw new Error('AI parsing returned no data. Please try again.');
-  }
-
-  // Use structured AI output
-  const parsed = result.parsed;
+  console.log('📊 [Decision Parser] Parsed:', parsed);
   
-  // Validate critical fields from AI parser
   if (!Array.isArray(parsed.symptoms)) {
-    console.error('❌ [Parser] AI parser did not return symptoms array:', parsed);
     throw new Error('AI parser must return symptoms array (can be empty)');
   }
   
   if (parsed.confidence === undefined || parsed.confidence === null) {
-    console.error('❌ [Parser] AI parser did not return confidence score:', parsed);
     throw new Error('AI parser must return confidence score (0.0-1.0)');
   }
   
@@ -1165,108 +1277,8 @@ function evaluateRuleCondition(condition: Record<string, unknown>, parsedRespons
   return { matched: false };
 }
 
-// Generate AI response with tool calling
-async function generateAIResponseWithTools(
-  parsedResponse: ParsedResponse, 
-  protocolAssignment: ProtocolAssignmentWithRelations, 
-  decisionHint: DecisionHint,
-  patientId: string,
-  episodeId: string,
-  protocolConfig: any,
-  previousSummaries: string = '',
-  isFirstMessageInCurrentChat: boolean = false,
-  hasBeenContactedBefore: boolean = false,
-  wellnessConfirmationCount: number = 0
-) {
-  try {
-    // Build context based on patient contact history
-    let conversationContext: string;
-    
-    if (!hasBeenContactedBefore) {
-      // TRUE FIRST CONTACT - Never spoken to this patient before
-      conversationContext = `This is your VERY FIRST contact with this patient since their hospital discharge for ${protocolAssignment.condition_code}. Introduce yourself warmly as their post-discharge care coordinator. Explain that you'll be checking in with them regularly during their recovery.`;
-    } else if (isFirstMessageInCurrentChat) {
-      // RETURNING PATIENT - New chat but patient has been contacted before
-      const historyContext = previousSummaries ? `\n\nPREVIOUS INTERACTIONS:\n${previousSummaries}\n\nUse this context to reference past issues (e.g., "How's the weight gain going?" or "Any improvement with the swelling?")` : '';
-      conversationContext = `This patient has been contacted before as part of their post-discharge care. This is a NEW follow-up check-in. Greet them warmly and ask how they've been doing since your last contact. DO NOT introduce yourself as if it's the first time - they know who you are.${historyContext}`;
-    } else {
-      // CONTINUING CURRENT CONVERSATION
-      conversationContext = `You are continuing an ONGOING conversation with this patient in their current check-in. Continue naturally from the previous messages.`;
-    }
-    
-    
-    
-    // Build context from database-driven system prompt
-    if (!protocolConfig.system_prompt) {
-      console.error('❌ [Interaction] ProtocolConfig missing system_prompt:', {
-        condition: protocolAssignment.condition_code,
-        risk_level: protocolConfig.risk_level
-      });
-      throw new Error(`ProtocolConfig for ${protocolAssignment.condition_code} ${protocolConfig.risk_level} is missing system_prompt. Please configure in admin dashboard.`);
-    }
-    
-    const fullContext = `${protocolConfig.system_prompt} ${conversationContext} Use the decision hint to guide your response and call appropriate tools.`;
-    
-      // Get medications from Episode (distinguish between "no meds" and "missing data")
-      const medications = protocolAssignment.Episode?.medications;
-      if (medications === undefined || medications === null) {
-        console.warn('⚠️ [AI Generation] Medications data missing from Episode - using empty array');
-      }
-      const medList = medications || [];
-      
-      const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/toc/models/openai`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'generate_response_with_tools',
-          input: {
-            condition: protocolAssignment.condition_code,
-            educationLevel: protocolAssignment.Episode?.Patient?.education_level, // NOT NULL in DB
-            medications: medList, // Pass medications for AI to reference
-            patientResponses: parsedResponse.rawInput,
-            decisionHint: decisionHint,
-            context: fullContext,
-            responseType: 'patient_response_with_tools',
-            isFirstMessageInCurrentChat: isFirstMessageInCurrentChat,
-            hasBeenContactedBefore: hasBeenContactedBefore,
-            wellnessConfirmationCount: wellnessConfirmationCount
-          }
-        })
-      });
-
-    if (!response.ok) {
-      console.error('❌ [AI Generation] AI API returned error status:', response.status);
-      throw new Error(`AI response generation failed: HTTP ${response.status}. Please try again.`);
-    }
-
-      const result = await response.json();
-      
-    console.log(`🤖 [AI Generation] Response received. Success: ${result.success}`);
-    console.log(`🤖 [AI Generation] Tool calls:`, result.toolCalls || []);
-    
-    if (!result.success) {
-      console.error('❌ [AI Generation] AI returned unsuccessful response:', result);
-      throw new Error(`AI response generation failed: ${result.error || 'Unknown error'}`);
-    }
-
-    if (!result.response) {
-      console.error('❌ [AI Generation] AI returned success but no response text');
-      throw new Error('AI response generation failed: No response text returned');
-    }
-
-        return {
-          response: result.response,
-          toolCalls: result.toolCalls || []
-        };
-
-  } catch (error) {
-    console.error('❌ [AI Generation] Error generating AI response with tools:', error);
-    throw new Error(`Failed to generate AI response: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-
 // Handle tool calls from AI response
-async function handleToolCalls(toolCalls: ToolCall[] | undefined, patientId: string, episodeId: string, supabase: SupabaseAdmin, interactionId?: string): Promise<ToolResult[]> {
+async function handleToolCalls(toolCalls: ToolCall[] | undefined, patientId: string, episodeId: string, supabase: SupabaseAdmin, interactionId?: string, newWellnessConfirmations?: string[]): Promise<ToolResult[]> {
   const results: ToolResult[] = [];
   
   if (!toolCalls || toolCalls.length === 0) {
@@ -1279,7 +1291,7 @@ async function handleToolCalls(toolCalls: ToolCall[] | undefined, patientId: str
       
       switch (toolCall.name) {
         case 'count_wellness_confirmation':
-          result = await handleWellnessConfirmation(toolCall.parameters, interactionId, supabase);
+          result = await handleWellnessConfirmation(toolCall.parameters, interactionId, supabase, newWellnessConfirmations);
           break;
         case 'raise_flag':
           result = await handleRaiseFlag(toolCall.parameters, patientId, episodeId, supabase, interactionId);
@@ -1317,7 +1329,7 @@ async function handleToolCalls(toolCalls: ToolCall[] | undefined, patientId: str
 
 // Tool handlers
 // Handle wellness confirmation counting
-async function handleWellnessConfirmation(parameters: Record<string, unknown>, interactionId?: string, supabase?: SupabaseAdmin) {
+async function handleWellnessConfirmation(parameters: Record<string, unknown>, interactionId?: string, supabase?: SupabaseAdmin, newWellnessConfirmations?: string[]) {
   const { isConfirmation, areaConfirmed } = parameters;
   
   if (!interactionId || !supabase) {
@@ -1340,9 +1352,23 @@ async function handleWellnessConfirmation(parameters: Record<string, unknown>, i
   const metadata = (interaction.metadata as InteractionMetadata) || {};
   const currentCount = metadata.wellnessConfirmationCount || 0;
   
-  if (isConfirmation) {
-    const newCount = currentCount + 1;
-    console.log(`📊 [Wellness Confirmation] Incrementing count: ${currentCount} → ${newCount}. Area: ${areaConfirmed || 'unspecified'}`);
+  // If we have newWellnessConfirmations from the parser, use that count
+  // Otherwise fall back to the tool's isConfirmation parameter
+  let countToAdd = 0;
+  
+  if (newWellnessConfirmations && newWellnessConfirmations.length > 0) {
+    // Use the parser's newWellnessConfirmations array for accurate counting
+    countToAdd = newWellnessConfirmations.length;
+    console.log(`📊 [Wellness Confirmation] Multiple confirmations detected: ${newWellnessConfirmations.join(', ')} (${countToAdd} areas)`);
+  } else if (isConfirmation) {
+    // Fall back to single confirmation from tool call
+    countToAdd = 1;
+  }
+  
+  if (countToAdd > 0) {
+    const newCount = currentCount + countToAdd;
+    const areas = newWellnessConfirmations?.join(', ') || areaConfirmed || 'unspecified';
+    console.log(`📊 [Wellness Confirmation] Incrementing count: ${currentCount} + ${countToAdd} = ${newCount}. Areas: ${areas}`);
     
     // Update metadata
     const { error: updateError } = await supabase
@@ -1351,7 +1377,7 @@ async function handleWellnessConfirmation(parameters: Record<string, unknown>, i
         metadata: {
           ...metadata,
           wellnessConfirmationCount: newCount,
-          lastConfirmedArea: areaConfirmed as string || null,
+          lastConfirmedArea: areas,
           lastConfirmedAt: new Date().toISOString()
         } as any // JSONB field - InteractionMetadata structure
       })
@@ -1365,7 +1391,7 @@ async function handleWellnessConfirmation(parameters: Record<string, unknown>, i
     return { 
       success: true, 
       newCount: newCount,
-      message: `Wellness confirmation recorded. Total: ${newCount}/3` 
+      message: `Wellness confirmation recorded (${countToAdd} confirmation${countToAdd > 1 ? 's' : ''}). Total: ${newCount}/3` 
     };
   } else {
     console.log(`📊 [Wellness Confirmation] Response does NOT count as confirmation. Current count remains: ${currentCount}/3`);
@@ -1508,7 +1534,7 @@ async function generateInteractionSummary(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        operation: 'generate_response',
+        operation: 'generate_summary',
         input: {
           messages: [
             {

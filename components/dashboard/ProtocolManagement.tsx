@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { RedFlagRule, ProtocolAssignment, ConditionCode } from '@/types';
+import { ProtocolAssignment, ConditionCode, ProtocolContentPack } from '@/types';
 import { 
   Settings, 
   Plus, 
@@ -33,20 +33,14 @@ interface ProtocolAssignmentWithRelations extends ProtocolAssignment {
 }
 
 export default function ProtocolManagement() {
-  const [rules, setRules] = useState<RedFlagRule[]>([]);
+  const [rules, setRules] = useState<ProtocolContentPack[]>([]);
   const [assignments, setAssignments] = useState<ProtocolAssignmentWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingRule, setEditingRule] = useState<RedFlagRule | null>(null);
+  const [editingRule, setEditingRule] = useState<ProtocolContentPack | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newRule, setNewRule] = useState({
     rule_code: '',
-    description: '',
-    condition_specific: false,
-    education_level: 'all',
-    rules_dsl: {
-      red_flags: [],
-      closures: []
-    }
+    message: '',
   });
 
   useEffect(() => {
@@ -85,10 +79,7 @@ export default function ProtocolManagement() {
         setShowCreateDialog(false);
         setNewRule({
           rule_code: '',
-          description: '',
-          condition_specific: false,
-          education_level: 'all',
-          rules_dsl: { red_flags: [], closures: [] }
+          message: '',
         });
         loadData();
       }
@@ -191,35 +182,15 @@ export default function ProtocolManagement() {
                 />
               </div>
               <div>
-                <Label htmlFor="rule-description">Description</Label>
+                <Label htmlFor="rule-description">Message</Label>
                 <Textarea
                   id="rule-description"
-                  value={newRule.description}
-                  onChange={(e) => setNewRule(prev => ({ ...prev, description: e.target.value }))}
+                  value={newRule.message}
+                  onChange={(e) => setNewRule(prev => ({ ...prev, message: e.target.value }))}
                   placeholder="Describe what this rule detects and how it works"
                 />
               </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="condition-specific"
-                  checked={newRule.condition_specific}
-                  onCheckedChange={(checked) => setNewRule(prev => ({ ...prev, condition_specific: checked }))}
-                />
-                <Label htmlFor="condition-specific">Condition Specific</Label>
-              </div>
               <div>
-                <Label htmlFor="education-level">Education Level</Label>
-                <Select value={newRule.education_level} onValueChange={(value) => setNewRule(prev => ({ ...prev, education_level: value }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Levels</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
               <div className="flex gap-2">
                 <Button onClick={handleCreateRule} className="flex-1">
@@ -257,16 +228,13 @@ export default function ProtocolManagement() {
                     <Settings className="w-5 h-5 text-blue-600" />
                     <div>
                       <CardTitle className="text-lg">{rule.rule_code}</CardTitle>
-                      <p className="text-sm text-gray-600 mt-1">{rule.description}</p>
+                      <p className="text-sm text-gray-600 mt-1">{rule.message}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge className={getEducationLevelColor(rule.education_level || 'all')}>
-                      {rule.education_level || 'all'}
+                    <Badge className="bg-blue-100 text-blue-800">
+                      {rule.rule_type || 'RED_FLAG'}
                     </Badge>
-                    {rule.condition_specific && (
-                      <Badge variant="outline">Condition Specific</Badge>
-                    )}
                     <Button
                       size="sm"
                       variant="outline"
@@ -287,10 +255,10 @@ export default function ProtocolManagement() {
               <CardContent>
                 <div className="space-y-2">
                   <div className="text-sm text-gray-600">
-                    <strong>Red Flags:</strong> {(rule.rules_dsl as any)?.red_flags?.length || 0} rules
+                    <strong>Severity:</strong> {rule.severity || 'N/A'}
                   </div>
                   <div className="text-sm text-gray-600">
-                    <strong>Closures:</strong> {(rule.rules_dsl as any)?.closures?.length || 0} rules
+                    <strong>Action:</strong> {rule.action_type || 'N/A'}
                   </div>
                   <div className="text-xs text-gray-500">
                     Created: {rule.created_at ? new Date(rule.created_at).toLocaleDateString() : 'N/A'}
@@ -321,8 +289,8 @@ export default function ProtocolManagement() {
                     <Badge className={getConditionColor(assignment.condition_code)}>
                       {assignment.condition_code}
                     </Badge>
-                    <Badge className={getEducationLevelColor((assignment as any).Episode?.Patient?.education_level || 'MEDIUM')}>
-                      {(assignment as any).Episode?.Patient?.education_level || 'MEDIUM'}
+                    <Badge className={getEducationLevelColor((assignment as any).Episode?.Patient?.education_level)}>
+                      {(assignment as any).Episode?.Patient?.education_level}
                     </Badge>
                     <Badge variant={assignment.is_active ? "default" : "secondary"}>
                       {assignment.is_active ? "Active" : "Inactive"}
@@ -353,57 +321,15 @@ export default function ProtocolManagement() {
                 <Input
                   id="edit-rule-code"
                   value={editingRule.rule_code}
-                  onChange={(e) => setEditingRule(prev => prev ? { ...prev, rule_code: e.target.value } : null)}
+                  onChange={(e) => setEditingRule((prev: any) => prev ? { ...prev, rule_code: e.target.value } : null)}
                 />
               </div>
               <div>
-                <Label htmlFor="edit-rule-description">Description</Label>
+                <Label htmlFor="edit-rule-description">Message</Label>
                 <Textarea
                   id="edit-rule-description"
-                  value={editingRule.description}
-                  onChange={(e) => setEditingRule(prev => prev ? { ...prev, description: e.target.value } : null)}
-                />
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="edit-condition-specific"
-                  checked={editingRule.condition_specific || false}
-                  onCheckedChange={(checked) => setEditingRule(prev => prev ? { ...prev, condition_specific: checked } : null)}
-                />
-                <Label htmlFor="edit-condition-specific">Condition Specific</Label>
-              </div>
-              <div>
-                <Label htmlFor="edit-education-level">Education Level</Label>
-                <Select 
-                  value={editingRule.education_level || 'all'} 
-                  onValueChange={(value) => setEditingRule(prev => prev ? { ...prev, education_level: value } : null)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Levels</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="edit-rules-dsl">Rules DSL (JSON)</Label>
-                <Textarea
-                  id="edit-rules-dsl"
-                  value={JSON.stringify(editingRule.rules_dsl, null, 2)}
-                  onChange={(e) => {
-                    try {
-                      const parsed = JSON.parse(e.target.value);
-                      setEditingRule(prev => prev ? { ...prev, rules_dsl: parsed } : null);
-                    } catch (error) {
-                      // Invalid JSON, keep the text as is
-                    }
-                  }}
-                  className="font-mono text-sm"
-                  rows={10}
+                  value={editingRule.message || ''}
+                  onChange={(e) => setEditingRule((prev: any) => prev ? { ...prev, message: e.target.value } : null)}
                 />
               </div>
               <div className="flex gap-2">

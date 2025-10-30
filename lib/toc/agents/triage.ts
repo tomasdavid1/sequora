@@ -3,7 +3,7 @@
 
 import { supabaseServer } from '@/lib/supabase-server';
 import { EscalationRepository } from '../repositories/escalation';
-import { RedFlagRule, OutreachResponse, EscalationTask, RedFlagSeverity, ConditionCode } from '@/types';
+import { OutreachResponse, EscalationTask, RedFlagSeverity, ConditionCode } from '@/types';
 
 interface TriageContext {
   attemptId: string;
@@ -23,11 +23,12 @@ export class TriageAgent {
   async evaluate(context: TriageContext): Promise<void> {
     console.log(`[Triage] Evaluating ${context.responses.length} responses for ${context.conditionCode}`);
 
-    // Fetch active red flag rules for this condition
+    // Fetch active protocol rules for this condition
     const { data: rules } = await supabaseServer
-      .from('RedFlagRule')
-      .select('*')
+      .from('ProtocolContentPack')
+      .select('rule_code, message, severity, action_type, text_patterns')
       .eq('condition_code', context.conditionCode as any)
+      .eq('rule_type', 'RED_FLAG')
       .eq('active', true);
 
     if (!rules || rules.length === 0) {
@@ -40,7 +41,7 @@ export class TriageAgent {
     // Evaluate each response against applicable rules
     for (const response of context.responses) {
       const applicableRules = rules.filter(
-        rule => (rule.logic_spec as any)?.question_code === response.question_code
+        rule => (rule.text_patterns as any)?.question_code === response.question_code
       );
 
       for (const rule of applicableRules) {

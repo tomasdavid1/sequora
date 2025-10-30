@@ -2,7 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { Episode, Patient, OutreachResponse, OutreachAttempt, EscalationTask, ContactChannel, RedFlagRule, ConditionCode } from '@/types';
+import { Episode, Patient, OutreachResponse, OutreachAttempt, EscalationTask, ContactChannel, ConditionCode } from '@/types';
 import OpenAI from 'openai';
 import { 
   SeverityType,
@@ -146,11 +146,12 @@ async function analyzeResponsesForRedFlags(
 }> {
   const supabase = getSupabaseAdmin();
   
-  // Get red flag rules for the condition
+  // Get protocol rules for the condition
   const { data: redFlagRules, error: rulesError } = await supabase
-    .from('RedFlagRule')
-    .select('*')
+    .from('ProtocolContentPack')
+    .select('rule_code, severity, action_type, message')
     .eq('condition_code', condition as ConditionCode)
+    .eq('rule_type', 'RED_FLAG')
     .eq('active', true);
 
   if (rulesError) {
@@ -163,10 +164,10 @@ async function analyzeResponsesForRedFlags(
     throw new Error(`No red flag rules configured for condition: ${condition}. Please configure rules in admin dashboard.`);
   }
 
-  // Build condition context from database red flag rules
+  // Build condition context from database protocol rules
   const conditionContext = `
 Red Flag Symptoms to Watch For:
-${redFlagRules.map((rule: Record<string, unknown>) => `- ${rule.description}`).join('\n')}
+${redFlagRules.map((rule: Record<string, unknown>) => `- ${rule.message}`).join('\n')}
 `;
 
   // Prepare context for LLM analysis
@@ -178,9 +179,9 @@ ${conditionContext}
 
 RED FLAG RULES:
 ${redFlagRules?.map((rule: Record<string, unknown>) => `
-- ${rule.rule_code}: ${rule.description}
+- ${rule.rule_code}: ${rule.message}
   Severity: ${rule.severity}
-  Action: ${rule.action_hint}
+  Action: ${rule.action_type}
 `).join('\n')}
 
 PATIENT RESPONSES:
@@ -346,19 +347,19 @@ async function determineNextActions(
     actions.push(`Escalation task created: ${escalationTaskId}`);
   }
   
-  // Fetch the matched red flag rule to get database-driven action hint
+  // Fetch the matched protocol rule to get database-driven action hint
   if (analysis.redFlagCode && analysis.redFlagCode !== 'NONE') {
     const supabase = getSupabaseAdmin();
     const { data: rule } = await supabase
-      .from('RedFlagRule')
-      .select('action_hint, description')
+      .from('ProtocolContentPack')
+      .select('action_type, message')
       .eq('condition_code', condition as any)
       .eq('rule_code', String(analysis.redFlagCode))
       .single();
     
-    if (rule?.action_hint) {
-      actions.push(`Action: ${rule.action_hint}`);
-      actions.push(`Rule: ${rule.description}`);
+    if (rule?.action_type) {
+      actions.push(`Action: ${rule.action_type}`);
+      actions.push(`Rule: ${rule.message}`);
     }
   }
   

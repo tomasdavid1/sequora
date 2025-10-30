@@ -59,9 +59,7 @@ export type ProtocolContentPack = Database['public']['Tables']['ProtocolContentP
 export type ProtocolContentPackInsert = Database['public']['Tables']['ProtocolContentPack']['Insert'];
 export type ProtocolContentPackUpdate = Database['public']['Tables']['ProtocolContentPack']['Update'];
 
-export type RedFlagRule = Database['public']['Tables']['RedFlagRule']['Row'];
-export type RedFlagRuleInsert = Database['public']['Tables']['RedFlagRule']['Insert'];
-export type RedFlagRuleUpdate = Database['public']['Tables']['RedFlagRule']['Update'];
+// RedFlagRule types removed - functionality consolidated into ProtocolContentPack
 
 export type User = Database['public']['Tables']['User']['Row'];
 export type UserInsert = Database['public']['Tables']['User']['Insert'];

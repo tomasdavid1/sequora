@@ -68,8 +68,11 @@ export type Database = {
       AgentInteraction: {
         Row: {
           agent_config_id: string | null
+          checklist_progress: Json | null
           completed_at: string | null
+          conversation_phase: string | null
           created_at: string | null
+          current_checklist_position: number | null
           duration_seconds: number | null
           episode_id: string | null
           external_id: string | null
@@ -88,8 +91,11 @@ export type Database = {
         }
         Insert: {
           agent_config_id?: string | null
+          checklist_progress?: Json | null
           completed_at?: string | null
+          conversation_phase?: string | null
           created_at?: string | null
+          current_checklist_position?: number | null
           duration_seconds?: number | null
           episode_id?: string | null
           external_id?: string | null
@@ -108,8 +114,11 @@ export type Database = {
         }
         Update: {
           agent_config_id?: string | null
+          checklist_progress?: Json | null
           completed_at?: string | null
+          conversation_phase?: string | null
           created_at?: string | null
+          current_checklist_position?: number | null
           duration_seconds?: number | null
           episode_id?: string | null
           external_id?: string | null
@@ -1064,6 +1073,42 @@ export type Database = {
           },
         ]
       }
+      NurseActionProtocol: {
+        Row: {
+          action_type: string
+          active: boolean | null
+          condition_code: Database["public"]["Enums"]["condition_code"]
+          created_at: string | null
+          description: string
+          id: string
+          rule_code: string
+          severity: Database["public"]["Enums"]["red_flag_severity"]
+          updated_at: string | null
+        }
+        Insert: {
+          action_type: string
+          active?: boolean | null
+          condition_code: Database["public"]["Enums"]["condition_code"]
+          created_at?: string | null
+          description: string
+          id?: string
+          rule_code: string
+          severity: Database["public"]["Enums"]["red_flag_severity"]
+          updated_at?: string | null
+        }
+        Update: {
+          action_type?: string
+          active?: boolean | null
+          condition_code?: Database["public"]["Enums"]["condition_code"]
+          created_at?: string | null
+          description?: string
+          id?: string
+          rule_code?: string
+          severity?: Database["public"]["Enums"]["red_flag_severity"]
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       OutreachAttempt: {
         Row: {
           attempt_number: number
@@ -1573,9 +1618,14 @@ export type Database = {
           active: boolean | null
           condition_code: Database["public"]["Enums"]["condition_code"]
           created_at: string | null
+          follow_up_question: string | null
           id: string
+          is_critical: boolean | null
           message: string | null
           numeric_follow_up_question: string | null
+          question_category: string | null
+          question_text: string | null
+          requires_specific_answer: boolean | null
           rule_code: string
           rule_type: Database["public"]["Enums"]["rule_type"]
           severity: Database["public"]["Enums"]["red_flag_severity"] | null
@@ -1587,9 +1637,14 @@ export type Database = {
           active?: boolean | null
           condition_code: Database["public"]["Enums"]["condition_code"]
           created_at?: string | null
+          follow_up_question?: string | null
           id?: string
+          is_critical?: boolean | null
           message?: string | null
           numeric_follow_up_question?: string | null
+          question_category?: string | null
+          question_text?: string | null
+          requires_specific_answer?: boolean | null
           rule_code: string
           rule_type: Database["public"]["Enums"]["rule_type"]
           severity?: Database["public"]["Enums"]["red_flag_severity"] | null
@@ -1601,9 +1656,14 @@ export type Database = {
           active?: boolean | null
           condition_code?: Database["public"]["Enums"]["condition_code"]
           created_at?: string | null
+          follow_up_question?: string | null
           id?: string
+          is_critical?: boolean | null
           message?: string | null
           numeric_follow_up_question?: string | null
+          question_category?: string | null
+          question_text?: string | null
+          requires_specific_answer?: boolean | null
           rule_code?: string
           rule_type?: Database["public"]["Enums"]["rule_type"]
           severity?: Database["public"]["Enums"]["red_flag_severity"] | null
@@ -1612,50 +1672,44 @@ export type Database = {
         }
         Relationships: []
       }
-      RedFlagRule: {
+      SymptomChecklist: {
         Row: {
-          action_hint: string | null
-          active: boolean | null
-          condition_code: Database["public"]["Enums"]["condition_code"]
-          condition_specific: boolean | null
+          condition_code: string
           created_at: string | null
-          description: string
-          education_level: string | null
+          follow_up_question: string | null
           id: string
-          logic_spec: Json | null
-          rule_code: string
-          rules_dsl: Json | null
-          severity: Database["public"]["Enums"]["red_flag_severity"]
+          is_critical: boolean | null
+          question_category: string
+          question_order: number
+          question_text: string
+          requires_specific_answer: boolean | null
+          risk_level: string
           updated_at: string | null
         }
         Insert: {
-          action_hint?: string | null
-          active?: boolean | null
-          condition_code: Database["public"]["Enums"]["condition_code"]
-          condition_specific?: boolean | null
+          condition_code: string
           created_at?: string | null
-          description: string
-          education_level?: string | null
+          follow_up_question?: string | null
           id?: string
-          logic_spec?: Json | null
-          rule_code: string
-          rules_dsl?: Json | null
-          severity: Database["public"]["Enums"]["red_flag_severity"]
+          is_critical?: boolean | null
+          question_category: string
+          question_order: number
+          question_text: string
+          requires_specific_answer?: boolean | null
+          risk_level: string
           updated_at?: string | null
         }
         Update: {
-          action_hint?: string | null
-          active?: boolean | null
-          condition_code?: Database["public"]["Enums"]["condition_code"]
-          condition_specific?: boolean | null
+          condition_code?: string
           created_at?: string | null
-          description?: string
-          education_level?: string | null
+          follow_up_question?: string | null
           id?: string
-          logic_spec?: Json | null
-          rule_code?: string
-          rules_dsl?: Json | null
-          severity?: Database["public"]["Enums"]["red_flag_severity"]
+          is_critical?: boolean | null
+          question_category?: string
+          question_order?: number
+          question_text?: string
+          requires_specific_answer?: boolean | null
+          risk_level?: string
           updated_at?: string | null
         }
         Relationships: []
@@ -1829,7 +1883,31 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_critical_questions_complete: {
+        Args: {
+          p_checklist_progress: Json
+          p_condition_code: string
+          p_risk_level: string
+        }
+        Returns: boolean
+      }
       exec_sql: { Args: { sql_string: string }; Returns: string }
+      get_next_checklist_question: {
+        Args: {
+          p_condition_code: string
+          p_current_position?: number
+          p_risk_level: string
+        }
+        Returns: {
+          follow_up_question: string
+          is_critical: boolean
+          question_category: string
+          question_id: string
+          question_order: number
+          question_text: string
+          requires_specific_answer: boolean
+        }[]
+      }
       get_protocol_config: {
         Args: {
           condition_code_param: Database["public"]["Enums"]["condition_code"]
@@ -1837,8 +1915,19 @@ export type Database = {
         }
         Returns: Json
       }
+      update_checklist_progress: {
+        Args: {
+          p_answer_text?: string
+          p_answered?: boolean
+          p_asked?: boolean
+          p_interaction_id: string
+          p_question_category: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
+      actor_type: "USER" | "SYSTEM" | "PATIENT"
       agent_channel: "SMS" | "VOICE" | "CHAT" | "EMAIL" | "APP"
       agent_status: "ACTIVE" | "INACTIVE" | "TESTING" | "MAINTENANCE"
       agent_type:
@@ -1850,6 +1939,7 @@ export type Database = {
         | "CARE_NAVIGATOR"
         | "CLINICAL_ESCALATION"
       ai_provider: "OPENAI" | "ANTHROPIC" | "AZURE" | "CUSTOM"
+      appointment_modality: "IN_PERSON" | "VIRTUAL"
       appointment_status:
         | "SCHEDULED"
         | "CONFIRMED"
@@ -1865,7 +1955,15 @@ export type Database = {
         | "LAB"
         | "IMAGING"
         | "OTHER"
+      audit_action:
+        | "CREATE"
+        | "UPDATE"
+        | "READ"
+        | "DELETE"
+        | "EXPORT"
+        | "ESCALATE"
       condition_code: "HF" | "COPD" | "AMI" | "PNA" | "OTHER"
+      consent_method: "VERBAL" | "WRITTEN" | "DIGITAL"
       consent_status: "GRANTED" | "DENIED" | "REVOKED" | "EXPIRED"
       consent_type: "SMS" | "VOICE" | "DATA_SHARE" | "RCM_BILLING" | "RESEARCH"
       contact_channel: "SMS" | "VOICE" | "HUMAN_CALL" | "EMAIL" | "APP"
@@ -1885,7 +1983,17 @@ export type Database = {
         | "ESCALATED"
         | "FAILED"
         | "TIMEOUT"
+      interaction_type: "VOICE_CALL" | "SMS" | "WHATSAPP" | "EMAIL" | "APP_CHAT"
       language_code: "EN" | "ES" | "OTHER"
+      medication_adherence_event_type:
+        | "PICKUP_CONFIRMED"
+        | "PICKUP_DECLINED"
+        | "MISSED_DOSE"
+        | "SIDE_EFFECT"
+        | "COST_BARRIER"
+        | "SWITCHED_DRUG"
+        | "ADHERENT"
+      medication_event_source: "PATIENT" | "PHARMACY" | "NURSE" | "SYSTEM"
       medication_source: "EHR" | "PATIENT_REPORTED" | "PHARMACY" | "UNKNOWN"
       message_direction: "OUTBOUND" | "INBOUND"
       message_role: "AGENT" | "PATIENT" | "SYSTEM"
@@ -1897,7 +2005,21 @@ export type Database = {
         | "FAILED"
         | "RESPONDED"
         | "TIMEOUT"
+      message_type:
+        | "SYSTEM"
+        | "USER"
+        | "ASSISTANT"
+        | "FUNCTION_CALL"
+        | "FUNCTION_RESULT"
+        | "TOOL_CALL"
+        | "TOOL_RESULT"
       note_destination: "EHR_INBOX" | "SECURE_FAX" | "DIRECT_MSG" | "NONE"
+      note_export_status:
+        | "QUEUED"
+        | "IN_PROGRESS"
+        | "SENT"
+        | "FAILED"
+        | "CANCELLED"
       outreach_status:
         | "PENDING"
         | "SCHEDULED"
@@ -1926,6 +2048,8 @@ export type Database = {
       rule_type: "RED_FLAG" | "CLOSURE" | "QUESTION" | "CLARIFICATION"
       task_priority: "LOW" | "NORMAL" | "HIGH" | "URGENT"
       task_status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CANCELLED" | "EXPIRED"
+      tcm_complexity: "MODERATE_99495" | "HIGH_99496" | "UNKNOWN"
+      transport_payer: "HOSPITAL" | "PATIENT" | "GRANT" | "OTHER"
       transport_status:
         | "REQUESTED"
         | "BOOKED"
@@ -1934,6 +2058,7 @@ export type Database = {
         | "CANCELLED"
         | "FAILED"
         | "UNKNOWN"
+      user_role: "ADMIN" | "STAFF" | "NURSE" | "PATIENT"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2061,6 +2186,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      actor_type: ["USER", "SYSTEM", "PATIENT"],
       agent_channel: ["SMS", "VOICE", "CHAT", "EMAIL", "APP"],
       agent_status: ["ACTIVE", "INACTIVE", "TESTING", "MAINTENANCE"],
       agent_type: [
@@ -2073,6 +2199,7 @@ export const Constants = {
         "CLINICAL_ESCALATION",
       ],
       ai_provider: ["OPENAI", "ANTHROPIC", "AZURE", "CUSTOM"],
+      appointment_modality: ["IN_PERSON", "VIRTUAL"],
       appointment_status: [
         "SCHEDULED",
         "CONFIRMED",
@@ -2090,7 +2217,16 @@ export const Constants = {
         "IMAGING",
         "OTHER",
       ],
+      audit_action: [
+        "CREATE",
+        "UPDATE",
+        "READ",
+        "DELETE",
+        "EXPORT",
+        "ESCALATE",
+      ],
       condition_code: ["HF", "COPD", "AMI", "PNA", "OTHER"],
+      consent_method: ["VERBAL", "WRITTEN", "DIGITAL"],
       consent_status: ["GRANTED", "DENIED", "REVOKED", "EXPIRED"],
       consent_type: ["SMS", "VOICE", "DATA_SHARE", "RCM_BILLING", "RESEARCH"],
       contact_channel: ["SMS", "VOICE", "HUMAN_CALL", "EMAIL", "APP"],
@@ -2112,7 +2248,18 @@ export const Constants = {
         "FAILED",
         "TIMEOUT",
       ],
+      interaction_type: ["VOICE_CALL", "SMS", "WHATSAPP", "EMAIL", "APP_CHAT"],
       language_code: ["EN", "ES", "OTHER"],
+      medication_adherence_event_type: [
+        "PICKUP_CONFIRMED",
+        "PICKUP_DECLINED",
+        "MISSED_DOSE",
+        "SIDE_EFFECT",
+        "COST_BARRIER",
+        "SWITCHED_DRUG",
+        "ADHERENT",
+      ],
+      medication_event_source: ["PATIENT", "PHARMACY", "NURSE", "SYSTEM"],
       medication_source: ["EHR", "PATIENT_REPORTED", "PHARMACY", "UNKNOWN"],
       message_direction: ["OUTBOUND", "INBOUND"],
       message_role: ["AGENT", "PATIENT", "SYSTEM"],
@@ -2125,7 +2272,23 @@ export const Constants = {
         "RESPONDED",
         "TIMEOUT",
       ],
+      message_type: [
+        "SYSTEM",
+        "USER",
+        "ASSISTANT",
+        "FUNCTION_CALL",
+        "FUNCTION_RESULT",
+        "TOOL_CALL",
+        "TOOL_RESULT",
+      ],
       note_destination: ["EHR_INBOX", "SECURE_FAX", "DIRECT_MSG", "NONE"],
+      note_export_status: [
+        "QUEUED",
+        "IN_PROGRESS",
+        "SENT",
+        "FAILED",
+        "CANCELLED",
+      ],
       outreach_status: [
         "PENDING",
         "SCHEDULED",
@@ -2157,6 +2320,8 @@ export const Constants = {
       rule_type: ["RED_FLAG", "CLOSURE", "QUESTION", "CLARIFICATION"],
       task_priority: ["LOW", "NORMAL", "HIGH", "URGENT"],
       task_status: ["OPEN", "IN_PROGRESS", "RESOLVED", "CANCELLED", "EXPIRED"],
+      tcm_complexity: ["MODERATE_99495", "HIGH_99496", "UNKNOWN"],
+      transport_payer: ["HOSPITAL", "PATIENT", "GRANT", "OTHER"],
       transport_status: [
         "REQUESTED",
         "BOOKED",
@@ -2166,6 +2331,7 @@ export const Constants = {
         "FAILED",
         "UNKNOWN",
       ],
+      user_role: ["ADMIN", "STAFF", "NURSE", "PATIENT"],
     },
   },
 } as const

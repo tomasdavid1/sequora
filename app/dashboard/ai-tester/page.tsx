@@ -53,7 +53,8 @@ import {
   Trash2,
   FileText,
   AlertCircle,
-  UserPlus
+  UserPlus,
+  Pill
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -584,6 +585,9 @@ export default function AITesterPage() {
             protocol_snapshot_at: null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
+            checklist_progress: {},
+            conversation_phase: 'greeting',
+            current_checklist_position: 0,
             patient: patients.find(p => p.id === testConfig.patientId),
             episode: episodes.find(e => e.id === testConfig.episodeId),
             messages: []
@@ -739,6 +743,9 @@ export default function AITesterPage() {
       protocol_snapshot_at: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      checklist_progress: {},
+      conversation_phase: 'greeting',
+      current_checklist_position: 0,
       patient: selectedPatientForChat,
       episode: episode,
       messages: []
@@ -1014,7 +1021,7 @@ export default function AITesterPage() {
                         </DialogTrigger>
                         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
                           <DialogHeader>
-                            <DialogTitle>Protocol Profile</DialogTitle>
+                            <DialogTitle>Patient Profile</DialogTitle>
                           </DialogHeader>
                           
                           {loadingProfile ? (
@@ -1029,12 +1036,60 @@ export default function AITesterPage() {
                                   <User className="w-5 h-5" />
                                   Patient Information
                                 </h3>
-                                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                                  <div><span className="font-medium">Name:</span> {protocolProfile.patient?.first_name} {protocolProfile.patient?.last_name}</div>
+                                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div><span className="font-medium">Name:</span> {protocolProfile.patient?.first_name} {protocolProfile.patient?.last_name}</div>
+                                    <div><span className="font-medium">DOB:</span> {protocolProfile.patient?.date_of_birth ? new Date(protocolProfile.patient.date_of_birth).toLocaleDateString() : 'N/A'}</div>
+                                  </div>
                                   <div><span className="font-medium">Email:</span> {protocolProfile.patient?.email}</div>
-                                  <div><span className="font-medium">DOB:</span> {protocolProfile.patient?.date_of_birth ? new Date(protocolProfile.patient.date_of_birth).toLocaleDateString() : 'N/A'}</div>
+                                  
+                                  {/* Episode Details */}
+                                  <div className="pt-3 border-t">
+                                    <h4 className="font-medium text-sm text-gray-700 mb-2">Episode Details</h4>
+                                    <div className="grid grid-cols-2 gap-4 text-sm">
+                                      <div><span className="font-medium">Admit Date:</span> {protocolProfile.episode?.admit_at ? new Date(protocolProfile.episode.admit_at).toLocaleDateString() : 'N/A'}</div>
+                                      <div><span className="font-medium">Discharge Date:</span> {protocolProfile.episode?.discharge_at ? new Date(protocolProfile.episode.discharge_at).toLocaleDateString() : 'N/A'}</div>
+                                      <div><span className="font-medium">Facility:</span> {protocolProfile.episode?.facility_name || 'N/A'}</div>
+                                      <div><span className="font-medium">Attending Physician:</span> {protocolProfile.episode?.attending_physician_name || 'N/A'}</div>
+                                      <div><span className="font-medium">Discharge Location:</span> {protocolProfile.episode?.discharge_location || 'N/A'}</div>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
+
+                              {/* Medications */}
+                              {protocolProfile.episode?.medications && (
+                                <div>
+                                  <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                                    <Pill className="w-5 h-5" />
+                                    Current Medications
+                                  </h3>
+                                  <div className="bg-gray-50 rounded-lg p-4">
+                                    {Array.isArray(protocolProfile.episode.medications) && protocolProfile.episode.medications.length > 0 ? (
+                                      <div className="space-y-3">
+                                        {protocolProfile.episode.medications.map((med: any, index: number) => (
+                                          <div key={index} className="flex items-start gap-3 p-3 bg-white rounded-lg border">
+                                            <Pill className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                                            <div className="flex-1">
+                                              <div className="font-medium text-sm">{med.name || 'Unknown Medication'}</div>
+                                              {(med.dosage || med.frequency || med.timing) && (
+                                                <div className="text-xs text-gray-600 mt-1 space-y-1">
+                                                  {med.dosage && <div>Dosage: {med.dosage}</div>}
+                                                  {med.frequency && <div>Frequency: {med.frequency}</div>}
+                                                  {med.timing && <div>Timing: {med.timing}</div>}
+                                                  {med.notes && <div className="text-gray-500 italic">{med.notes}</div>}
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <div className="text-gray-500 text-sm italic">No medications recorded</div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
 
                               {/* Episode Info - Editable */}
                               <div>

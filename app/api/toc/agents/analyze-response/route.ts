@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     if (configError || !protocolConfig) {
       console.error('❌ [Analysis] Failed to fetch protocol config:', configError);
       return NextResponse.json(
-        { error: `No protocol configuration found for ${episode.condition_code} ${episode.risk_level || 'MEDIUM'} risk` },
+        { error: `No protocol configuration found for ${episode.condition_code} ${episode.risk_level} risk` },
         { status: 500 }
       );
     }
@@ -86,11 +86,12 @@ export async function POST(request: NextRequest) {
     
     const conditionFullName = conditionMeta?.full_name || condition;
 
-    // Get red flag rules for the condition
+    // Get protocol rules for the condition
     const { data: redFlagRules, error: rulesError } = await supabase
-      .from('RedFlagRule')
-      .select('*')
+      .from('ProtocolContentPack')
+      .select('rule_code, message, severity, action_type, text_patterns')
       .eq('condition_code', condition)
+      .eq('rule_type', 'RED_FLAG')
       .eq('active', true);
 
     if (rulesError) {
@@ -140,7 +141,7 @@ export async function POST(request: NextRequest) {
     // Build dynamic condition context from database rules
     const conditionContext = `
 ${conditionFullName} Red Flags:
-${redFlagRules.map(rule => `- ${rule.description} (Severity: ${rule.severity})`).join('\n')}
+${redFlagRules.map(rule => `- ${rule.message} (Severity: ${rule.severity})`).join('\n')}
 `;
 
     // Analyze responses using LLM with database-driven prompt
@@ -286,9 +287,9 @@ ${conditionContext}
 
 RED FLAG RULES:
 ${redFlagRules.map((rule: any) => `
-- ${rule.rule_code}: ${rule.description}
+- ${rule.rule_code}: ${rule.message}
   Severity: ${rule.severity}
-  Action: ${rule.action_hint}
+  Action: ${rule.action_type}
 `).join('\n')}
 
 PATIENT RESPONSES:

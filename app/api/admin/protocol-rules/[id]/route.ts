@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { RedFlagRule, RedFlagRuleUpdate } from '@/types';
+import { ProtocolContentPack, ProtocolContentPackUpdate } from '@/types';
 
 export async function PUT(
   request: NextRequest,
@@ -41,7 +41,7 @@ export async function PUT(
     }
 
     const { data: rule, error } = await supabase
-      .from('RedFlagRule')
+      .from('ProtocolContentPack')
       .update(updateData)
       .eq('id', params.id)
       .select()
@@ -74,7 +74,7 @@ export async function DELETE(
     const supabase = getSupabaseAdmin();
     
     const { error } = await supabase
-      .from('RedFlagRule')
+      .from('ProtocolContentPack')
       .delete()
       .eq('id', params.id);
 

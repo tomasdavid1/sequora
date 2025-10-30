@@ -27,6 +27,12 @@ export async function GET(request: NextRequest) {
           id,
           condition_code,
           risk_level,
+          discharge_at,
+          admit_at,
+          discharge_location,
+          attending_physician_name,
+          facility_name,
+          medications,
           Patient!inner(
             id,
             first_name,
@@ -62,9 +68,10 @@ export async function GET(request: NextRequest) {
     const severityFilter = getSeverityFilterForRiskLevel(riskLevel as RiskLevelType);
 
     const { data: redFlagRules, error: rulesError } = await supabase
-      .from('RedFlagRule')
-      .select('*')
+      .from('ProtocolContentPack')
+      .select('rule_code, message, severity, action_type, text_patterns')
       .eq('condition_code', protocol.Episode.condition_code)
+      .eq('rule_type', 'RED_FLAG')
       .in('severity', severityFilter)
       .eq('active', true)
       .order('severity', { ascending: false });
@@ -105,7 +112,13 @@ export async function GET(request: NextRequest) {
       episode: {
         id: protocol.Episode.id,
         condition_code: protocol.Episode.condition_code,
-        risk_level: protocol.Episode.risk_level
+        risk_level: protocol.Episode.risk_level,
+        discharge_at: protocol.Episode.discharge_at,
+        admit_at: protocol.Episode.admit_at,
+        discharge_location: protocol.Episode.discharge_location,
+        attending_physician_name: protocol.Episode.attending_physician_name,
+        facility_name: protocol.Episode.facility_name,
+        medications: protocol.Episode.medications
       },
       patient: protocol.Episode.Patient,
       activeProtocolRules: activeRules || [], 

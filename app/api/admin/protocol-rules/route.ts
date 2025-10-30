@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { RedFlagRule, RedFlagRuleInsert } from '@/types';
+import { ProtocolContentPack, ProtocolContentPackInsert } from '@/types';
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
     
     const { data: rules, error } = await supabase
-      .from('RedFlagRule')
+      .from('ProtocolContentPack')
       .select('*')
       .order('created_at', { ascending: false });
 
@@ -45,15 +45,15 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     
     const { data: rule, error } = await supabase
-      .from('RedFlagRule')
+      .from('ProtocolContentPack')
       .insert({
         rule_code,
-        description,
+        message: description, // Use message instead of description
         condition_code,
         severity,
-        logic_spec: logic_spec ?? null, // Optional field
-        action_hint: action_hint ?? null, // Optional field
-        education_level: education_level ?? null, // Optional field
+        text_patterns: logic_spec ?? [], // Use text_patterns instead of logic_spec
+        action_type: action_hint ?? 'ASK_MORE', // Use action_type instead of action_hint
+        rule_type: 'RED_FLAG', // Add required rule_type
         active: true
       })
       .select()
