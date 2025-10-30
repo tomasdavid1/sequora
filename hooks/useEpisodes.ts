@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export interface Episode {
   id: string;
@@ -62,11 +62,11 @@ export function useEpisodes(options: UseEpisodesOptions = {}) {
   }, [apiEndpoint, patientId]);
 
   // Auto-fetch on mount if enabled
-  useState(() => {
+  useEffect(() => {
     if (autoFetch) {
       fetchEpisodes();
     }
-  });
+  }, [autoFetch, fetchEpisodes]);
 
   return {
     episodes,

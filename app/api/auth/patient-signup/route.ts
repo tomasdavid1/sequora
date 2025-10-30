@@ -76,22 +76,28 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ [Patient Signup] Auth user created:', authUser.user?.id);
 
-    // Create or update User record
+    // Create or update User record (using auth_user_id as conflict target)
     const { error: userError } = await supabase
       .from('User')
-      .upsert({
-        auth_user_id: authUser.user?.id,
-        email: email.toLowerCase(),
-        name: `${patient.first_name} ${patient.last_name}`,
-        role: 'PATIENT' as UserRoleType,
-        active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      });
+      .upsert(
+        {
+          auth_user_id: authUser.user?.id,
+          email: email.toLowerCase(),
+          name: `${patient.first_name} ${patient.last_name}`,
+          role: 'PATIENT' as UserRoleType,
+          active: true,
+          updated_at: new Date().toISOString()
+        },
+        {
+          onConflict: 'auth_user_id'
+        }
+      );
 
     if (userError) {
       console.error('⚠️ [Patient Signup] Error creating User record:', userError);
       // Don't fail - auth user is created, User record can sync later
+    } else {
+      console.log('✅ [Patient Signup] User record created/updated');
     }
 
     console.log('✅ [Patient Signup] Patient account created successfully');
@@ -99,7 +105,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Account created successfully',
-      userId: authUser.user?.id
+      userId: authUser.user?.id,
+      autoLogin: true // Flag to indicate frontend should auto-login
     });
 
   } catch (error) {

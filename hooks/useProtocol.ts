@@ -4,6 +4,7 @@ export interface ProtocolProfile {
   protocolAssignment: any;
   protocolConfig: any;
   episode: any;
+  patient?: any;
   activeProtocolRules: any[];
   redFlagRules: any[];
   checkInFrequency: number;

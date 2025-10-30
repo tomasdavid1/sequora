@@ -264,6 +264,7 @@ export default function NurseDashboard() {
           
           <InteractionHistory 
             interactions={conversationData}
+            viewMode="staff"
             showEscalations={false}
           />
         </DialogContent>

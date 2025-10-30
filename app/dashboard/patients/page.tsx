@@ -243,6 +243,7 @@ export default function PatientsPage() {
             
             <InteractionHistory 
               interactions={conversationData}
+              viewMode="staff"
               showEscalations={true}
             />
           </DialogContent>

@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { usePatients } from '@/hooks/usePatients';
 import { useEpisodes } from '@/hooks/useEpisodes';
 import { useInteractions } from '@/hooks/useInteractions';
+import { useProtocol } from '@/hooks/useProtocol';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConversationView } from '@/components/shared/ConversationView';
 import { getSeverityColor } from '@/lib/ui-helpers';
@@ -87,11 +88,11 @@ export default function AITesterPage() {
   const { toast } = useToast();
   
   // Custom hooks for data fetching
-  const { patients } = usePatients({ 
+  const { patients, refreshPatients } = usePatients({ 
     apiEndpoint: '/api/debug/patients',
     autoFetch: true 
   });
-  const { episodes } = useEpisodes({ 
+  const { episodes, refreshEpisodes } = useEpisodes({ 
     apiEndpoint: '/api/debug/patients',
     autoFetch: true 
   });
@@ -124,8 +125,18 @@ export default function AITesterPage() {
   });
   const [currentInteractionId, setCurrentInteractionId] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [protocolProfile, setProtocolProfile] = useState<any>(null);
-  const [loadingProfile, setLoadingProfile] = useState(false);
+  
+  // Protocol management with custom hook
+  const { 
+    protocolProfile, 
+    loading: loadingProfile, 
+    fetchProtocolProfile,
+    updateProtocolConfig,
+    updateProtocolContentPack
+  } = useProtocol({ 
+    episodeId: testConfig.episodeId,
+    autoFetch: false // Manual fetch when needed
+  });
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showPatientConfigModal, setShowPatientConfigModal] = useState(false);
   const [editingConfig, setEditingConfig] = useState<any>({});
@@ -386,48 +397,6 @@ export default function AITesterPage() {
   const saveProfileChanges = async () => {
     await savePatientChanges();
     await saveEpisodeChanges();
-  };
-
-  // Fetch protocol profile for current test config
-  const fetchProtocolProfile = async () => {
-    if (!testConfig.episodeId) {
-      console.log('No episode selected');
-      return;
-    }
-    
-    setLoadingProfile(true);
-    try {
-      console.log('🔍 [Profile] Fetching protocol for episode:', testConfig.episodeId);
-      
-      // Fetch protocol assignment and red flag rules
-      const response = await fetch(`/api/toc/protocol/profile?episodeId=${testConfig.episodeId}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setProtocolProfile(data.profile);
-        console.log('✅ [Profile] Loaded protocol profile:', data.profile);
-      } else {
-        console.log('📝 [Profile] No protocol available:', data.error);
-        // Show info alert instead of error for "no assignment" case
-        const isNoAssignment = data.error?.includes('No active protocol assignment');
-        toast({
-          title: isNoAssignment ? "No Protocol Assignment" : "Error loading profile",
-          description: isNoAssignment 
-            ? "Send a message to create a protocol assignment, or the system will auto-create one."
-            : data.error,
-          variant: isNoAssignment ? "default" : "destructive"
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching protocol profile:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load protocol profile",
-        variant: "destructive"
-      });
-    } finally {
-      setLoadingProfile(false);
-    }
   };
 
   // Set default patient/episode when data is loaded by hooks
@@ -715,16 +684,33 @@ export default function AITesterPage() {
     }
   };
 
-  const createNewChat = () => {
-    // Open patient selector instead of immediately creating chat
+  const createNewChat = async () => {
+    // Refresh patient and episode data to get latest
+    console.log('🔄 [AITester] Refreshing patient/episode data before opening selector...');
+    await Promise.all([refreshPatients(), refreshEpisodes()]);
+    console.log('✅ [AITester] Data refreshed. Patients:', patients.length, 'Episodes:', episodes.length);
+    
+    // Open patient selector
     setShowPatientSelector(true);
   };
 
   const handlePatientSelected = (patient: any) => {
+    console.log('🔍 [AITester] Patient selected:', patient);
+    console.log('🔍 [AITester] Available episodes for patient:', episodes.filter(e => e.patient_id === patient.id));
+    
     setSelectedPatientForChat(patient);
     // Fetch episodes for this patient
     const patientEpisodes = episodes.filter(e => e.patient_id === patient.id);
     setAvailableEpisodes(patientEpisodes);
+    
+    if (patientEpisodes.length === 0) {
+      console.warn('⚠️ [AITester] No episodes found for patient', patient.id);
+      toast({
+        title: 'No Episode Found',
+        description: `Patient ${patient.first_name} ${patient.last_name} has no episodes. Please create an episode first.`,
+        variant: 'destructive'
+      });
+    }
   };
 
   const handleEpisodeSelected = (episode: any) => {
@@ -1030,7 +1016,7 @@ export default function AITesterPage() {
                           <Button 
                             variant="outline" 
                             size="sm"
-                            onClick={fetchProtocolProfile}
+                            onClick={() => fetchProtocolProfile()}
                             disabled={!testConfig.episodeId}
                             className="w-full sm:w-auto"
                           >

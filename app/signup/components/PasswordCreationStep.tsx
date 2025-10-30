@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { supabase } from '@/lib/supabase';
 import { Lock, Loader2, ChevronLeft, CheckCircle } from 'lucide-react';
 
 interface PasswordCreationStepProps {
@@ -21,6 +23,7 @@ export function PasswordCreationStep({
   onComplete,
   onBack 
 }: PasswordCreationStepProps) {
+  const router = useRouter();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -70,7 +73,25 @@ export function PasswordCreationStep({
       const result = await response.json();
 
       if (result.success) {
-        onComplete();
+        // Auto-login the user
+        console.log('✅ Signup successful, logging in...');
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: email,
+          password: password
+        });
+
+        if (signInError) {
+          console.error('Auto-login failed:', signInError);
+          // Still show success but send to login page
+          setError('Account created! Please sign in to continue.');
+          setTimeout(() => {
+            router.push('/login?message=Account created successfully! Please sign in.');
+          }, 2000);
+        } else {
+          console.log('✅ Auto-login successful, redirecting to dashboard...');
+          // Success! Redirect to dashboard
+          router.push('/dashboard');
+        }
       } else {
         setError(result.error || 'Failed to set up your account. Please try again.');
       }

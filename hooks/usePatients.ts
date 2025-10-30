@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export interface Patient {
   id: string;
@@ -60,11 +60,11 @@ export function usePatients(options: UsePatientsOptions = {}) {
   }, [apiEndpoint]);
 
   // Auto-fetch on mount if enabled
-  useState(() => {
+  useEffect(() => {
     if (autoFetch) {
       fetchPatients();
     }
-  });
+  }, [autoFetch, fetchPatients]);
 
   const refreshPatients = fetchPatients;
 

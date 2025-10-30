@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
+import { InteractionHistory } from '@/components/shared/InteractionHistory';
 import { 
   Users, 
   Activity, 
@@ -35,44 +37,75 @@ interface PatientDashboardData {
 }
 
 export default function PatientDashboard() {
-  const [patientData, setPatientData] = useState<PatientDashboardData>({
-    name: 'John Doe',
-    condition: 'HF',
-    lastCheckIn: '2025-01-20T10:30:00Z',
-    nextCheckIn: '2025-01-22T14:00:00Z',
-    medications: [
-      { name: 'Lisinopril', dose: '10mg', frequency: 'Daily' },
-      { name: 'Metoprolol', dose: '25mg', frequency: 'Twice daily' }
-    ]
-  });
+  const [patientData, setPatientData] = useState<PatientDashboardData | null>(null);
+  const [interactions, setInteractions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [conversationHistory, setConversationHistory] = useState<any[]>([
-    {
-      id: 1,
-      type: 'VOICE',
-      date: '2025-01-20T10:30:00Z',
-      summary: 'Routine check-in call about weight monitoring and medication adherence',
-      duration: '8:45',
-      questions: [
-        { question: 'How are you feeling today?', answer: 'I feel good, no major issues' },
-        { question: 'Have you gained any weight?', answer: 'No, weight is stable' },
-        { question: 'Are you taking your medications?', answer: 'Yes, taking them as prescribed' }
-      ],
-      transcript: 'Patient reported feeling well with stable weight and good medication adherence. No red flags identified.'
-    },
-    {
-      id: 2,
-      type: 'SMS',
-      date: '2025-01-18T15:20:00Z',
-      summary: 'Text message about medication side effects',
-      questions: [
-        { question: 'Are you experiencing any side effects?', answer: 'Slight dizziness in the morning' }
-      ],
-      transcript: 'Patient reported mild dizziness in the morning. Advised to monitor and contact if symptoms worsen.'
+  useEffect(() => {
+    fetchPatientData();
+  }, []);
+
+  const fetchPatientData = async () => {
+    try {
+      setLoading(true);
+      
+      // TODO: Replace with actual API calls:
+      // 1. GET /api/toc/patient/me - Fetch current patient's data from Patient table
+      // 2. GET /api/toc/patient/me/episode - Fetch active Episode (condition_code, discharge_date)
+      // 3. GET /api/toc/patient/me/medications - Fetch EpisodeMedication records
+      // 4. GET /api/toc/patient/me/interactions - Fetch AgentInteraction records with messages
+      // 5. GET /api/toc/patient/me/education - Fetch EducationContent for patient's condition
+      
+      // MOCK DATA - Replace with real API calls
+      setPatientData({
+        name: 'John Doe',
+        condition: 'HF',
+        lastCheckIn: '2025-01-20T10:30:00Z',
+        nextCheckIn: '2025-01-22T14:00:00Z',
+        medications: [
+          // TODO: Pull from Episode.medications (JSONB) or EpisodeMedication table
+          { name: 'Lisinopril', dose: '10mg', frequency: 'Daily' },
+          { name: 'Metoprolol', dose: '25mg', frequency: 'Twice daily' }
+        ]
+      });
+      
+      // TODO: Pull from AgentInteraction table where patient_id = current user's patient_id
+      // Include AgentMessage records for full conversation
+      setInteractions([
+        {
+          id: '1',
+          started_at: '2025-01-20T10:30:00Z',
+          status: 'COMPLETED',
+          summary: 'Routine check-in about weight monitoring and medication adherence',
+          episode: { condition_code: 'HF' },
+          messages: [
+            { role: 'AGENT', content: 'How are you feeling today?', created_at: '2025-01-20T10:30:00Z' },
+            { role: 'PATIENT', content: 'I feel good, no major issues', created_at: '2025-01-20T10:31:00Z' },
+            { role: 'AGENT', content: 'Have you gained any weight?', created_at: '2025-01-20T10:32:00Z' },
+            { role: 'PATIENT', content: 'No, weight is stable', created_at: '2025-01-20T10:33:00Z' },
+            { role: 'AGENT', content: 'Are you taking your medications as prescribed?', created_at: '2025-01-20T10:34:00Z' },
+            { role: 'PATIENT', content: 'Yes, taking them every day', created_at: '2025-01-20T10:35:00Z' }
+          ]
+        },
+        {
+          id: '2',
+          started_at: '2025-01-18T15:20:00Z',
+          status: 'COMPLETED',
+          summary: 'Discussion about medication side effects',
+          episode: { condition_code: 'HF' },
+          messages: [
+            { role: 'AGENT', content: 'Are you experiencing any side effects from your medications?', created_at: '2025-01-18T15:20:00Z' },
+            { role: 'PATIENT', content: 'I have slight dizziness in the morning', created_at: '2025-01-18T15:21:00Z' },
+            { role: 'AGENT', content: 'Thank you for letting me know. Please monitor this and contact your care team if it worsens.', created_at: '2025-01-18T15:22:00Z' }
+          ]
+        }
+      ]);
+    } catch (error) {
+      console.error('Error fetching patient data:', error);
+    } finally {
+      setLoading(false);
     }
-  ]);
-
-  const [selectedInteraction, setSelectedInteraction] = useState(null);
+  };
 
   const getConditionIcon = (condition: string) => {
     switch (condition) {
@@ -95,19 +128,21 @@ export default function PatientDashboard() {
   };
 
   return (
-    <div >
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">My Care Plan</h1>
-          <p className="text-gray-600">Personalized care management for {patientData.name}</p>
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold">My Care Plan</h1>
+          <p className="text-sm sm:text-base text-gray-600">
+            Personalized care management{patientData ? ` for ${patientData.name}` : ''}
+          </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+        <div className="flex flex-col sm:flex-row gap-2 sm:flex-shrink-0">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto">
             <Calendar className="w-4 h-4 mr-2" />
             Schedule
           </Button>
-          <Button size="sm">
+          <Button size="sm" className="w-full sm:w-auto">
             <MessageSquare className="w-4 h-4 mr-2" />
             Contact Care Team
           </Button>
@@ -115,15 +150,24 @@ export default function PatientDashboard() {
       </div>
 
       {/* Key Information Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Condition</CardTitle>
-            {getConditionIcon(patientData.condition)}
+            {patientData && getConditionIcon(patientData.condition)}
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{getConditionName(patientData.condition)}</div>
-            <p className="text-xs text-muted-foreground">Primary diagnosis</p>
+            {loading ? (
+              <>
+                <Skeleton className="h-8 w-32 mb-1" />
+                <Skeleton className="h-4 w-24" />
+              </>
+            ) : patientData ? (
+              <>
+                <div className="text-2xl font-bold">{getConditionName(patientData.condition)}</div>
+                <p className="text-xs text-muted-foreground">Primary diagnosis</p>
+              </>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -133,10 +177,19 @@ export default function PatientDashboard() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {new Date(patientData.lastCheckIn).toLocaleDateString()}
-            </div>
-            <p className="text-xs text-muted-foreground">Most recent contact</p>
+            {loading ? (
+              <>
+                <Skeleton className="h-8 w-24 mb-1" />
+                <Skeleton className="h-4 w-28" />
+              </>
+            ) : patientData ? (
+              <>
+                <div className="text-2xl font-bold">
+                  {new Date(patientData.lastCheckIn).toLocaleDateString()}
+                </div>
+                <p className="text-xs text-muted-foreground">Most recent contact</p>
+              </>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -146,21 +199,42 @@ export default function PatientDashboard() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {new Date(patientData.nextCheckIn).toLocaleDateString()}
-            </div>
-            <p className="text-xs text-muted-foreground">Scheduled contact</p>
+            {loading ? (
+              <>
+                <Skeleton className="h-8 w-24 mb-1" />
+                <Skeleton className="h-4 w-28" />
+              </>
+            ) : patientData ? (
+              <>
+                <div className="text-2xl font-bold">
+                  {new Date(patientData.nextCheckIn).toLocaleDateString()}
+                </div>
+                <p className="text-xs text-muted-foreground">Scheduled contact</p>
+              </>
+            ) : null}
           </CardContent>
         </Card>
       </div>
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="history" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="history">Check-in History</TabsTrigger>
-          <TabsTrigger value="medications">Medications</TabsTrigger>
-          <TabsTrigger value="education">Education</TabsTrigger>
-          <TabsTrigger value="resources">Resources</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
+          <TabsTrigger value="history" className="text-xs sm:text-sm">
+            <MessageSquare className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+            Check-ins
+          </TabsTrigger>
+          <TabsTrigger value="medications" className="text-xs sm:text-sm">
+            <Pill className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+            Medications
+          </TabsTrigger>
+          <TabsTrigger value="education" className="text-xs sm:text-sm">
+            <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+            Education
+          </TabsTrigger>
+          <TabsTrigger value="resources" className="text-xs sm:text-sm">
+            <FileText className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+            Resources
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="history" className="space-y-6">
@@ -172,88 +246,11 @@ export default function PatientDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {conversationHistory.length > 0 ? (
-                <div className="space-y-4">
-                  {conversationHistory.map((conversation) => (
-                    <div key={conversation.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-3">
-                          {conversation.type === 'VOICE' ? (
-                            <Phone className="w-4 h-4 text-blue-500" />
-                          ) : (
-                            <MessageSquare className="w-4 h-4 text-green-500" />
-                          )}
-                          <span className="font-medium">
-                            {conversation.type === 'VOICE' ? 'Voice Call' : 'Text Message'}
-                          </span>
-                          {conversation.duration && (
-                            <span className="text-sm text-gray-500">({conversation.duration})</span>
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {new Date(conversation.date).toLocaleDateString()}
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-700 mb-3">{conversation.summary}</p>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => setSelectedInteraction(conversation)}
-                          >
-                            View Details
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                          <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                              {conversation.type === 'VOICE' ? (
-                                <Phone className="w-5 h-5 text-blue-500" />
-                              ) : (
-                                <MessageSquare className="w-5 h-5 text-green-500" />
-                              )}
-                              {conversation.type === 'VOICE' ? 'Voice Call' : 'Text Message'} - {new Date(conversation.date).toLocaleDateString()}
-                            </DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <div>
-                              <h4 className="font-semibold mb-2">Summary:</h4>
-                              <p className="text-sm text-gray-700">{conversation.summary}</p>
-                            </div>
-                            <div>
-                              <h4 className="font-semibold mb-2">Questions & Answers:</h4>
-                              <div className="space-y-3">
-                                {conversation.questions.map((qa: any, index: number) => (
-                                  <div key={index} className="border-l-4 border-blue-200 pl-4">
-                                    <p className="font-medium text-sm text-gray-800 mb-1">
-                                      Q: {qa.question}
-                                    </p>
-                                    <p className="text-sm text-gray-600">
-                                      A: {qa.answer}
-                                    </p>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                            <div>
-                              <h4 className="font-semibold mb-2">Full Transcript:</h4>
-                              <div className="bg-gray-50 p-3 rounded text-sm font-mono whitespace-pre-wrap">
-                                {conversation.transcript}
-                              </div>
-                            </div>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <MessageSquare className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                  <p>No check-ins yet. Your first check-in will appear here.</p>
-                </div>
-              )}
+              <InteractionHistory 
+                interactions={interactions}
+                viewMode="patient"
+                showEscalations={false}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -267,17 +264,28 @@ export default function PatientDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {patientData.medications.map((med, index) => (
-                  <div key={index} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-medium">{med.name}</h3>
-                      <Badge variant="outline">{med.dose}</Badge>
+              {loading ? (
+                <div className="space-y-4">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="border rounded-lg p-4">
+                      <Skeleton className="h-6 w-32 mb-2" />
+                      <Skeleton className="h-4 w-48" />
                     </div>
-                    <p className="text-sm text-gray-600">{med.frequency}</p>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : patientData ? (
+                <div className="space-y-3">
+                  {patientData.medications.map((med, index) => (
+                    <div key={index} className="border rounded-lg p-3 sm:p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                        <h3 className="font-medium text-base">{med.name}</h3>
+                        <Badge variant="outline" className="self-start sm:self-auto">{med.dose}</Badge>
+                      </div>
+                      <p className="text-sm text-gray-600">{med.frequency}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         </TabsContent>
@@ -291,23 +299,31 @@ export default function PatientDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="border rounded-lg p-4">
-                  <h3 className="font-medium mb-2">Understanding {getConditionName(patientData.condition)}</h3>
-                  <p className="text-sm text-gray-600">
+              {/* TODO: Pull from EducationContent table filtered by:
+                  - condition_code = patient's episode.condition_code
+                  - education_level <= patient's education_level
+                  - active = true
+                  Show content grouped by content_type (CONDITION_OVERVIEW, LIFESTYLE, DIET, etc.)
+              */}
+              <div className="space-y-3">
+                <div className="border rounded-lg p-3 sm:p-4">
+                  <h3 className="font-medium mb-2 text-sm sm:text-base">
+                    {patientData ? `Understanding ${getConditionName(patientData.condition)}` : 'Understanding Your Condition'}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-gray-600">
                     Learn about your condition, symptoms to watch for, and how to manage your health effectively.
                   </p>
-                  <Button className="mt-2" variant="outline" size="sm">
+                  <Button className="mt-3 w-full sm:w-auto" variant="outline" size="sm">
                     <BookOpen className="w-4 h-4 mr-2" />
                     Read More
                   </Button>
                 </div>
-                <div className="border rounded-lg p-4">
-                  <h3 className="font-medium mb-2">Lifestyle Management</h3>
-                  <p className="text-sm text-gray-600">
+                <div className="border rounded-lg p-3 sm:p-4">
+                  <h3 className="font-medium mb-2 text-sm sm:text-base">Lifestyle Management</h3>
+                  <p className="text-xs sm:text-sm text-gray-600">
                     Tips for diet, exercise, and daily activities to support your recovery.
                   </p>
-                  <Button className="mt-2" variant="outline" size="sm">
+                  <Button className="mt-3 w-full sm:w-auto" variant="outline" size="sm">
                     <Activity className="w-4 h-4 mr-2" />
                     View Tips
                   </Button>
@@ -326,27 +342,33 @@ export default function PatientDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="border rounded-lg p-4">
-                  <h3 className="font-medium mb-2">Emergency Contacts</h3>
-                  <p className="text-sm text-gray-600 mb-2">When to call 911 or your doctor</p>
-                  <Button variant="outline" size="sm">
+              {/* TODO: Resources should pull from:
+                  1. Emergency contacts from Patient.emergency_contact_name/phone
+                  2. Care team from Episode.assigned_nurse_id -> User table
+                  3. Hospital/clinic info from organization settings
+                  4. Upcoming appointments (if appointment table exists)
+              */}
+              <div className="space-y-3">
+                <div className="border rounded-lg p-3 sm:p-4">
+                  <h3 className="font-medium mb-2 text-sm sm:text-base">Emergency Contacts</h3>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-3">When to call 911 or your doctor</p>
+                  <Button variant="outline" size="sm" className="w-full sm:w-auto">
                     <Phone className="w-4 h-4 mr-2" />
                     View Emergency Info
                   </Button>
                 </div>
-                <div className="border rounded-lg p-4">
-                  <h3 className="font-medium mb-2">Care Team</h3>
-                  <p className="text-sm text-gray-600 mb-2">Your healthcare providers and contact information</p>
-                  <Button variant="outline" size="sm">
+                <div className="border rounded-lg p-3 sm:p-4">
+                  <h3 className="font-medium mb-2 text-sm sm:text-base">Care Team</h3>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-3">Your healthcare providers and contact information</p>
+                  <Button variant="outline" size="sm" className="w-full sm:w-auto">
                     <Users className="w-4 h-4 mr-2" />
                     Contact Care Team
                   </Button>
                 </div>
-                <div className="border rounded-lg p-4">
-                  <h3 className="font-medium mb-2">Appointments</h3>
-                  <p className="text-sm text-gray-600 mb-2">Schedule and manage your appointments</p>
-                  <Button variant="outline" size="sm">
+                <div className="border rounded-lg p-3 sm:p-4">
+                  <h3 className="font-medium mb-2 text-sm sm:text-base">Appointments</h3>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-3">Schedule and manage your appointments</p>
+                  <Button variant="outline" size="sm" className="w-full sm:w-auto">
                     <Calendar className="w-4 h-4 mr-2" />
                     View Appointments
                   </Button>
