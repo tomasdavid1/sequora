@@ -132,8 +132,8 @@ const generateEmailHTML = ({
               
               <p style="font-size: 14px; line-height: 20px; margin: 0; color: #666666;">
                 Questions? Contact 
-                <a href="mailto:support@sequora.health" style="color: #059669; text-decoration: none;">
-                  support@sequora.health
+                <a href="mailto:support@sequora.dev" style="color: #059669; text-decoration: none;">
+                  support@sequora.dev
                 </a>
               </p>
             </td>
@@ -216,7 +216,7 @@ const handler = async (request: Request): Promise<Response> => {
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "Sequora Care Team <care@sequora.health>",
+        from: "Sequora Care Team <care@sequora.dev>",
         to: [to],
         subject: `Welcome to Your Post-Discharge Care Program`,
         html: emailHtml,

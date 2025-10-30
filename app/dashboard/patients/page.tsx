@@ -2,8 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useProtectedPage } from '@/hooks/useProtectedPage';
-import { usePatients } from '@/hooks/usePatients';
-import { usePatientAnalytics } from '@/hooks/usePatientAnalytics';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,33 +29,64 @@ import { Patient, Episode } from '@/types';
 
 export default function PatientsPage() {
   const { ProtectionWrapper } = useProtectedPage();
-  const { patients, loading, error, refreshPatients } = usePatients({
-    apiEndpoint: '/api/admin/patients',
-    autoFetch: true
-  });
-  const analytics = usePatientAnalytics(patients);
-  
-  // Extract categorized patients from API response
   const [allPatients, setAllPatients] = useState<any[]>([]);
   const [pendingPatients, setPendingPatients] = useState<any[]>([]);
   const [activatedPatients, setActivatedPatients] = useState<any[]>([]);
   const [counts, setCounts] = useState<any>({});
-  
-  useEffect(() => {
-    if (patients && Array.isArray(patients)) {
-      // If the API returns categorized data, use it
-      if (patients.length > 0 && (patients[0] as any).hasOwnProperty('hasAccount')) {
-        setAllPatients(patients);
-        setPendingPatients(patients.filter((p: any) => !p.hasAccount && p.tocStatus === 'ACTIVE'));
-        setActivatedPatients(patients.filter((p: any) => p.hasAccount));
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchPatients = async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    setError(null);
+    
+    try {
+      const response = await fetch(`/api/admin/patients?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch patients: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Use the categorized data directly from the API
+      setAllPatients(data.patients || []);
+      setPendingPatients(data.pendingPatients || []);
+      setActivatedPatients(data.activatedPatients || []);
+      setCounts(data.counts || {});
+      
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load patients';
+      console.error('❌ [PatientsPage] Error:', errorMessage);
+      setError(errorMessage);
+      setAllPatients([]);
+      setPendingPatients([]);
+      setActivatedPatients([]);
+    } finally {
+      if (isRefresh) {
+        setRefreshing(false);
       } else {
-        // Fallback to treating all as allPatients
-        setAllPatients(patients);
-        setPendingPatients([]);
-        setActivatedPatients([]);
+        setLoading(false);
       }
     }
-  }, [patients]);
+  };
+
+  // Fetch patients on mount
+  useEffect(() => {
+    fetchPatients();
+  }, []);
+
+  const refreshPatients = () => fetchPatients(true);
   
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
   const [conversationData, setConversationData] = useState<any[]>([]);
@@ -124,9 +153,9 @@ export default function PatientsPage() {
                 </>
               ) : (
                 <>
-                  <div className="text-2xl font-bold">{analytics.total}</div>
+                  <div className="text-2xl font-bold">{counts.total || 0}</div>
                   <p className="text-xs text-muted-foreground">
-                    {analytics.active} active in 30-day window
+                    {counts.activeTOC || 0} active in 30-day window
                   </p>
                 </>
               )}
@@ -146,7 +175,7 @@ export default function PatientsPage() {
                 </>
               ) : (
                 <>
-                  <div className="text-2xl font-bold">{analytics.active}</div>
+                  <div className="text-2xl font-bold">{counts.activeTOC || 0}</div>
                   <p className="text-xs text-muted-foreground">
                     Within 30-day TOC window
                   </p>
@@ -168,7 +197,7 @@ export default function PatientsPage() {
                 </>
               ) : (
                 <>
-                  <div className="text-2xl font-bold text-orange-600">{analytics.withFlags}</div>
+                  <div className="text-2xl font-bold text-orange-600">0</div>
                   <p className="text-xs text-muted-foreground">
                     Require attention
                   </p>
@@ -190,7 +219,7 @@ export default function PatientsPage() {
                 </>
               ) : (
                 <>
-                  <div className="text-2xl font-bold">{analytics.avgDaysSinceDischarge}</div>
+                  <div className="text-2xl font-bold">N/A</div>
                   <p className="text-xs text-muted-foreground">
                     Across all patients
                   </p>
@@ -206,6 +235,12 @@ export default function PatientsPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <CardTitle>Patient Management</CardTitle>
+                {refreshing && (
+                  <div className="flex items-center gap-2 text-sm text-blue-600">
+                    <RotateCw className="w-4 h-4 animate-spin" />
+                    <span>Refreshing...</span>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <Badge variant="secondary" className="text-xs">
                     {allPatients.length} Total
@@ -225,11 +260,11 @@ export default function PatientsPage() {
                   onClick={async () => {
                     await refreshPatients();
                   }}
-                  disabled={loading}
+                  disabled={loading || refreshing}
                   className="bg-white hover:bg-gray-50"
                 >
-                  <RotateCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                  {loading ? 'Refreshing...' : 'Refresh'}
+                  <RotateCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                  {refreshing ? 'Refreshing...' : 'Refresh'}
                 </Button>
                 <Button 
                   size="sm"
@@ -279,7 +314,7 @@ export default function PatientsPage() {
                 <TabsContent value="all" className="mt-4">
                   <PatientsTable 
                     patients={allPatients}
-                    loading={loading}
+                    loading={loading && allPatients.length === 0}
                     showAddPatient={false}
                     onPatientAdded={refreshPatients}
                     onPatientClick={(patient) => {
@@ -297,7 +332,7 @@ export default function PatientsPage() {
                 <TabsContent value="pending" className="mt-4">
                   <PatientsTable 
                     patients={pendingPatients}
-                    loading={loading}
+                    loading={loading && pendingPatients.length === 0}
                     showAddPatient={false}
                     onPatientAdded={refreshPatients}
                     onPatientClick={(patient) => {
@@ -315,7 +350,7 @@ export default function PatientsPage() {
                 <TabsContent value="activated" className="mt-4">
                   <PatientsTable 
                     patients={activatedPatients}
-                    loading={loading}
+                    loading={loading && activatedPatients.length === 0}
                     showAddPatient={false}
                     onPatientAdded={refreshPatients}
                     onPatientClick={(patient) => {

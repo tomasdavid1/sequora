@@ -15,6 +15,7 @@ interface UseProtocolConfigReturn {
   refreshConfig: () => Promise<void>;
   activeRules: ProtocolContentPack[];
   createRule: (rule: Omit<ProtocolContentPack, 'id' | 'created_at' | 'updated_at'>) => Promise<boolean>;
+  deleteRule: (ruleId: string) => Promise<boolean>;
   refreshRules: () => Promise<void>;
 }
 
@@ -147,6 +148,29 @@ export function useProtocolConfig(options: UseProtocolConfigOptions = {}): UsePr
     }
   }, [config, fetchActiveRules]);
 
+  const deleteRule = useCallback(async (ruleId: string): Promise<boolean> => {
+    try {
+      const response = await fetch(`/api/admin/protocol-content-pack?id=${ruleId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Refresh rules to remove the deleted one
+        await fetchActiveRules();
+        return true;
+      } else {
+        setError(data.error || 'Failed to delete rule');
+        return false;
+      }
+    } catch (err) {
+      console.error('Error deleting rule:', err);
+      setError('Failed to delete rule');
+      return false;
+    }
+  }, [fetchActiveRules]);
+
   const refreshConfig = useCallback(async () => {
     await fetchConfig();
   }, [fetchConfig]);
@@ -178,6 +202,7 @@ export function useProtocolConfig(options: UseProtocolConfigOptions = {}): UsePr
     refreshConfig,
     activeRules,
     createRule,
+    deleteRule,
     refreshRules
   };
 }

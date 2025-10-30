@@ -2,6 +2,11 @@
 -- This ensures each Patient record is linked to exactly one auth user
 
 -- Step 1: Ensure User.auth_user_id has UNIQUE constraint (required for foreign key reference)
+-- First drop any existing foreign key constraints that depend on this unique constraint
+ALTER TABLE "Patient"
+DROP CONSTRAINT IF EXISTS "Patient_auth_user_id_fkey";
+
+-- Now we can safely drop and recreate the unique constraint
 ALTER TABLE "User"
 DROP CONSTRAINT IF EXISTS "User_auth_user_id_key";
 

@@ -13,6 +13,8 @@ const ALLOWED_ORIGINS = [
   "http://localhost:3001",
   "https://sequora.vercel.app",
   "https://www.sequora.vercel.app",
+  "https://sequora.dev",
+  "https://www.sequora.dev",
 ];
 
 // Following the instructions from https://supabase.com/docs/guides/functions/cors
@@ -109,7 +111,7 @@ const handler = async (request: Request): Promise<Response> => {
 
     // Prepare the email data
     const emailData = {
-      from: "Sequora <onboarding@resend.dev>",
+      from: "Sequora <noreply@sequora.dev>",
       to: [email],
       subject: `Your Sequora password reset code`,
       html,

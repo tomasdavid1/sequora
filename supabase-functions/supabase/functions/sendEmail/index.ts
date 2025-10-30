@@ -28,7 +28,7 @@ const handler = async (request: Request): Promise<Response> => {
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: from || "Sequora <onboarding@resend.dev>",
+        from: from || "Sequora <noreply@sequora.dev>",
         to: Array.isArray(to) ? to : [to],
         subject,
         html,

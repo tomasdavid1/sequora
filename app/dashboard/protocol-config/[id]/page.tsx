@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Save, Brain, Eye, Plus, Trash2, ArrowLeft, Settings, AlertTriangle } from 'lucide-react';
+import { Save, Brain, Eye, Plus, Trash2, ArrowLeft, Settings, AlertTriangle, Edit2, Check, X } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { ProtocolConfig, ProtocolContentPack } from '@/types';
@@ -34,6 +34,7 @@ export default function ProtocolConfigDetailPage() {
     updateConfig,
     activeRules,
     createRule,
+    deleteRule,
     refreshRules
   } = useProtocolConfig({ configId, autoFetch: true });
   
@@ -53,6 +54,8 @@ export default function ProtocolConfigDetailPage() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [editedRule, setEditedRule] = useState<Partial<ProtocolContentPack> & { text_patterns?: string | string[] }>({});
 
   // Update editedConfig when config changes
   useEffect(() => {
@@ -146,6 +149,91 @@ export default function ProtocolConfigDetailPage() {
       toast({
         title: 'Error',
         description: 'Failed to create rule',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleDeleteRule = async (ruleId: string) => {
+    if (!confirm('Are you sure you want to delete this rule? This action cannot be undone.')) {
+      return;
+    }
+
+    const success = await deleteRule(ruleId);
+    
+    if (success) {
+      toast({
+        title: 'Success',
+        description: 'Rule deleted successfully',
+      });
+    } else {
+      toast({
+        title: 'Error',
+        description: 'Failed to delete rule',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleEditRule = (rule: ProtocolContentPack) => {
+    setEditingRuleId(rule.id);
+    setEditedRule({
+      ...rule,
+      text_patterns: Array.isArray(rule.text_patterns) 
+        ? rule.text_patterns.join(', ') 
+        : (rule.text_patterns as string) || ''
+    } as Partial<ProtocolContentPack> & { text_patterns: string });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingRuleId(null);
+    setEditedRule({});
+  };
+
+  const handleSaveRule = async () => {
+    if (!editingRuleId) return;
+
+    try {
+      const ruleData = {
+        ...editedRule,
+        text_patterns: typeof editedRule.text_patterns === 'string' 
+          ? editedRule.text_patterns.split(',').map((s: string) => s.trim()).filter(Boolean)
+          : (editedRule.text_patterns as string[]) || []
+      };
+
+      console.log('Saving rule with data:', ruleData);
+      console.log('Rule ID:', editingRuleId);
+
+      const response = await fetch(`/api/admin/protocol-content-pack?id=${editingRuleId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ruleData)
+      });
+
+      const data = await response.json();
+      console.log('API response:', data);
+      console.log('Response status:', response.status);
+
+      if (data.success) {
+        toast({
+          title: 'Success',
+          description: 'Rule updated successfully',
+        });
+        setEditingRuleId(null);
+        setEditedRule({});
+        await refreshRules();
+      } else {
+        toast({
+          title: 'Error',
+          description: data.error || 'Failed to update rule',
+          variant: 'destructive'
+        });
+      }
+    } catch (err) {
+      console.error('Error updating rule:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to update rule',
         variant: 'destructive'
       });
     }
@@ -424,54 +512,171 @@ export default function ProtocolConfigDetailPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {activeRules.map((rule, index) => (
-                  <div key={rule.id} className="border rounded-lg p-6 space-y-4 bg-gray-50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Badge variant="outline" className="font-mono text-sm px-3 py-1">
-                          {rule.rule_code}
-                        </Badge>
-                        <Badge variant={
-                          rule.severity === 'CRITICAL' ? 'destructive' :
-                          rule.severity === 'HIGH' ? 'default' :
-                          rule.severity === 'MODERATE' ? 'secondary' : 'outline'
-                        } className="px-3 py-1">
-                          {rule.severity}
-                        </Badge>
-                        <span className="text-gray-400">→</span>
-                        <Badge variant="outline" className="px-3 py-1">{rule.action_type}</Badge>
+                {activeRules.map((rule, index) => {
+                  const isEditing = editingRuleId === rule.id;
+                  const currentRule = isEditing ? editedRule : rule;
+                  
+                  return (
+                    <div key={rule.id} className="border rounded-lg p-6 space-y-4 bg-gray-50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Badge variant="outline" className="font-mono text-sm px-3 py-1">
+                            {currentRule.rule_code}
+                          </Badge>
+                          {isEditing ? (
+                            <Select
+                              value={currentRule.severity || 'LOW'}
+                              onValueChange={(value) => setEditedRule({
+                                ...editedRule,
+                                severity: value as 'CRITICAL' | 'HIGH' | 'MODERATE' | 'LOW' | 'POSITIVE' | 'STABLE'
+                              })}
+                            >
+                              <SelectTrigger className="w-32">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="CRITICAL">CRITICAL</SelectItem>
+                                <SelectItem value="HIGH">HIGH</SelectItem>
+                                <SelectItem value="MODERATE">MODERATE</SelectItem>
+                                <SelectItem value="LOW">LOW</SelectItem>
+                                <SelectItem value="POSITIVE">POSITIVE</SelectItem>
+                                <SelectItem value="STABLE">STABLE</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Badge variant={
+                              rule.severity === 'CRITICAL' ? 'destructive' :
+                              rule.severity === 'HIGH' ? 'default' :
+                              rule.severity === 'MODERATE' ? 'secondary' : 'outline'
+                            } className="px-3 py-1">
+                              {rule.severity}
+                            </Badge>
+                          )}
+                          <span className="text-gray-400">→</span>
+                          {isEditing ? (
+                            <Select
+                              value={currentRule.action_type || ''}
+                              onValueChange={(value) => setEditedRule({
+                                ...editedRule,
+                                action_type: value as 'RAISE_FLAG' | 'HANDOFF_TO_NURSE' | 'ASK_MORE' | 'LOG_CHECKIN' | 'COUNT_WELLNESS_CONFIRMATION'
+                              })}
+                            >
+                              <SelectTrigger className="w-40">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="RAISE_FLAG">RAISE_FLAG</SelectItem>
+                                <SelectItem value="HANDOFF_TO_NURSE">HANDOFF_TO_NURSE</SelectItem>
+                                <SelectItem value="ASK_MORE">ASK_MORE</SelectItem>
+                                <SelectItem value="LOG_CHECKIN">LOG_CHECKIN</SelectItem>
+                                <SelectItem value="COUNT_WELLNESS_CONFIRMATION">COUNT_WELLNESS_CONFIRMATION</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Badge variant="outline" className="px-3 py-1">{rule.action_type}</Badge>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          {isEditing ? (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleSaveRule}
+                                className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                              >
+                                <Check className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleCancelEdit}
+                                className="text-gray-600 hover:text-gray-700 hover:bg-gray-50"
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditRule(rule)}
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteRule(rule.id)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div>
-                      <Label className="text-sm font-medium mb-2 block">Patterns (comma-separated):</Label>
-                      <Input
-                        value={rule.text_patterns.join(', ')}
-                            onChange={(e) => {
-                              // Note: This is a read-only view in the detail page
-                              // For editing rules, use the protocol content pack management
-                              console.log('Rule pattern changed:', e.target.value);
-                            }}
-                        className="font-mono"
-                        placeholder="chest pain, chest pressure, chest discomfort..."
-                      />
-                    </div>
-                    
-                    {rule.message && (
+                      
                       <div>
-                        <Label className="text-sm font-medium mb-1 block">Message:</Label>
-                        <p className="text-sm text-gray-700 bg-white p-3 rounded border">{rule.message}</p>
+                        <Label className="text-sm font-medium mb-2 block">Patterns (comma-separated):</Label>
+                        <Input
+                          value={isEditing ? (currentRule.text_patterns as string || '') : (Array.isArray(rule.text_patterns) ? rule.text_patterns.join(', ') : (rule.text_patterns as string) || '')}
+                          onChange={(e) => {
+                            if (isEditing) {
+                              setEditedRule({
+                                ...editedRule,
+                                text_patterns: e.target.value
+                              } as Partial<ProtocolContentPack> & { text_patterns: string });
+                            }
+                          }}
+                          className="font-mono"
+                          placeholder="chest pain, chest pressure, chest discomfort..."
+                          disabled={!isEditing}
+                        />
                       </div>
-                    )}
-                    
-                    {rule.numeric_follow_up_question && (
-                      <div>
-                        <Label className="text-sm font-medium mb-1 block">Follow-up Question:</Label>
-                        <p className="text-sm text-gray-700 bg-white p-3 rounded border">{rule.numeric_follow_up_question}</p>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      
+                      {(currentRule.message || isEditing) && (
+                        <div>
+                          <Label className="text-sm font-medium mb-1 block">Message:</Label>
+                          {isEditing ? (
+                            <Textarea
+                              value={currentRule.message || ''}
+                              onChange={(e) => setEditedRule({
+                                ...editedRule,
+                                message: e.target.value
+                              })}
+                              rows={2}
+                              placeholder="Message to show when this rule is triggered..."
+                            />
+                          ) : (
+                            <p className="text-sm text-gray-700 bg-white p-3 rounded border">{rule.message}</p>
+                          )}
+                        </div>
+                      )}
+                      
+                      {(currentRule.numeric_follow_up_question || isEditing) && (
+                        <div>
+                          <Label className="text-sm font-medium mb-1 block">Follow-up Question:</Label>
+                          {isEditing ? (
+                            <Textarea
+                              value={currentRule.numeric_follow_up_question || ''}
+                              onChange={(e) => setEditedRule({
+                                ...editedRule,
+                                numeric_follow_up_question: e.target.value
+                              })}
+                              rows={2}
+                              placeholder="Follow-up question to ask the patient..."
+                            />
+                          ) : (
+                            <p className="text-sm text-gray-700 bg-white p-3 rounded border">{rule.numeric_follow_up_question}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
                 
                 {activeRules.length === 0 && (
                   <div className="text-center py-12 text-gray-500">

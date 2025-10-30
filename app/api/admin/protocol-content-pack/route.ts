@@ -114,7 +114,10 @@ export async function PATCH(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const ruleId = searchParams.get('id');
     
+    console.log('PATCH request - Rule ID:', ruleId);
+    
     if (!ruleId) {
+      console.log('No rule ID provided');
       return NextResponse.json(
         { error: 'Rule ID is required' },
         { status: 400 }
@@ -122,16 +125,21 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
+    console.log('PATCH request body:', body);
     const supabase = getSupabaseAdmin();
+    
+    const updateData = {
+      ...body,
+      text_patterns: body.text_patterns ? 
+        (Array.isArray(body.text_patterns) ? body.text_patterns : body.text_patterns.split(',').map((s: string) => s.trim())) :
+        undefined
+    };
+    
+    console.log('Updating with data:', updateData);
     
     const { data: rule, error } = await supabase
       .from('ProtocolContentPack')
-      .update({
-        ...body,
-        text_patterns: body.text_patterns ? 
-          (Array.isArray(body.text_patterns) ? body.text_patterns : body.text_patterns.split(',').map((s: string) => s.trim())) :
-          undefined
-      })
+      .update(updateData)
       .eq('id', ruleId)
       .select()
       .single();
@@ -139,12 +147,12 @@ export async function PATCH(request: NextRequest) {
     if (error) {
       console.error('Error updating protocol content pack rule:', error);
       return NextResponse.json(
-        { error: 'Failed to update protocol content pack rule' },
+        { error: 'Failed to update protocol content pack rule', details: error.message },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ rule });
+    return NextResponse.json({ success: true, rule });
 
   } catch (error) {
     console.error('Error in protocol content pack PATCH API:', error);

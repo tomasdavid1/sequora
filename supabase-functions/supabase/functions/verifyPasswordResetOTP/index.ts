@@ -16,6 +16,8 @@ const ALLOWED_ORIGINS = [
   "http://localhost:3001",
   "https://sequora.vercel.app",
   "https://www.sequora.vercel.app",
+  "https://sequora.dev",
+  "https://www.sequora.dev",
 ];
 
 // Following the instructions from https://supabase.com/docs/guides/functions/cors
@@ -225,5 +227,7 @@ const handler = async (request: Request): Promise<Response> => {
     });
   }
 };
+
+serve(handler);
 
 serve(handler);
