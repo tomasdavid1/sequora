@@ -85,14 +85,37 @@ interface InteractionWithRelations extends AgentInteraction {
 export default function AITesterPage() {
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
+  
+  // Custom hooks for data fetching
+  const { patients } = usePatients({ 
+    apiEndpoint: '/api/debug/patients',
+    autoFetch: true 
+  });
+  const { episodes } = useEpisodes({ 
+    apiEndpoint: '/api/debug/patients',
+    autoFetch: true 
+  });
+  const { 
+    interactions: fetchedInteractions, 
+    loading: loadingInteractions, 
+    setInteractions: setFetchedInteractions,
+    fetchInteractions, 
+    deleteInteraction 
+  } = useInteractions({ 
+    apiEndpoint: '/api/debug/interactions',
+    autoFetch: true 
+  });
+  
+  // Cast to local type for compatibility
+  const interactions = fetchedInteractions as InteractionWithRelations[];
+  const setInteractions = setFetchedInteractions as React.Dispatch<React.SetStateAction<InteractionWithRelations[]>>;
+  
+  // Chat state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [currentInput, setCurrentInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [showMetadata, setShowMetadata] = useState(false);
-  const [interactions, setInteractions] = useState<InteractionWithRelations[]>([]);
   const [selectedInteraction, setSelectedInteraction] = useState<InteractionWithRelations | null>(null);
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [testConfig, setTestConfig] = useState<TestConfig>({
     patientId: '',
     episodeId: '',
@@ -101,7 +124,6 @@ export default function AITesterPage() {
   });
   const [currentInteractionId, setCurrentInteractionId] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [loadingInteractions, setLoadingInteractions] = useState(true);
   const [protocolProfile, setProtocolProfile] = useState<any>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
@@ -162,30 +184,7 @@ export default function AITesterPage() {
   }, [interactions, chatGroupBy]);
 
   // Auto-scroll now handled by ConversationView component
-
-  // Fetch interactions function (reusable)
-  const fetchInteractions = async (showLoader = false) => {
-    if (showLoader) setLoadingInteractions(true);
-    console.log('🔄 [AITester] Fetching interactions...');
-    try {
-      const interactionsResponse = await fetch('/api/debug/interactions');
-      const interactionsData = await interactionsResponse.json();
-      
-      if (interactionsData.success) {
-        console.log('✅ [AITester] Fetched interactions:', interactionsData.interactions?.length || 0);
-        setInteractions(interactionsData.interactions || []);
-        console.log('📊 [AITester] Interactions state updated. Count:', interactionsData.interactions?.length || 0);
-      } else {
-        console.error('Failed to fetch interactions:', interactionsData.error);
-        setInteractions([]);
-      }
-    } catch (error) {
-      console.error('Error fetching interactions:', error);
-      setInteractions([]);
-    } finally {
-      if (showLoader) setLoadingInteractions(false);
-    }
-  };
+  // fetchInteractions now provided by useInteractions hook
 
   // Fetch and open patient config modal for editing
   const openPatientConfigModal = async () => {
@@ -431,46 +430,23 @@ export default function AITesterPage() {
     }
   };
 
-  // Fetch interactions, patients, and episodes on component mount
+  // Set default patient/episode when data is loaded by hooks
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch patients
-        const patientsResponse = await fetch('/api/debug/patients');
-        const patientsData = await patientsResponse.json();
-        setPatients(patientsData.patients || []);
-
-        // Fetch episodes
-        const episodesResponse = await fetch('/api/debug/patients');
-        const episodesData = await episodesResponse.json();
-        setEpisodes(episodesData.episodes || []);
-
-        // Set default patient/episode if available
-        if (patientsData.patients?.length > 0) {
-          const firstPatient = patientsData.patients[0];
-          setTestConfig(prev => ({ ...prev, patientId: firstPatient.id }));
-          
-          if (episodesData.episodes?.length > 0) {
-            const firstEpisode = episodesData.episodes[0];
-            setTestConfig(prev => ({ 
-              ...prev, 
-              episodeId: firstEpisode.id,
-              condition: firstEpisode.condition_code,
-              educationLevel: firstEpisode.education_level
-            }));
-          }
-        }
-
-        // Fetch real interactions from database
-        await fetchInteractions(true);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setLoadingInteractions(false);
-      }
-    };
-
-    fetchData();
-  }, []);
+    if (patients.length > 0 && !testConfig.patientId) {
+      const firstPatient = patients[0];
+      setTestConfig(prev => ({ ...prev, patientId: firstPatient.id }));
+    }
+    
+    if (episodes.length > 0 && !testConfig.episodeId) {
+      const firstEpisode = episodes[0];
+      setTestConfig(prev => ({ 
+        ...prev, 
+        episodeId: firstEpisode.id,
+        condition: firstEpisode.condition_code,
+        educationLevel: firstEpisode.Patient?.education_level || 'MEDIUM'
+      }));
+    }
+  }, [patients, episodes, testConfig.patientId, testConfig.episodeId]);
 
   // Role validation
   if (authLoading) {

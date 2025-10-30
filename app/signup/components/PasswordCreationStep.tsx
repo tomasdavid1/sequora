@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -110,9 +111,8 @@ export function PasswordCreationStep({
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
           <Label htmlFor="password" className="text-base">Password</Label>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             placeholder="Create a secure password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -124,9 +124,8 @@ export function PasswordCreationStep({
 
         <div className="space-y-2">
           <Label htmlFor="confirmPassword" className="text-base">Confirm Password</Label>
-          <Input
+          <PasswordInput
             id="confirmPassword"
-            type="password"
             placeholder="Re-enter your password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
