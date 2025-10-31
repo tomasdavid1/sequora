@@ -905,7 +905,7 @@ async function parsePatientInputForDecisionHint(
   });
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4",
+    model: "gpt-4o-mini", // Supports JSON mode, faster and cheaper than gpt-4
     messages: parseMessages as any,
     response_format: { type: "json_object" },
     temperature: 0.1,
