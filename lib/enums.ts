@@ -359,6 +359,32 @@ export function isValidRuleType(value: unknown): value is RuleTypeType {
 }
 
 // ============================================================================
+// Action Type (Protocol Rule Actions)
+// ============================================================================
+
+export type ActionType = Database['public']['Enums']['action_type'];
+
+export const VALID_ACTION_TYPES: readonly ActionType[] = [
+  'HANDOFF_TO_NURSE',  // Immediate escalation to nurse
+  'RAISE_FLAG',        // Create flag for nurse review
+  'ASK_MORE',          // Ask clarifying questions
+  'LOG_CHECKIN'        // Complete check-in successfully
+] as const;
+
+export function isValidActionType(value: unknown): value is ActionType {
+  return typeof value === 'string' && 
+    VALID_ACTION_TYPES.includes(value as ActionType);
+}
+
+export function assertActionType(value: unknown): asserts value is ActionType {
+  if (!isValidActionType(value)) {
+    throw new Error(
+      `Invalid action type: "${value}". Must be one of: ${VALID_ACTION_TYPES.join(', ')}`
+    );
+  }
+}
+
+// ============================================================================
 // Language Code
 // ============================================================================
 
@@ -523,6 +549,69 @@ export const VALID_APPOINTMENT_MODALITIES: readonly AppointmentModalityType[] = 
 export function isValidAppointmentModality(value: unknown): value is AppointmentModalityType {
   return typeof value === 'string' && 
     VALID_APPOINTMENT_MODALITIES.includes(value as AppointmentModalityType);
+}
+
+// ============================================================================
+// Notification Type (for NotificationLog)
+// ============================================================================
+
+export type NotificationType = Database['public']['Enums']['notification_type'];
+
+export const VALID_NOTIFICATION_TYPES: readonly NotificationType[] = [
+  'TASK_CREATED',
+  'TASK_ASSIGNED',
+  'SLA_WARNING',
+  'SLA_BREACH',
+  'TASK_RESOLVED',
+  'CHECK_IN_REMINDER',
+  'CHECK_IN_SENT',
+  'PATIENT_RESPONSE',
+  'MEDICATION_ALERT',
+  'APPOINTMENT_REMINDER',
+  'WELCOME_MESSAGE'
+] as const;
+
+export function isValidNotificationType(value: unknown): value is NotificationType {
+  return typeof value === 'string' && 
+    VALID_NOTIFICATION_TYPES.includes(value as NotificationType);
+}
+
+// ============================================================================
+// Notification Channel
+// ============================================================================
+
+export type NotificationChannel = Database['public']['Enums']['notification_channel'];
+
+export const VALID_NOTIFICATION_CHANNELS: readonly NotificationChannel[] = [
+  'SMS',
+  'EMAIL',
+  'PUSH',
+  'VOICE'
+] as const;
+
+export function isValidNotificationChannel(value: unknown): value is NotificationChannel {
+  return typeof value === 'string' && 
+    VALID_NOTIFICATION_CHANNELS.includes(value as NotificationChannel);
+}
+
+// ============================================================================
+// Notification Status
+// ============================================================================
+
+export type NotificationStatus = Database['public']['Enums']['notification_status'];
+
+export const VALID_NOTIFICATION_STATUSES: readonly NotificationStatus[] = [
+  'PENDING',
+  'SENT',
+  'DELIVERED',
+  'READ',
+  'FAILED',
+  'CANCELLED'
+] as const;
+
+export function isValidNotificationStatus(value: unknown): value is NotificationStatus {
+  return typeof value === 'string' && 
+    VALID_NOTIFICATION_STATUSES.includes(value as NotificationStatus);
 }
 
 // ============================================================================

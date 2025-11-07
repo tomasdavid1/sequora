@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { Medication } from '@/types';
 import { generateSummary } from './builders/summary-builder';
 import { buildResponseMessages } from './builders/response-prompt-builder';
 import { buildParseMessages } from './builders/parse-prompt-builder';
 import { AI_TOOLS } from './builders/ai-tools';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import callOpenAI from './openai-wrapper';
 
 // Export the combined parse and respond function for direct use
 export async function parseAndRespondDirect(input: {
@@ -28,6 +24,7 @@ export async function parseAndRespondDirect(input: {
   wellnessConfirmationCount?: number;
   checklistQuestions?: Array<{category: string, question: string, follow_up?: string, is_critical?: boolean}>;
   currentSeverityThreshold?: string;
+  languageCode?: string; // Patient's preferred language (EN, ES, OTHER)
   parsedResponse?: any; // Optional: if already parsed, skip duplicate parsing
 }) {
   // Pass wellnessConfirmationCount to the combined handler
@@ -115,15 +112,27 @@ async function handleParseAndRespond(input: Record<string, unknown>, options: Re
         wellnessConfirmationCount: parseInput.wellnessConfirmationCount as number
       });
 
-      const parseCompletion = await openai.chat.completions.create({
-        model: "gpt-4o-mini", // Supports JSON mode, faster and cheaper than gpt-4
-        messages: parseMessages as any,
-        response_format: { type: "json_object" },
-        temperature: 0.1,
-        max_tokens: 300
+      const parseResult = await callOpenAI({
+        params: {
+          model: "gpt-4o-mini",
+          messages: parseMessages as any,
+          response_format: { type: "json_object" },
+          temperature: 0.1,
+          max_tokens: 300
+        },
+        validation: {
+          requireValidJson: true, // Must be valid JSON
+          requireTextContent: false, // JSON response, not conversational text
+          allowToolCalls: false // No tool calls for parsing
+        },
+        retry: {
+          maxAttempts: 2,
+          enableFallback: false // No fallback for JSON parsing
+        },
+        operationLabel: 'Parse Patient Input'
       });
 
-      const parseText = parseCompletion.choices[0]?.message?.content || '{}';
+      const parseText = parseResult.textContent || '{}';
       console.log('📊 [Parse & Respond] Parsed response:', parseText);
       
       parsedResponse = JSON.parse(parseText);
@@ -154,7 +163,8 @@ async function handleParseAndRespond(input: Record<string, unknown>, options: Re
       checklistQuestions: input.checklistQuestions || [],
       conversationHistory: input.conversationHistory || [],
       coveredCategories: parsedResponse.coveredCategories || [],
-      currentSeverityThreshold: input.currentSeverityThreshold
+      currentSeverityThreshold: input.currentSeverityThreshold,
+      languageCode: input.languageCode
     };
     
     // Type hint and medications with proper types
@@ -181,7 +191,8 @@ async function handleParseAndRespond(input: Record<string, unknown>, options: Re
         conversationHistory: history,
         patientResponse: responseInput.patientResponses as string,
         coveredCategories: responseInput.coveredCategories as string[],
-        currentSeverityThreshold: responseInput.currentSeverityThreshold as string
+        currentSeverityThreshold: responseInput.currentSeverityThreshold as string,
+        languageCode: responseInput.languageCode as string
       });
       console.log('✅ [Parse & Respond] Response messages built successfully');
     } catch (buildError) {
@@ -190,41 +201,42 @@ async function handleParseAndRespond(input: Record<string, unknown>, options: Re
     }
 
     console.log('🚀 [Parse & Respond] Calling OpenAI for response generation...');
-    const responseCompletion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: responseMessages as any,
-      tools: tools as any,
-      tool_choice: "auto",
-      temperature: 0.2,
-      max_tokens: 500
+    
+    const responseResult = await callOpenAI({
+      params: {
+        model: "gpt-4",
+        messages: responseMessages as any,
+        tools: tools as any,
+        tool_choice: "auto",
+        temperature: 0.2,
+        max_tokens: 500
+      },
+      validation: {
+        requireTextContent: true, // MUST have text - patient needs a message
+        requireValidJson: false,
+        allowToolCalls: true // Tool calls are fine alongside text
+      },
+      retry: {
+        maxAttempts: 2,
+        enableFallback: true // If all retries fail, try without tools
+      },
+      operationLabel: 'Generate Patient Response'
     });
+    
     console.log('✅ [Parse & Respond] OpenAI response received');
-
-    const message = responseCompletion.choices[0]?.message;
-    if (!message) {
-      throw new Error('No response from OpenAI');
-    }
-
-    // Extract tool calls if any
-    const toolCalls = message.tool_calls?.map(toolCall => {
-      if (toolCall.type === 'function') {
-        return {
-          name: toolCall.function.name,
-          parameters: JSON.parse(toolCall.function.arguments)
-        };
-      }
-      return null;
-    }).filter(Boolean) || [];
+    
+    const responseText = responseResult.textContent;
+    const toolCalls = responseResult.toolCalls;
+    const usedFallback = responseResult.usedFallback;
     
     console.log('🔧 [Parse & Respond] Tool calls:', toolCalls.length);
-
-    // Get the text response - MUST have text for patient
-    const responseText = message.content;
+    if (usedFallback) {
+      console.warn('⚠️ [Parse & Respond] Used fallback mode - no tool calls available');
+    }
     
-    // AI must always provide a text response to the patient
+    // Text content should always exist due to validation
     if (!responseText) {
-      console.error('❌ [Parse & Respond] AI returned no text response');
-      throw new Error('AI failed to generate patient message. AI must always provide text response along with tool calls.');
+      throw new Error('AI failed to generate patient message after all retry attempts');
     }
     
     // SAFETY NET: Filter out any accidental function call syntax that slipped into the text
@@ -252,7 +264,9 @@ async function handleParseAndRespond(input: Record<string, unknown>, options: Re
       response: cleanedResponse,
       toolCalls: toolCalls,
       type: 'parse_and_respond',
-      tokensUsed: responseCompletion.usage?.total_tokens || 0
+      tokensUsed: responseResult.completion.usage?.total_tokens || 0,
+      usedFallback: usedFallback, // Flag for monitoring if fallback was used
+      retryAttempts: responseResult.retryAttempts // Number of retries needed
     });
 
   } catch (error) {

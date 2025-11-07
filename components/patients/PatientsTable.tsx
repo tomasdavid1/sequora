@@ -82,6 +82,7 @@ export function PatientsTable({
     if (!parsedData.condition) errors.push('condition');
     if (!parsedData.riskLevel) errors.push('riskLevel');
     if (!parsedData.educationLevel) errors.push('educationLevel');
+    if (!parsedData.languageCode) errors.push('languageCode');
 
     if (errors.length > 0) {
       setValidationErrors(errors);
@@ -430,6 +431,7 @@ export function PatientsTable({
                   dischargeDate: new Date().toISOString().split('T')[0],
                   riskLevel: 'MEDIUM',
                   educationLevel: 'MEDIUM',
+                  languageCode: 'EN',
                   medications: []
                 });
                 setShowConfirmation(true);
@@ -599,6 +601,27 @@ export function PatientsTable({
                       <SelectItem value="LOW">LOW (5th grade)</SelectItem>
                       <SelectItem value="MEDIUM">MEDIUM (everyday language)</SelectItem>
                       <SelectItem value="HIGH">HIGH (medical terms OK)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className={validationErrors.includes('languageCode') ? 'text-red-600' : ''}>
+                    Preferred Language *
+                  </Label>
+                  <Select
+                    value={parsedData?.languageCode || 'EN'}
+                    onValueChange={(value) => {
+                      setParsedData({ ...parsedData, languageCode: value });
+                      setValidationErrors(validationErrors.filter(f => f !== 'languageCode'));
+                    }}
+                  >
+                    <SelectTrigger className={validationErrors.includes('languageCode') ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Select language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EN">English</SelectItem>
+                      <SelectItem value="ES">Español (Spanish)</SelectItem>
+                      <SelectItem value="OTHER">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

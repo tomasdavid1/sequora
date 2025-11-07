@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import AuthLayout from '../components/AuthLayout';
+import AuthLayout from '@/components/auth/AuthLayout';
 import { supabase } from '@/lib/supabase';
 import { User } from '@/types';
 import { Mail, Lock, AlertTriangle, CheckCircle } from 'lucide-react';
@@ -50,8 +50,7 @@ export default function LoginPage() {
         
         if (session) {
           console.log('✅ Session found, redirecting to dashboard');
-          // All users go to the unified dashboard
-          router.push('/dashboard');
+          router.push('/toc/dashboard');
         } else {
           console.log('ℹ️ No session found');
           setCheckingAuth(false);
@@ -114,8 +113,7 @@ export default function LoginPage() {
           userRole = data.user.user_metadata?.role;
         }
         
-        // All users go to the unified dashboard
-        router.push('/dashboard');
+        router.push('/toc/dashboard');
       }
     } catch (err) {
       setError('An unexpected error occurred');

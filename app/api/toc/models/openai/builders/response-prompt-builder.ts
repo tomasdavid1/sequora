@@ -18,19 +18,46 @@ export function buildResponseMessages(params: {
   coveredCategories?: string[];  // Health areas already discussed
   nextCategorySuggestion?: string;  // Suggested next category to ask about
   currentSeverityThreshold?: string;  // Current risk level (HIGH/MEDIUM/LOW)
+  languageCode?: string;  // Patient's preferred language (EN, ES, OTHER)
 }) {
-  const { context, educationLevel, medications, checklistQuestions, wellnessConfirmationCount, decisionHint, conversationHistory, patientResponse, coveredCategories = [], nextCategorySuggestion, currentSeverityThreshold } = params;
+  const { context, educationLevel, medications, checklistQuestions, wellnessConfirmationCount, decisionHint, conversationHistory, patientResponse, coveredCategories = [], nextCategorySuggestion, currentSeverityThreshold, languageCode = 'EN' } = params;
   
   const medList = medications || [];
   const checklistQ = checklistQuestions || [];
   const history = conversationHistory || [];
   
+  // Determine response language based on patient's profile
+  const getLanguageInstructions = () => {
+    if (languageCode === 'ES') {
+      return `
+=== LANGUAGE: SPANISH ===
+⚠️ CRITICAL: You MUST respond in Spanish (Español).
+- Respond naturally in Spanish
+- Use appropriate medical terminology in Spanish
+- Be culturally sensitive
+- Examples: "¿Cómo te sientes?" "¿Estás tomando tus medicamentos?" "Una enfermera te llamará pronto"`;
+    } else if (languageCode === 'OTHER') {
+      return `
+=== LANGUAGE: OTHER ===
+- Default to simple English
+- Be prepared for language barriers
+- Use very simple, clear language
+- Offer: "I can also communicate in Spanish if that's easier - Puedo hablar en Español si prefieres"`;
+    } else {
+      return `
+=== LANGUAGE: ENGLISH ===
+- Respond in English
+- Use clear, conversational language`;
+    }
+  };
+
   // Build system prompt
   const systemPrompt = `${context}
 
 === YOUR IDENTITY ===
 - Name: Sarah (use when asked)
 - Role: Post-discharge care coordinator supporting patients after hospital discharge
+${getLanguageInstructions()}
 
 === PATIENT EDUCATION LEVEL: ${educationLevel} ===
 - LOW: Very simple words (5th grade). Short sentences. No medical terms. Reassuring.

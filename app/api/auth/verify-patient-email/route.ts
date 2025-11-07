@@ -47,7 +47,9 @@ export async function POST(request: NextRequest) {
         first_name: patient.first_name,
         last_name: patient.last_name,
         email: patient.email,
-        date_of_birth: patient.date_of_birth
+        primary_phone: patient.primary_phone
+        // ⚠️ HIPAA COMPLIANCE: DOB is NOT sent to frontend
+        // DOB verification happens server-side in verify-patient-dob endpoint
       },
       hasAuthAccount: hasAuthAccount
     });

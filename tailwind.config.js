@@ -1,5 +1,3 @@
-const { theme: customTheme } = require('./app/design/tailwind/theme-expo');
-
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ['class'],

@@ -52,12 +52,12 @@ export default function ProtocolManagement() {
       setLoading(true);
       
       // Load protocol rules
-      const rulesResponse = await fetch('/api/admin/protocol-rules');
+      const rulesResponse = await fetch('/api/toc/admin/protocol-rules');
       const rulesData = await rulesResponse.json();
       setRules(rulesData.rules || []);
 
       // Load protocol assignments
-      const assignmentsResponse = await fetch('/api/admin/protocol-assignments');
+      const assignmentsResponse = await fetch('/api/toc/admin/protocol-assignments');
       const assignmentsData = await assignmentsResponse.json();
       setAssignments(assignmentsData.assignments || []);
     } catch (error) {
@@ -69,7 +69,7 @@ export default function ProtocolManagement() {
 
   const handleCreateRule = async () => {
     try {
-      const response = await fetch('/api/admin/protocol-rules', {
+      const response = await fetch('/api/toc/admin/protocol-rules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newRule)
@@ -92,7 +92,7 @@ export default function ProtocolManagement() {
     if (!editingRule) return;
 
     try {
-      const response = await fetch(`/api/admin/protocol-rules/${editingRule.id}`, {
+      const response = await fetch(`/api/toc/admin/protocol-rules/${editingRule.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingRule)
@@ -111,7 +111,7 @@ export default function ProtocolManagement() {
     if (!confirm('Are you sure you want to delete this rule?')) return;
 
     try {
-      const response = await fetch(`/api/admin/protocol-rules/${ruleId}`, {
+      const response = await fetch(`/api/toc/admin/protocol-rules/${ruleId}`, {
         method: 'DELETE'
       });
 

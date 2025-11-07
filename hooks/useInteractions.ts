@@ -15,7 +15,7 @@ interface UseInteractionsOptions {
 
 export function useInteractions(options: UseInteractionsOptions = {}) {
   const { 
-    apiEndpoint = '/api/debug/interactions',
+    apiEndpoint = '/api/toc/interactions',
     autoFetch = false 
   } = options;
 
@@ -56,7 +56,7 @@ export function useInteractions(options: UseInteractionsOptions = {}) {
   const deleteInteraction = useCallback(async (interactionId: string) => {
     try {
       console.log('🗑️ [useInteractions] Deleting interaction:', interactionId);
-      const response = await fetch('/api/debug/clear-interactions', {
+      const response = await fetch('/api/toc/admin/clear-interactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ interactionId })
@@ -81,7 +81,7 @@ export function useInteractions(options: UseInteractionsOptions = {}) {
   const clearAllInteractions = useCallback(async () => {
     try {
       console.log('🗑️ [useInteractions] Clearing all interactions...');
-      const response = await fetch('/api/debug/clear-interactions', {
+      const response = await fetch('/api/toc/admin/clear-interactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ deleteAll: true })

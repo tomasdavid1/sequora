@@ -442,7 +442,7 @@ export function TasksTable({
               <div>
                 <Label>Escalation Reason</Label>
                 <div className="mt-2 p-3 bg-gray-50 rounded">
-                  {selectedTask.reason_codes?.join(', ')}
+                  {selectedTask.reason_codes?.join(', ').toUpperCase()}
                 </div>
               </div>
               

@@ -31,7 +31,7 @@ export function useConversations(options: UseConversationsOptions = {}) {
     setError(null);
     
     try {
-      const response = await fetch(`/api/debug/interactions?patientId=${pid}`);
+      const response = await fetch(`/api/toc/interactions?patientId=${pid}`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch conversations: ${response.statusText}`);

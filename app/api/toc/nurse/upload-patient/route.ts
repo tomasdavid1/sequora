@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
           state: patientData.state || null,
           zip: patientData.zip || null,
           education_level: patientData.educationLevel as EducationLevelType, // Patient attribute
+          language_code: patientData.languageCode || 'EN', // Default to English
           preferred_channel: 'SMS' as ContactChannelType, // Default to SMS
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()

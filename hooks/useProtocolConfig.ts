@@ -35,7 +35,7 @@ export function useProtocolConfig(options: UseProtocolConfigOptions = {}): UsePr
     setError(null);
     
     try {
-      const response = await fetch(`/api/admin/protocol-config/${configId}`);
+      const response = await fetch(`/api/toc/admin/protocol-config/${configId}`);
       const data = await response.json();
 
       if (data.success && data.config) {
@@ -55,7 +55,7 @@ export function useProtocolConfig(options: UseProtocolConfigOptions = {}): UsePr
     if (!config) return;
     
     try {
-      const response = await fetch(`/api/admin/protocol-rules`);
+      const response = await fetch(`/api/toc/admin/protocol-rules`);
       const data = await response.json();
 
       if (data.rules) {
@@ -89,7 +89,7 @@ export function useProtocolConfig(options: UseProtocolConfigOptions = {}): UsePr
     setError(null);
     
     try {
-      const response = await fetch(`/api/admin/protocol-config/${config.id}`, {
+      const response = await fetch(`/api/toc/admin/protocol-config/${config.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -125,7 +125,7 @@ export function useProtocolConfig(options: UseProtocolConfigOptions = {}): UsePr
           : (rule.text_patterns as string || '').split(',').map(s => s.trim()).filter(Boolean)
       };
 
-      const response = await fetch('/api/admin/protocol-rules', {
+      const response = await fetch('/api/toc/admin/protocol-rules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(ruleData)
@@ -150,7 +150,7 @@ export function useProtocolConfig(options: UseProtocolConfigOptions = {}): UsePr
 
   const deleteRule = useCallback(async (ruleId: string): Promise<boolean> => {
     try {
-      const response = await fetch(`/api/admin/protocol-rules/${ruleId}`, {
+      const response = await fetch(`/api/toc/admin/protocol-rules/${ruleId}`, {
         method: 'DELETE'
       });
 

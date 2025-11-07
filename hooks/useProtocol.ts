@@ -83,7 +83,7 @@ export function useProtocol(options: UseProtocolOptions = {}) {
     setError(null);
 
     try {
-      const response = await fetch('/api/admin/protocol-config');
+      const response = await fetch('/api/toc/admin/protocol-config');
       const data = await response.json();
       
       if (data.success || data.configs) {
@@ -110,7 +110,7 @@ export function useProtocol(options: UseProtocolOptions = {}) {
     try {
       console.log('💾 [useProtocol] Updating protocol config:', configId);
       
-      const response = await fetch(`/api/admin/protocol-config/${configId}`, {
+      const response = await fetch(`/api/toc/admin/protocol-config/${configId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -144,7 +144,7 @@ export function useProtocol(options: UseProtocolOptions = {}) {
     try {
       console.log('💾 [useProtocol] Updating protocol content pack:', ruleId);
       
-      const response = await fetch(`/api/admin/protocol-content-pack/${ruleId}`, {
+      const response = await fetch(`/api/toc/admin/protocol-content-pack/${ruleId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)

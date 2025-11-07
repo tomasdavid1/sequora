@@ -18,32 +18,38 @@ import {
   TaskStatusType,
   TaskPriorityType,
   RuleTypeType,
+  ActionType,
   VALID_SEVERITIES,
   VALID_RULE_TYPES,
+  VALID_ACTION_TYPES,
   getSeverityFilterForRiskLevel,
   getPriorityFromSeverity,
   getSLAMinutesFromSeverity,
-  isValidSeverity
+  isValidSeverity,
+  isValidActionType
 } from '@/lib/enums';
 import { parseAndRespondDirect } from '@/app/api/toc/models/openai/route';
+import { emitEvent } from '@/lib/inngest/client';
 
 type SupabaseAdmin = SupabaseClient<Database>;
 
 // Type definitions for the interaction system
+// DecisionActionType: Internal decision actions used by rules engine
+// Different from ActionType (database enum) which is what's stored in ProtocolContentPack
+type DecisionActionType = 'FLAG' | 'ASK_MORE' | 'CLOSE';
+
+type IntentType = 'symptom_report' | 'medication_question' | 'general' | 'question';
+type SentimentType = 'distressed' | 'concerned' | 'neutral' | 'positive';
+
 interface ParsedResponse {
-  intent: string; // Could be enum: 'symptom_report' | 'medication_question' | 'general' | 'question'
+  intent: IntentType;
   symptoms: string[];
-  severity: SeverityType; // AI returns SeverityType, fallback parsing returns string
+  severity: SeverityType;
   questions: string[];
-  sentiment: string; // Could be enum: 'distressed' | 'concerned' | 'neutral' | 'positive'
+  sentiment: SentimentType;
   confidence: number;
   rawInput: string;
   normalized_text?: string;
-  painScore?: number;
-  weightChange?: string;
-  medicationAdherence?: string;
-  temperature?: number;
-  breathingStatus?: string;
   complications: string[];
   aiResponse?: string;
   coveredCategories?: string[]; // Health areas already discussed (from AI parser)
@@ -52,7 +58,7 @@ interface ParsedResponse {
 }
 
 interface DecisionHint {
-  action: 'FLAG' | 'ASK_MORE' | 'CLOSE';
+  action: DecisionActionType; // Internal decision action (FLAG, ASK_MORE, CLOSE)
   flagType?: string;
   severity?: SeverityType;
   reason?: string;
@@ -75,10 +81,7 @@ type ProtocolAssignmentWithRelations = ProtocolAssignment & {
   };
 };
 
-interface AIResponse {
-  response: string;
-  toolCalls?: ToolCall[];
-}
+
 
 interface ToolCall {
   name: string;
@@ -106,6 +109,7 @@ interface ToolResult {
     taskId?: string;
     followUpId?: string;
     checkinId?: string;
+    newCount?: number;  // For wellness confirmation tracking (internal only)
     error?: string;
   };
 }
@@ -151,31 +155,18 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // 1. Load or create protocol assignment for this episode
-    let protocolAssignment = await loadProtocolAssignment(episodeId, supabase);
+    // 1. Load protocol assignment for this episode (should always exist via DB trigger)
+    const protocolAssignment = await loadProtocolAssignment(episodeId, supabase);
     
     if (!protocolAssignment) {
-      console.log('📝 [Interaction] No protocol assignment found - creating one now');
-      protocolAssignment = await createProtocolAssignment(episodeId, supabase);
-    }
-    
-    // CRITICAL: Verify protocol assignment matches current episode condition/risk
-    // (Assignment can become stale if episode is edited in admin)
-    const episodeCondition = protocolAssignment.Episode?.condition_code;
-    const episodeRiskLevel = protocolAssignment.Episode?.risk_level;
-    
-    if (episodeCondition !== protocolAssignment.condition_code || episodeRiskLevel !== protocolAssignment.risk_level) {
-      console.error('❌ [Interaction] STALE PROTOCOL ASSIGNMENT DETECTED!', {
-        assignment_condition: protocolAssignment.condition_code,
-        assignment_risk: protocolAssignment.risk_level,
-        episode_condition: episodeCondition,
-        episode_risk: episodeRiskLevel
-      });
-      
+      console.error('❌ [Interaction] CRITICAL: No protocol assignment found for episode:', episodeId);
       return NextResponse.json({
-        error: `Stale protocol assignment! Episode is ${episodeCondition}/${episodeRiskLevel} but assignment is ${protocolAssignment.condition_code}/${protocolAssignment.risk_level}. Please update the episode in Profile modal or create new protocol assignment.`
-      }, { status: 400 });
+        error: `No protocol assignment found for episode ${episodeId}. This should never happen - protocol assignments are auto-created via database trigger. Please check the Episode has condition_code and risk_level set.`
+      }, { status: 500 });
     }
+    
+    // Note: Protocol assignments are automatically kept in sync with Episode via database triggers
+    // No need to check for staleness - trigger handles updates when Episode condition/risk changes
 
     // 2. Get conversation history and wellness confirmation count if continuing an existing interaction
     let conversationHistory: Array<{role: string, content: string}> = [];
@@ -250,8 +241,7 @@ export async function POST(request: NextRequest) {
           category: r.flag.question_category,
           question: r.flag.question_text,
           follow_up: r.flag.follow_up_question,
-          is_critical: r.flag.is_critical,
-          requires_specific_answer: r.flag.requires_specific_answer
+          is_critical: r.flag.is_critical
         })),
       ...protocolRules.closures
         .filter((c: any) => c.then.question_text)
@@ -259,8 +249,7 @@ export async function POST(request: NextRequest) {
           category: c.then.question_category,
           question: c.then.question_text,
           follow_up: c.then.follow_up_question,
-          is_critical: c.then.is_critical,
-          requires_specific_answer: c.then.requires_specific_answer
+          is_critical: c.then.is_critical
         }))
     ];
     
@@ -397,6 +386,7 @@ export async function POST(request: NextRequest) {
       wellnessConfirmationCount: wellnessConfirmationCount,
       checklistQuestions: checklistQuestions,
       currentSeverityThreshold: protocolAssignment.risk_level,
+      languageCode: protocolAssignment.Episode?.Patient?.language_code || undefined,
       parsedResponse: parsedResponse // Pass the already-parsed response
     });
     
@@ -528,6 +518,40 @@ export async function POST(request: NextRequest) {
         console.log('✅ [Interaction] AI message saved. Sequence:', nextSequence + 1);
       }
 
+      // 7.5. Send AI response via SMS if interaction is via SMS/text channel
+      // Check if this is an SMS-based interaction (not the AI Tester UI)
+      const isSMSInteraction = interactionType === 'SMS' || interactionType === 'TEXT';
+      
+      if (isSMSInteraction) {
+        console.log('📱 [Interaction] Sending AI response via SMS');
+        
+        // Get patient phone number
+        const { data: patient } = await supabase
+          .from('Patient')
+          .select('primary_phone')
+          .eq('id', patientId)
+          .single();
+
+        if (patient?.primary_phone) {
+          // Emit event to send SMS via Inngest
+          await emitEvent('notification/send', {
+            recipientPatientId: patientId,
+            notificationType: 'PATIENT_RESPONSE',
+            channel: 'SMS',
+            messageContent: aiResponse.response,
+            episodeId: episodeId,
+            metadata: {
+              interactionId: activeInteractionId,
+              messageSequence: nextSequence + 1,
+            },
+          });
+          
+          console.log('✅ [Interaction] SMS notification event emitted');
+        } else {
+          console.warn('⚠️ [Interaction] Patient has no phone number, cannot send SMS');
+        }
+      }
+
       // 8. Update interaction with message count (don't mark completed yet - ongoing conversation)
       const { data: allMessages } = await supabase
         .from('AgentMessage')
@@ -614,6 +638,23 @@ export async function POST(request: NextRequest) {
           console.error('❌ [Interaction] Failed to update interaction:', updateError);
         } else {
           console.log(`✅ [Interaction] Marked as ${finalStatus} with summary: "${summary.substring(0, 50)}..."`);
+          
+          // Emit checkin/completed event if this was a successful check-in
+          if (finalStatus === 'COMPLETED') {
+            try {
+              await emitEvent('checkin/completed', {
+                interactionId: activeInteractionId,
+                episodeId,
+                patientId,
+                severity: parsedResponse.severity || 'NONE',
+                wellnessConfirmationCount: wellnessConfirmationCount,
+                completedAt: new Date().toISOString(),
+              });
+              console.log('📤 [Interaction] Event emitted: checkin/completed');
+            } catch (eventError) {
+              console.error('⚠️ [Interaction] Failed to emit checkin/completed event:', eventError);
+            }
+          }
         }
       } catch (summaryError) {
         console.error('❌ [Interaction] Error generating/saving summary:', summaryError);
@@ -658,7 +699,7 @@ async function loadProtocolAssignment(episodeId: string, supabase: SupabaseAdmin
         condition_code, 
         risk_level,
         medications,
-        Patient!inner(education_level)
+        Patient!inner(education_level, language_code)
       )
     `)
     .eq('episode_id', episodeId)
@@ -671,8 +712,9 @@ async function loadProtocolAssignment(episodeId: string, supabase: SupabaseAdmin
   }
 
   if (!assignment) {
-    console.log('📝 [Protocol Assignment] No active assignment found for episode:', episodeId);
-    return null; // This is OK - no assignment means we need to create one
+    console.error('❌ [Protocol Assignment] CRITICAL: No active assignment found for episode:', episodeId);
+    console.error('This should never happen - protocol assignments are auto-created via database trigger');
+    return null; // Will be caught by caller and return 500 error
   }
   
   // Validate critical relationships exist
@@ -690,65 +732,9 @@ async function loadProtocolAssignment(episodeId: string, supabase: SupabaseAdmin
   return assignment;
 }
 
-// Create protocol assignment for an episode
-async function createProtocolAssignment(episodeId: string, supabase: SupabaseAdmin) {
-    // First, get the episode details
-    const { data: episode, error: episodeError} = await supabase
-      .from('Episode')
-    .select('condition_code, risk_level, medications, Patient!inner(education_level)')
-      .eq('id', episodeId)
-      .single();
-
-  if (episodeError) {
-    console.error('❌ [Protocol Assignment] Database error fetching episode:', episodeId, episodeError);
-    throw new Error(`Failed to fetch episode data: ${episodeError.message}`);
-  }
-
-  if (!episode) {
-    console.error('❌ [Protocol Assignment] Episode not found:', episodeId);
-    throw new Error(`Episode ${episodeId} not found. Cannot create protocol assignment.`);
-  }
-  
-  console.log('📋 [Protocol Assignment] Creating assignment from Episode:', {
-    episodeId,
-    condition_code: episode.condition_code,
-    risk_level: episode.risk_level
-  });
-
-  // Create the protocol assignment (just metadata, no rule duplication)
-  // Note: education_level is in Patient table, not ProtocolAssignment
-    const { data: assignment, error: assignmentError } = await supabase
-      .from('ProtocolAssignment')
-      .insert({
-        episode_id: episodeId,
-        condition_code: episode.condition_code,
-      risk_level: episode.risk_level,
-        is_active: true
-      })
-      .select(`
-        *,
-      Episode!inner(
-        condition_code, 
-        risk_level,
-        medications,
-        Patient!inner(education_level)
-      )
-      `)
-      .single();
-
-    if (assignmentError) {
-    console.error('❌ [Protocol Assignment] Database error creating assignment:', assignmentError);
-    throw new Error(`Failed to create protocol assignment: ${assignmentError.message}`);
-  }
-
-  if (!assignment) {
-    console.error('❌ [Protocol Assignment] Assignment creation returned no data');
-    throw new Error('Protocol assignment creation failed - no data returned');
-  }
-
-  console.log('✅ [Protocol Assignment] Created for episode:', episodeId);
-    return assignment;
-}
+// Note: Protocol assignment creation is now handled by database trigger
+// See migration: 20251101000003_ensure_protocol_assignments.sql
+// This function has been removed as protocol assignments are auto-created
 
 // Query protocol configuration (AI decision parameters) from database
 async function getProtocolConfig(conditionCode: ConditionCode, riskLevel: RiskLevelType, supabase: SupabaseAdmin) {
@@ -791,7 +777,7 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
   const redFlagRuleTypes: RuleTypeType[] = ['RED_FLAG', 'CLARIFICATION'];
   const { data: ruleData, error: ruleError } = await supabase
     .from('ProtocolContentPack')
-    .select('rule_code, text_patterns, action_type, severity, message, numeric_follow_up_question, question_text, follow_up_question, question_category, is_critical, requires_specific_answer')
+    .select('rule_code, text_patterns, action_type, severity, message, numeric_follow_up_question, question_text, follow_up_question, question_category, is_critical')
     .eq('condition_code', conditionCode)
     .in('rule_type', redFlagRuleTypes)
     .in('severity', severityFilter)
@@ -805,7 +791,7 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
   // Query closures
   const { data: closureData, error: closureError } = await supabase
     .from('ProtocolContentPack')
-    .select('rule_code, text_patterns, action_type, message, question_text, follow_up_question, question_category, is_critical, requires_specific_answer')
+    .select('rule_code, text_patterns, action_type, message, question_text, follow_up_question, question_category, is_critical')
     .eq('condition_code', conditionCode)
     .eq('rule_type', 'CLOSURE' as RuleTypeType)
     .eq('active', true);
@@ -844,7 +830,6 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
         follow_up_question: rule.follow_up_question,
         question_category: rule.question_category,
         is_critical: rule.is_critical,
-        requires_specific_answer: rule.requires_specific_answer
       }
     };
   });
@@ -863,7 +848,6 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
         follow_up_question: rule.follow_up_question,
         question_category: rule.question_category,
         is_critical: rule.is_critical,
-        requires_specific_answer: rule.requires_specific_answer
       }
     };
   });
@@ -1031,14 +1015,16 @@ async function evaluateRulesDSL(
   // If AI assesses MODERATE severity AND patient sounds concerned/distressed, flag it (if enabled)
   if (protocolConfig.enable_moderate_concern_escalation && parsedResponse.severity === 'MODERATE' && hasConcernedSentiment && parsedResponse.confidence > LOW_CONFIDENCE_THRESHOLD) {
     console.log(`⚠️ [Rules Engine] MODERATE severity + ${parsedResponse.sentiment} sentiment - escalating as configured`);
-    return {
+    const decisionHint = {
       action: 'FLAG' as const,
       flagType: 'MODERATE_WITH_CONCERN',
-      severity: 'MODERATE',
+      severity: 'MODERATE' as const,
       reason: `Patient expressed concern about symptoms: ${parsedResponse.symptoms.join(', ')}`,
       messageGuidance: 'CLOSURE MESSAGE: Acknowledge their concerns. Thank them for letting you know. Say "We\'re noting this and will keep track of how you\'re doing." Be empathetic and reassuring.',
       followUp: []
     };
+    console.log(`📋 [Rules Engine] DecisionHint severity: ${decisionHint.severity} (AI may choose different severity in tool call)`);
+    return decisionHint;
   }
   
   // ENHANCEMENT 2: Intent-based routing (configurable per protocol)
@@ -1148,12 +1134,16 @@ async function evaluateRulesDSL(
         ? MESSAGE_GUIDANCE.MODERATE(ruleMatch.matchedPattern || '')
         : MESSAGE_GUIDANCE.LOW(ruleMatch.matchedPattern || '');
       
-      // Map action_type to decision hint action
-      let decisionAction: 'FLAG' | 'ASK_MORE';
+      // Map database ActionType to internal DecisionActionType
+      // Database: HANDOFF_TO_NURSE | RAISE_FLAG | ASK_MORE | LOG_CHECKIN
+      // Internal: FLAG | ASK_MORE | CLOSE
+      let decisionAction: DecisionActionType;
       if (rule.flag.action === 'HANDOFF_TO_NURSE' || rule.flag.action === 'RAISE_FLAG') {
-        decisionAction = 'FLAG';
+        decisionAction = 'FLAG'; // Both escalations map to FLAG
       } else if (rule.flag.action === 'ASK_MORE') {
-        decisionAction = 'ASK_MORE';
+        decisionAction = 'ASK_MORE'; // Direct mapping
+      } else if (rule.flag.action === 'LOG_CHECKIN') {
+        decisionAction = 'CLOSE'; // Closure maps to CLOSE
       } else {
         console.warn(`⚠️ [Rules Engine] Unknown action_type: ${rule.flag.action}, defaulting to FLAG`);
         decisionAction = 'FLAG';
@@ -1345,7 +1335,7 @@ async function handleWellnessConfirmation(parameters: Record<string, unknown>, i
   
   if (!interactionId || !supabase) {
     console.log('📊 [Wellness Confirmation] No interaction ID - skipping count update');
-    return { success: true, message: 'No interaction to update' };
+    return { success: true };
   }
   
   // Get current interaction
@@ -1401,15 +1391,13 @@ async function handleWellnessConfirmation(parameters: Record<string, unknown>, i
     
     return { 
       success: true, 
-      newCount: newCount,
-      message: `Wellness confirmation recorded (${countToAdd} confirmation${countToAdd > 1 ? 's' : ''}). Total: ${newCount}/3` 
+      newCount: newCount
     };
   } else {
     console.log(`📊 [Wellness Confirmation] Response does NOT count as confirmation. Current count remains: ${currentCount}/3`);
     return { 
       success: true, 
-      newCount: currentCount,
-      message: `Not a wellness confirmation. Count remains: ${currentCount}/3` 
+      newCount: currentCount
     };
   }
 }
@@ -1418,6 +1406,13 @@ async function handleRaiseFlag(parameters: Record<string, unknown>, patientId: s
   const { flagType, severity, rationale } = parameters;
   const severityStr = String(severity);
   const flagTypeStr = String(flagType);
+  
+  console.log(`🚩 [RaiseFlag] Tool call parameters:`, {
+    flagType: flagTypeStr,
+    severity: severityStr,
+    rationale: rationale || 'none',
+    interactionId
+  });
   
   // Validate interactionId is present (required for cascade delete)
   if (!interactionId) {
@@ -1448,7 +1443,148 @@ async function handleRaiseFlag(parameters: Record<string, unknown>, patientId: s
   }
 
   console.log('✅ [RaiseFlag] Task created:', task.id, 'linked to interaction:', interactionId);
+  
+  // Emit task/created event for Inngest workflows
+  try {
+    await emitEvent('task/created', {
+      taskId: task.id,
+      episodeId,
+      patientId,
+      priority: task.priority,
+      severity: task.severity,
+      reasonCodes: task.reason_codes || [],
+      actionType: flagTypeStr,
+      slaMinutes: getSLAMinutesFromSeverity(task.severity),
+      createdAt: task.created_at || new Date().toISOString(),
+    });
+    console.log('📤 [RaiseFlag] Event emitted: task/created');
+  } catch (eventError) {
+    console.error('⚠️ [RaiseFlag] Failed to emit task/created event:', eventError);
+    // Don't fail the request if event emission fails
+  }
+  
+  // Check if risk level upgrade is needed based on severity
+  try {
+    await checkAndUpgradeRiskLevel(
+      episodeId, 
+      patientId,
+      severityStr.toUpperCase() as SeverityType, 
+      flagTypeStr,
+      String(rationale || ''),
+      supabase
+    );
+  } catch (upgradeError) {
+    console.error('⚠️ [RaiseFlag] Failed to check/upgrade risk level:', upgradeError);
+    // Don't fail the request if upgrade check fails
+  }
+  
   return { success: true, taskId: task.id };
+}
+
+// Check if episode risk level needs upgrading based on flag severity
+async function checkAndUpgradeRiskLevel(
+  episodeId: string,
+  patientId: string,
+  severity: SeverityType,
+  flagType: string,
+  rationale: string,
+  supabase: SupabaseAdmin
+) {
+  // Fetch current episode risk level
+  const { data: episode, error: episodeError } = await supabase
+    .from('Episode')
+    .select('risk_level')
+    .eq('id', episodeId)
+    .single();
+
+  if (episodeError || !episode) {
+    console.error('❌ [RiskUpgrade] Failed to fetch episode:', episodeError);
+    return;
+  }
+
+  const currentRiskLevel = episode.risk_level as RiskLevelType;
+  let newRiskLevel: RiskLevelType | null = null;
+
+  // Determine if upgrade is needed based on severity
+  // Rule: Always upgrade, never downgrade (downgrade is manual only)
+  if (severity === 'CRITICAL') {
+    // CRITICAL always upgrades to HIGH (most intensive monitoring)
+    if (currentRiskLevel === 'LOW' || currentRiskLevel === 'MEDIUM') {
+      newRiskLevel = 'HIGH';
+    }
+  } else if (severity === 'HIGH') {
+    // HIGH severity upgrades LOW to MEDIUM
+    if (currentRiskLevel === 'LOW') {
+      newRiskLevel = 'MEDIUM';
+    }
+  }
+  // MODERATE and LOW severities don't trigger auto-upgrades
+
+  // If no upgrade needed, exit early
+  if (!newRiskLevel) {
+    console.log(`ℹ️ [RiskUpgrade] No upgrade needed. Current: ${currentRiskLevel}, Severity: ${severity}`);
+    return;
+  }
+
+  console.log(`⬆️ [RiskUpgrade] Upgrading episode ${episodeId} from ${currentRiskLevel} to ${newRiskLevel} due to ${severity} severity flag`);
+
+  // Perform the upgrade
+  await upgradeEpisodeRiskLevel(
+    episodeId,
+    patientId,
+    currentRiskLevel,
+    newRiskLevel,
+    `Auto-upgraded due to ${severity} severity flag: ${flagType}. ${rationale}`,
+    supabase
+  );
+}
+
+// Upgrade episode risk level and emit event for cascade effects
+async function upgradeEpisodeRiskLevel(
+  episodeId: string,
+  patientId: string,
+  oldRiskLevel: RiskLevelType,
+  newRiskLevel: RiskLevelType,
+  reason: string,
+  supabase: SupabaseAdmin
+) {
+  const timestamp = new Date().toISOString();
+
+  // Update episode risk level
+  const { error: updateError } = await supabase
+    .from('Episode')
+    .update({
+      risk_level: newRiskLevel,
+      updated_at: timestamp
+    })
+    .eq('id', episodeId);
+
+  if (updateError) {
+    console.error('❌ [RiskUpgrade] Failed to update episode risk level:', updateError);
+    throw new Error(`Failed to upgrade risk level: ${updateError.message}`);
+  }
+
+  console.log(`✅ [RiskUpgrade] Episode ${episodeId} risk level updated: ${oldRiskLevel} → ${newRiskLevel}`);
+
+  // Log audit trail in AgentInteraction notes or create a system message
+  // For now, we'll emit an event and let Inngest handle detailed logging
+  
+  // Emit episode/risk-upgraded event for Inngest workflows
+  try {
+    await emitEvent('episode/risk-upgraded', {
+      episodeId,
+      patientId,
+      oldRiskLevel,
+      newRiskLevel,
+      reason,
+      upgradedAt: timestamp,
+      upgradedBy: 'SYSTEM_AUTO', // Indicates automatic upgrade
+    });
+    console.log(`📤 [RiskUpgrade] Event emitted: episode/risk-upgraded (${oldRiskLevel} → ${newRiskLevel})`);
+  } catch (eventError) {
+    console.error('⚠️ [RiskUpgrade] Failed to emit episode/risk-upgraded event:', eventError);
+    // Don't fail the upgrade if event emission fails
+  }
 }
 
 async function handleAskMore(parameters: Record<string, unknown>, patientId: string, episodeId: string, supabase: SupabaseAdmin) {
@@ -1515,6 +1651,26 @@ async function handleHandoffToNurse(parameters: Record<string, unknown>, patient
   }
 
   console.log('✅ [Handoff] Escalation task created:', task.id, 'linked to interaction:', interactionId);
+  
+  // Emit task/created event for Inngest workflows
+  try {
+    await emitEvent('task/created', {
+      taskId: task.id,
+      episodeId,
+      patientId,
+      priority: task.priority,
+      severity: task.severity,
+      reasonCodes: task.reason_codes || [],
+      actionType: 'HANDOFF_TO_NURSE',
+      slaMinutes: 30, // 30 minutes for handoffs
+      createdAt: task.created_at || new Date().toISOString(),
+    });
+    console.log('📤 [Handoff] Event emitted: task/created');
+  } catch (eventError) {
+    console.error('⚠️ [Handoff] Failed to emit task/created event:', eventError);
+    // Don't fail the request if event emission fails
+  }
+  
   return { success: true, taskId: task.id };
 }
 
@@ -1572,10 +1728,14 @@ Write the summary now (2-3 sentences only):`
 
     const result = await response.json();
     console.log('📝 [Summary] Raw API response:', result);
-    return result.response || `Patient interaction. ${decisionHint.action === 'FLAG' ? 'Escalated.' : 'Completed.'}`;
+    
+    if (!result.summary) {
+      throw new Error('Summary generation returned empty response');
+    }
+    
+    return result.summary;
   } catch (error) {
     console.error('Failed to generate summary:', error);
-    // Fallback summary
-    return `${decisionHint.action === 'FLAG' ? `Escalated: ${decisionHint.reason}` : 'Check-in completed'}. Last message: ${lastPatientMessage.substring(0, 100)}`;
+    throw new Error(`Failed to generate interaction summary: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

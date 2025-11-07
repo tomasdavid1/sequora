@@ -3,12 +3,8 @@ import { Database } from '@/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { Patient, Episode, OutreachAttempt, CommunicationMessage, ContactChannel, OutreachStatus } from '@/types';
-import twilio from 'twilio';
-
-const twilioClient = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-);
+import { sendSMS } from '@/lib/inngest/services/twilio';
+import { emitEvent } from '@/lib/inngest/client';
 
 // Twilio webhook handler for incoming SMS/WhatsApp
 export async function POST(request: NextRequest) {
@@ -58,23 +54,14 @@ export async function POST(request: NextRequest) {
       return new Response('No episode found', { status: 404 });
     }
 
-    // Check if this is a response to an active outreach attempt
-    const activeAttempt = episode.OutreachPlan?.[0]?.OutreachAttempt?.find(
-      attempt => attempt.status === 'IN_PROGRESS' && attempt.provider_message_id
-    );
-
-    if (!activeAttempt) {
-      // No active outreach, send general response
-      await sendGeneralResponse(from, patient.first_name);
-      return new Response('General response sent', { status: 200 });
-    }
-
-    // Process the response through core agent
-    await processSMSResponseThroughCoreAgent(
+    // Process ALL patient SMS messages through the AI interaction route
+    // Whether it's a response to an outreach attempt or an unsolicited message,
+    // the AI should handle it with full context and conversation history
+    await processSMSResponseThroughInteraction(
       patient.id,
+      episode.id,
       episode.condition_code,
       body,
-      activeAttempt.id,
       from
     );
 
@@ -86,26 +73,17 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function processSMSResponseThroughCoreAgent(
+async function processSMSResponseThroughInteraction(
   patientId: string,
+  episodeId: string,
   condition: string,
   responseText: string,
-  sessionId: string,
   phoneNumber: string
 ) {
   try {
-    // Transform SMS response to core agent format
-    const coreAgentResponses = [{
-      questionCode: 'SMS_RESPONSE',
-      questionText: 'Patient SMS response',
-      responseText: responseText,
-      responseType: 'TEXT' as const,
-      timestamp: new Date().toISOString()
-    }];
-
-    // Call core agent
-    const coreAgentResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/toc/agents/core/checkin`,
+    // Call NEW interaction route (uses parseAndRespondDirect with full context)
+    const interactionResponse = await fetch(
+      `${process.env.NEXT_PUBLIC_APP_URL}/api/toc/agents/core/interaction`,
       {
         method: 'POST',
         headers: {
@@ -114,217 +92,72 @@ async function processSMSResponseThroughCoreAgent(
         },
         body: JSON.stringify({
           patientId,
+          episodeId,
+          patientInput: responseText,
           condition,
-          responses: coreAgentResponses,
-          channel: 'SMS',
-          sessionId
+          interactionType: 'SMS', // This will trigger SMS sending via Inngest
+          // Don't pass interactionId - let it find or create one
         })
       }
     );
 
-    if (!coreAgentResponse.ok) {
-      console.error('Core agent processing failed for SMS response');
-      await sendErrorResponse(phoneNumber);
+    if (!interactionResponse.ok) {
+      console.error('❌ Interaction route failed for SMS response');
+      // Send error response via event system
+      await emitEvent('notification/send', {
+        recipientPatientId: patientId,
+        notificationType: 'PATIENT_RESPONSE', // Using PATIENT_RESPONSE for error messages
+        channel: 'SMS',
+        messageContent: "We're experiencing technical difficulties. Please contact your healthcare team directly if you have urgent concerns.",
+        episodeId,
+      });
       return;
     }
 
-    const result = await coreAgentResponse.json();
-    console.log(`✅ Core agent processed SMS response: ${result.result.severity} severity`);
+    const result = await interactionResponse.json();
+    console.log(`✅ Interaction processed SMS response:`, {
+      severity: result.severity,
+      escalated: result.escalated,
+      interactionId: result.interactionId
+    });
 
-    // Send response back to patient
-    await sendSMSResponse(phoneNumber, result.result.responseToPatient);
-
-    // If escalation needed, trigger nurse callback
-    if (result.result.escalationTaskId) {
-      await triggerNurseCallback(patientId, result.result);
-    }
+    // NOTE: SMS response is now sent automatically via Inngest in the interaction route
+    // No need to send SMS here - it's handled by the event-driven architecture
 
   } catch (error) {
-    console.error('Error processing SMS response through core agent:', error);
-    await sendErrorResponse(phoneNumber);
+    console.error('❌ Error processing SMS response through interaction route:', error);
+    // Send error response via event system
+    await emitEvent('notification/send', {
+      recipientPatientId: patientId,
+      notificationType: 'PATIENT_RESPONSE', // Using PATIENT_RESPONSE for error messages
+      channel: 'SMS',
+      messageContent: "We're experiencing technical difficulties. Please contact your healthcare team directly if you have urgent concerns.",
+      episodeId,
+    });
   }
 }
 
-async function sendSMSResponse(phoneNumber: string, message: string) {
-  try {
-    await twilioClient.messages.create({
-      body: message,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: phoneNumber
-    });
+/**
+ * NOTE: Outbound SMS sending is now handled by Inngest event-driven architecture
+ * See: lib/inngest/functions/send-notification.ts
+ * 
+ * To send SMS, emit a 'notification/send' event:
+ * 
+ * await emitEvent('notification/send', {
+ *   recipientPatientId: patientId,
+ *   notificationType: 'PATIENT_RESPONSE',
+ *   channel: 'SMS',
+ *   messageContent: 'Your message here',
+ *   episodeId: episodeId,
+ * });
+ */
 
-    console.log(`📱 SMS response sent to ${phoneNumber}`);
-  } catch (error) {
-    console.error('Error sending SMS response:', error);
-  }
-}
-
-async function sendGeneralResponse(phoneNumber: string, patientName: string) {
-  const message = `Hi ${patientName}! Thank you for reaching out. If you have any questions about your care, please contact your healthcare team directly.`;
-  
-  try {
-    await twilioClient.messages.create({
-      body: message,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: phoneNumber
-    });
-
-    console.log(`📱 General response sent to ${phoneNumber}`);
-  } catch (error) {
-    console.error('Error sending general response:', error);
-  }
-}
-
-async function sendErrorResponse(phoneNumber: string) {
-  const message = "We're experiencing technical difficulties. Please contact your healthcare team directly if you have urgent concerns.";
-  
-  try {
-    await twilioClient.messages.create({
-      body: message,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: phoneNumber
-    });
-
-    console.log(`📱 Error response sent to ${phoneNumber}`);
-  } catch (error) {
-    console.error('Error sending error response:', error);
-  }
-}
-
-async function triggerNurseCallback(patientId: string, result: Record<string, unknown>) {
-  const supabase = getSupabaseAdmin();
-  
-  // Create a new outreach attempt for nurse callback
-  const { data: episode, error: episodeError } = await supabase
-    .from('Episode')
-    .select(`
-      id,
-      Patient (
-        id,
-        first_name,
-        last_name,
-        primary_phone
-      )
-    `)
-    .eq('patient_id', patientId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-
-  if (episodeError || !episode) {
-    console.error('No episode found for nurse callback');
-    return;
-  }
-
-  // Create nurse callback attempt
-  await supabase
-    .from('OutreachAttempt')
-    .insert({
-      outreach_plan_id: null, // Direct nurse callback
-      attempt_number: 1,
-      scheduled_at: new Date().toISOString(),
-      channel: 'VOICE',
-      status: 'PENDING',
-      reason_code: 'NURSE_CALLBACK',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    });
-
-  console.log(`📞 Nurse callback scheduled for patient ${patientId} due to ${result.severity} severity`);
-}
-
-// Twilio SMS/WhatsApp outbound message creation
-export async function PUT(request: NextRequest) {
-  try {
-    const supabase = getSupabaseAdmin();
-    const body = await request.json();
-    const { 
-      patientPhone, 
-      message, 
-      channel = 'SMS',
-      outreachAttemptId 
-    } = body;
-
-    // Send message via Twilio
-    const twilioResponse = await sendTwilioMessage({
-      phoneNumber: patientPhone,
-      message,
-      channel,
-      outreachAttemptId
-    });
-
-    if (!twilioResponse.success) {
-      return NextResponse.json(
-        { error: 'Failed to send Twilio message' },
-        { status: 500 }
-      );
-    }
-
-    // Update outreach attempt with Twilio message SID
-    await supabase
-      .from('OutreachAttempt')
-      .update({
-        provider_message_id: twilioResponse.messageSid,
-        channel: 'SMS' as ContactChannel, // WhatsApp mapped to SMS
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', outreachAttemptId);
-
-    return NextResponse.json({
-      success: true,
-      messageSid: twilioResponse.messageSid,
-      status: 'SENT'
-    });
-
-  } catch (error) {
-    console.error('Error sending Twilio message:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
-
-async function sendTwilioMessage(params: {
-  phoneNumber: string;
-  message: string;
-  channel: 'SMS' | 'WHATSAPP';
-  outreachAttemptId: string;
-}): Promise<{ success: boolean; messageSid?: string; error?: string }> {
-  
-  try {
-    const fromNumber = params.channel === 'WHATSAPP' 
-      ? `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER}`
-      : process.env.TWILIO_PHONE_NUMBER;
-    
-    const toNumber = params.channel === 'WHATSAPP' 
-      ? `whatsapp:${params.phoneNumber}`
-      : params.phoneNumber;
-
-    const message = await twilioClient.messages.create({
-      body: params.message,
-      from: fromNumber,
-      to: toNumber,
-      statusCallback: `${process.env.NEXT_PUBLIC_APP_URL}/api/toc/adapters/text/twilio/status`
-    });
-
-    console.log(`📱 Twilio message sent: ${message.sid}`);
-
-    return {
-      success: true,
-      messageSid: message.sid
-    };
-
-  } catch (error) {
-    console.error('Error sending Twilio message:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
-  }
-}
-
-// Twilio status callback handler
+/**
+ * Twilio status callback handler
+ * 
+ * Receives delivery status updates from Twilio and emits events
+ * for the Inngest notification system to process
+ */
 export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
@@ -337,29 +170,34 @@ export async function GET(request: NextRequest) {
     if (!messageSid || !messageStatus) {
       return new Response('Missing parameters', { status: 400 });
     }
-    
-    // Update outreach attempt status
-    let newStatus: OutreachStatus = 'PENDING';
-    switch (messageStatus) {
-      case 'delivered':
-        newStatus = 'COMPLETED';
-        break;
-      case 'failed':
-        newStatus = 'FAILED';
-        break;
-      case 'undelivered':
-        newStatus = 'FAILED';
-        break;
+
+    // Find the notification log entry for this message
+    const { data: notificationLog } = await supabase
+      .from('NotificationLog')
+      .select('id, episode_id, recipient_patient_id')
+      .eq('provider_message_id', messageSid)
+      .single();
+
+    // Emit appropriate event based on status
+    // Inngest will handle updating NotificationLog
+    if (messageStatus === 'delivered') {
+      await emitEvent('notification/delivered', {
+        notificationId: notificationLog?.id || messageSid,
+        providerMessageId: messageSid,
+        deliveredAt: new Date().toISOString(),
+      });
+    } else if (messageStatus === 'failed' || messageStatus === 'undelivered') {
+      await emitEvent('notification/failed', {
+        notificationId: notificationLog?.id || messageSid,
+        failureReason: `Twilio status: ${messageStatus}`,
+        retryCount: 0,
+        failedAt: new Date().toISOString(),
+      });
     }
 
-    await supabase
-      .from('OutreachAttempt')
-      .update({
-        status: newStatus,
-        completed_at: newStatus === 'COMPLETED' ? new Date().toISOString() : null,
-        updated_at: new Date().toISOString()
-      })
-      .eq('provider_message_id', messageSid);
+    // NOTE: OutreachAttempt table is deprecated
+    // All delivery tracking is now done via NotificationLog
+    // The Inngest notification handlers will update NotificationLog status
 
     return new Response('Status updated', { status: 200 });
 

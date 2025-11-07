@@ -1073,6 +1073,117 @@ export type Database = {
           },
         ]
       }
+      NotificationLog: {
+        Row: {
+          channel: Database["public"]["Enums"]["notification_channel"]
+          created_at: string
+          delivered_at: string | null
+          episode_id: string | null
+          failed_at: string | null
+          failure_reason: string | null
+          id: string
+          message_content: string
+          metadata: Json | null
+          notification_type: Database["public"]["Enums"]["notification_type"]
+          outreach_plan_id: string | null
+          provider_error_code: string | null
+          provider_message_id: string | null
+          read_at: string | null
+          recipient_patient_id: string | null
+          recipient_user_id: string | null
+          retry_count: number | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["notification_status"]
+          subject: string | null
+          task_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          channel: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string
+          delivered_at?: string | null
+          episode_id?: string | null
+          failed_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          message_content: string
+          metadata?: Json | null
+          notification_type: Database["public"]["Enums"]["notification_type"]
+          outreach_plan_id?: string | null
+          provider_error_code?: string | null
+          provider_message_id?: string | null
+          read_at?: string | null
+          recipient_patient_id?: string | null
+          recipient_user_id?: string | null
+          retry_count?: number | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["notification_status"]
+          subject?: string | null
+          task_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string
+          delivered_at?: string | null
+          episode_id?: string | null
+          failed_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          message_content?: string
+          metadata?: Json | null
+          notification_type?: Database["public"]["Enums"]["notification_type"]
+          outreach_plan_id?: string | null
+          provider_error_code?: string | null
+          provider_message_id?: string | null
+          read_at?: string | null
+          recipient_patient_id?: string | null
+          recipient_user_id?: string | null
+          retry_count?: number | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["notification_status"]
+          subject?: string | null
+          task_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "NotificationLog_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "Episode"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "NotificationLog_outreach_plan_id_fkey"
+            columns: ["outreach_plan_id"]
+            isOneToOne: false
+            referencedRelation: "OutreachPlan"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "NotificationLog_recipient_patient_id_fkey"
+            columns: ["recipient_patient_id"]
+            isOneToOne: false
+            referencedRelation: "Patient"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "NotificationLog_recipient_user_id_fkey"
+            columns: ["recipient_user_id"]
+            isOneToOne: false
+            referencedRelation: "User"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "NotificationLog_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "EscalationTask"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       NurseActionProtocol: {
         Row: {
           action_type: string
@@ -1108,6 +1219,59 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      NurseShift: {
+        Row: {
+          created_at: string
+          current_task_count: number
+          id: string
+          is_active: boolean
+          is_on_call: boolean
+          max_concurrent_tasks: number
+          notes: string | null
+          nurse_id: string
+          shift_end: string
+          shift_start: string
+          shift_type: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_task_count?: number
+          id?: string
+          is_active?: boolean
+          is_on_call?: boolean
+          max_concurrent_tasks?: number
+          notes?: string | null
+          nurse_id: string
+          shift_end: string
+          shift_start: string
+          shift_type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_task_count?: number
+          id?: string
+          is_active?: boolean
+          is_on_call?: boolean
+          max_concurrent_tasks?: number
+          notes?: string | null
+          nurse_id?: string
+          shift_end?: string
+          shift_start?: string
+          shift_type?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "NurseShift_nurse_id_fkey"
+            columns: ["nurse_id"]
+            isOneToOne: false
+            referencedRelation: "User"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       OutreachAttempt: {
         Row: {
@@ -1232,6 +1396,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      OutreachPlanTemplate: {
+        Row: {
+          active: boolean | null
+          attempt_interval_hours: number | null
+          condition_code: Database["public"]["Enums"]["condition_code"]
+          contact_window_hours: number | null
+          created_at: string | null
+          fallback_channel:
+            | Database["public"]["Enums"]["contact_channel"]
+            | null
+          first_contact_delay_hours: number | null
+          id: string
+          max_attempts: number | null
+          preferred_channel:
+            | Database["public"]["Enums"]["contact_channel"]
+            | null
+          risk_level: Database["public"]["Enums"]["risk_level"]
+          timezone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          attempt_interval_hours?: number | null
+          condition_code: Database["public"]["Enums"]["condition_code"]
+          contact_window_hours?: number | null
+          created_at?: string | null
+          fallback_channel?:
+            | Database["public"]["Enums"]["contact_channel"]
+            | null
+          first_contact_delay_hours?: number | null
+          id?: string
+          max_attempts?: number | null
+          preferred_channel?:
+            | Database["public"]["Enums"]["contact_channel"]
+            | null
+          risk_level: Database["public"]["Enums"]["risk_level"]
+          timezone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          attempt_interval_hours?: number | null
+          condition_code?: Database["public"]["Enums"]["condition_code"]
+          contact_window_hours?: number | null
+          created_at?: string | null
+          fallback_channel?:
+            | Database["public"]["Enums"]["contact_channel"]
+            | null
+          first_contact_delay_hours?: number | null
+          id?: string
+          max_attempts?: number | null
+          preferred_channel?:
+            | Database["public"]["Enums"]["contact_channel"]
+            | null
+          risk_level?: Database["public"]["Enums"]["risk_level"]
+          timezone?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       OutreachQuestion: {
         Row: {
@@ -1623,7 +1847,7 @@ export type Database = {
       }
       ProtocolContentPack: {
         Row: {
-          action_type: string | null
+          action_type: Database["public"]["Enums"]["action_type"]
           active: boolean | null
           condition_code: Database["public"]["Enums"]["condition_code"]
           created_at: string | null
@@ -1634,7 +1858,6 @@ export type Database = {
           numeric_follow_up_question: string | null
           question_category: string | null
           question_text: string | null
-          requires_specific_answer: boolean | null
           rule_code: string
           rule_type: Database["public"]["Enums"]["rule_type"]
           severity: Database["public"]["Enums"]["red_flag_severity"] | null
@@ -1642,7 +1865,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          action_type?: string | null
+          action_type: Database["public"]["Enums"]["action_type"]
           active?: boolean | null
           condition_code: Database["public"]["Enums"]["condition_code"]
           created_at?: string | null
@@ -1653,7 +1876,6 @@ export type Database = {
           numeric_follow_up_question?: string | null
           question_category?: string | null
           question_text?: string | null
-          requires_specific_answer?: boolean | null
           rule_code: string
           rule_type: Database["public"]["Enums"]["rule_type"]
           severity?: Database["public"]["Enums"]["red_flag_severity"] | null
@@ -1661,7 +1883,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          action_type?: string | null
+          action_type?: Database["public"]["Enums"]["action_type"]
           active?: boolean | null
           condition_code?: Database["public"]["Enums"]["condition_code"]
           created_at?: string | null
@@ -1672,12 +1894,59 @@ export type Database = {
           numeric_follow_up_question?: string | null
           question_category?: string | null
           question_text?: string | null
-          requires_specific_answer?: boolean | null
           rule_code?: string
           rule_type?: Database["public"]["Enums"]["rule_type"]
           severity?: Database["public"]["Enums"]["red_flag_severity"] | null
           text_patterns?: string[]
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      SMSConsent: {
+        Row: {
+          active: boolean
+          consent_given: boolean
+          consent_timestamp: string
+          created_at: string
+          first_name: string
+          id: string
+          ip_address: string | null
+          last_name: string
+          opt_in_source: string | null
+          opt_out_timestamp: string | null
+          phone_number: string
+          updated_at: string
+          user_agent: string | null
+        }
+        Insert: {
+          active?: boolean
+          consent_given?: boolean
+          consent_timestamp: string
+          created_at?: string
+          first_name: string
+          id?: string
+          ip_address?: string | null
+          last_name: string
+          opt_in_source?: string | null
+          opt_out_timestamp?: string | null
+          phone_number: string
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Update: {
+          active?: boolean
+          consent_given?: boolean
+          consent_timestamp?: string
+          created_at?: string
+          first_name?: string
+          id?: string
+          ip_address?: string | null
+          last_name?: string
+          opt_in_source?: string | null
+          opt_out_timestamp?: string | null
+          phone_number?: string
+          updated_at?: string
+          user_agent?: string | null
         }
         Relationships: []
       }
@@ -1889,7 +2158,65 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      OutreachAttemptView: {
+        Row: {
+          attempt_number: number | null
+          channel: Database["public"]["Enums"]["contact_channel"] | null
+          completed_at: string | null
+          connect: boolean | null
+          created_at: string | null
+          id: string | null
+          outreach_plan_id: string | null
+          provider_message_id: string | null
+          reason_code: string | null
+          scheduled_at: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["outreach_status"] | null
+          transcript_ref: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          attempt_number?: never
+          channel?: never
+          completed_at?: string | null
+          connect?: never
+          created_at?: string | null
+          id?: string | null
+          outreach_plan_id?: string | null
+          provider_message_id?: string | null
+          reason_code?: never
+          scheduled_at?: string | null
+          started_at?: string | null
+          status?: never
+          transcript_ref?: never
+          updated_at?: string | null
+        }
+        Update: {
+          attempt_number?: never
+          channel?: never
+          completed_at?: string | null
+          connect?: never
+          created_at?: string | null
+          id?: string | null
+          outreach_plan_id?: string | null
+          provider_message_id?: string | null
+          reason_code?: never
+          scheduled_at?: string | null
+          started_at?: string | null
+          status?: never
+          transcript_ref?: never
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "NotificationLog_outreach_plan_id_fkey"
+            columns: ["outreach_plan_id"]
+            isOneToOne: false
+            referencedRelation: "OutreachPlan"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       check_critical_questions_complete: {
@@ -1936,6 +2263,11 @@ export type Database = {
       }
     }
     Enums: {
+      action_type:
+        | "HANDOFF_TO_NURSE"
+        | "RAISE_FLAG"
+        | "ASK_MORE"
+        | "LOG_CHECKIN"
       actor_type: "USER" | "SYSTEM" | "PATIENT"
       agent_channel: "SMS" | "VOICE" | "CHAT" | "EMAIL" | "APP"
       agent_status: "ACTIVE" | "INACTIVE" | "TESTING" | "MAINTENANCE"
@@ -2029,6 +2361,26 @@ export type Database = {
         | "SENT"
         | "FAILED"
         | "CANCELLED"
+      notification_channel: "SMS" | "EMAIL" | "PUSH" | "VOICE"
+      notification_status:
+        | "PENDING"
+        | "SENT"
+        | "DELIVERED"
+        | "READ"
+        | "FAILED"
+        | "CANCELLED"
+      notification_type:
+        | "TASK_CREATED"
+        | "TASK_ASSIGNED"
+        | "SLA_WARNING"
+        | "SLA_BREACH"
+        | "TASK_RESOLVED"
+        | "CHECK_IN_REMINDER"
+        | "CHECK_IN_SENT"
+        | "PATIENT_RESPONSE"
+        | "MEDICATION_ALERT"
+        | "APPOINTMENT_REMINDER"
+        | "WELCOME_MESSAGE"
       outreach_status:
         | "PENDING"
         | "SCHEDULED"
@@ -2195,6 +2547,12 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      action_type: [
+        "HANDOFF_TO_NURSE",
+        "RAISE_FLAG",
+        "ASK_MORE",
+        "LOG_CHECKIN",
+      ],
       actor_type: ["USER", "SYSTEM", "PATIENT"],
       agent_channel: ["SMS", "VOICE", "CHAT", "EMAIL", "APP"],
       agent_status: ["ACTIVE", "INACTIVE", "TESTING", "MAINTENANCE"],
@@ -2297,6 +2655,28 @@ export const Constants = {
         "SENT",
         "FAILED",
         "CANCELLED",
+      ],
+      notification_channel: ["SMS", "EMAIL", "PUSH", "VOICE"],
+      notification_status: [
+        "PENDING",
+        "SENT",
+        "DELIVERED",
+        "READ",
+        "FAILED",
+        "CANCELLED",
+      ],
+      notification_type: [
+        "TASK_CREATED",
+        "TASK_ASSIGNED",
+        "SLA_WARNING",
+        "SLA_BREACH",
+        "TASK_RESOLVED",
+        "CHECK_IN_REMINDER",
+        "CHECK_IN_SENT",
+        "PATIENT_RESPONSE",
+        "MEDICATION_ALERT",
+        "APPOINTMENT_REMINDER",
+        "WELCOME_MESSAGE",
       ],
       outreach_status: [
         "PENDING",

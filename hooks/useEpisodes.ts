@@ -9,7 +9,7 @@ interface UseEpisodesOptions {
 
 export function useEpisodes(options: UseEpisodesOptions = {}) {
   const { 
-    apiEndpoint = '/api/debug/patients',
+    apiEndpoint = '/api/toc/data/patients',
     autoFetch = false,
     patientId 
   } = options;

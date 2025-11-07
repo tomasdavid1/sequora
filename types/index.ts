@@ -33,6 +33,10 @@ export type OutreachPlan = Database['public']['Tables']['OutreachPlan']['Row'];
 export type OutreachPlanInsert = Database['public']['Tables']['OutreachPlan']['Insert'];
 export type OutreachPlanUpdate = Database['public']['Tables']['OutreachPlan']['Update'];
 
+export type OutreachPlanTemplate = Database['public']['Tables']['OutreachPlanTemplate']['Row'];
+export type OutreachPlanTemplateInsert = Database['public']['Tables']['OutreachPlanTemplate']['Insert'];
+export type OutreachPlanTemplateUpdate = Database['public']['Tables']['OutreachPlanTemplate']['Update'];
+
 export type OutreachResponse = Database['public']['Tables']['OutreachResponse']['Row'];
 export type OutreachResponseInsert = Database['public']['Tables']['OutreachResponse']['Insert'];
 export type OutreachResponseUpdate = Database['public']['Tables']['OutreachResponse']['Update'];

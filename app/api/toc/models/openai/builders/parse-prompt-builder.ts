@@ -25,6 +25,11 @@ export function buildParseMessages(params: {
 }) {
   const { condition, protocolPatterns, patternsRequiringNumbers, symptomCategories, conversationHistory, patientInput, severityMapping, wellnessConfirmationCount = 0 } = params;
   
+  // Validate that symptom categories are configured
+  if (!symptomCategories || symptomCategories.length === 0) {
+    throw new Error(`No symptom categories configured for condition: ${condition}. Please configure question_category values in ProtocolContentPack table.`);
+  }
+  
   const history = conversationHistory || [];
   
   // Build system prompt
@@ -163,7 +168,7 @@ Based on the conversation history, identify which health areas have been EXPLICI
 - ❌ Vague "I'm fine" → DO NOT add any categories
 
 Look through ALL previous messages to build the complete list.
-Common categories: weight, breathing, medications, swelling, chest_pain, energy, sleep
+Valid categories for this patient's condition (${condition}): ${symptomCategories.map(cat => cat.category).join(', ')}
 
 This helps the AI avoid asking about topics that were already EXPLICITLY confirmed as fine.
 
@@ -175,15 +180,14 @@ You must track TWO separate fields:
    - Return this EXACT count - do not modify based on current message
    
 2. **newWellnessConfirmations**: Array of NEW confirmations in THIS MESSAGE ONLY
-   - If patient says "taking medications, breathing is fine" → ["medications", "breathing"]
-   - If patient says "no weight changes" → ["weight"]
-   - If patient says "I'm doing fine" → [] (vague, doesn't count)
+   - Example: If patient says "taking medications, breathing is fine" → ["medications", "breathing"]
+   - Example: If patient says "no ${symptomCategories[0]?.category || 'weight'} changes" → ["${symptomCategories[0]?.category || 'weight'}"]
    - Each distinct confirmed area counts as ONE confirmation
 
 Rules:
 - A patient message can contain MULTIPLE confirmations (e.g., meds + breathing + weight = 3)
 - Be STRICT: Only specific confirmations count ("taking meds" = YES, "I'm fine" = NO)
-- Common areas: "breathing", "medications", "weight", "swelling", "chest_pain", "energy", "sleep"
+- Valid confirmation areas for this patient's condition (${condition}): ${symptomCategories.map(cat => cat.category).join(', ')}
 - Vague responses like "doing okay" or "feeling good" don't count as confirmations
 - Confidence must be high (≥0.8) to count a confirmation`;
 

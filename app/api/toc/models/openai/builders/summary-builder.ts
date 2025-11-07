@@ -6,11 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import callOpenAI from '../openai-wrapper';
 
 export async function generateSummary(
   messages: Array<{role: string, content: string}>,
@@ -20,19 +16,31 @@ export async function generateSummary(
   } = {}
 ) {
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Faster and cheaper for summaries
-      messages: messages as any,
-      temperature: options.temperature ?? 0.3, // Lower temperature for more consistent summaries
-      max_tokens: options.max_tokens ?? 150, // Short summaries
+    const result = await callOpenAI({
+      params: {
+        model: "gpt-4o-mini", // Faster and cheaper for summaries
+        messages: messages as any,
+        temperature: options.temperature ?? 0.3, // Lower temperature for more consistent summaries
+        max_tokens: options.max_tokens ?? 150, // Short summaries
+      },
+      validation: {
+        requireTextContent: true, // Should return summary text
+        requireValidJson: false,
+        allowToolCalls: false // No tool calls for summaries
+      },
+      retry: {
+        maxAttempts: 1, // Summaries are less critical, only retry once
+        enableFallback: false
+      },
+      operationLabel: 'Generate Summary'
     });
 
-    const summary = completion.choices[0]?.message?.content || '';
+    const summary = result.textContent || '';
     
     return NextResponse.json({
       success: true,
       summary: summary,
-      tokensUsed: completion.usage?.total_tokens || 0
+      tokensUsed: result.completion.usage?.total_tokens || 0
     });
 
   } catch (error) {

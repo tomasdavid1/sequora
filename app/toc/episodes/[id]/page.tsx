@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { RiskUpgradeBadge } from '@/components/episode/RiskUpgradeBadge';
 
 interface Episode {
   id: string;
@@ -48,6 +49,13 @@ interface Task {
   created_at: string;
 }
 
+interface RiskUpgrade {
+  oldRiskLevel: string;
+  newRiskLevel: string;
+  upgradedAt: string;
+  reason?: string;
+}
+
 export default function EpisodeDetailPage() {
   const params = useParams();
   const episodeId = params.id as string;
@@ -57,6 +65,7 @@ export default function EpisodeDetailPage() {
   const [medications, setMedications] = useState<Medication[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [outreachPlan, setOutreachPlan] = useState<any>(null);
+  const [riskUpgrade, setRiskUpgrade] = useState<RiskUpgrade | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -89,6 +98,13 @@ export default function EpisodeDetailPage() {
       const outreachRes = await fetch(`/api/toc/outreach?episode_id=${episodeId}`);
       const outreachData = await outreachRes.json();
       setOutreachPlan(outreachData.plan);
+
+      // Fetch risk upgrade information
+      const upgradeRes = await fetch(`/api/toc/episodes/${episodeId}/risk-upgrade`);
+      const upgradeData = await upgradeRes.json();
+      if (upgradeData.hasUpgrade) {
+        setRiskUpgrade(upgradeData.upgrade);
+      }
     } catch (error) {
       console.error('Failed to fetch episode details:', error);
     } finally {
@@ -159,6 +175,18 @@ export default function EpisodeDetailPage() {
             </Badge>
           )}
         </div>
+
+        {/* Risk Upgrade Alert */}
+        {riskUpgrade && (
+          <div className="mt-4">
+            <RiskUpgradeBadge
+              oldRiskLevel={riskUpgrade.oldRiskLevel}
+              newRiskLevel={riskUpgrade.newRiskLevel}
+              upgradedAt={riskUpgrade.upgradedAt}
+              reason={riskUpgrade.reason}
+            />
+          </div>
+        )}
       </div>
 
       {/* Main Content */}

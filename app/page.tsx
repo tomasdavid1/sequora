@@ -28,7 +28,7 @@ export default function HomePage() {
         
         if (session?.user) {
           console.log('✅ User logged in, redirecting to dashboard');
-          router.push('/dashboard');
+          router.push('/toc/dashboard');
         }
       } catch (error) {
         console.log('ℹ️ No active session or timeout - clearing potentially corrupted tokens');
