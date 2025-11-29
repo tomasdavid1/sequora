@@ -35,25 +35,40 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { episode_id, reason_codes, severity, priority } = body;
+    const { episode_id, reason_codes, severity } = body;
 
-    // Calculate SLA due time based on severity
+    // Validate required fields
+    if (!episode_id || !reason_codes || !severity) {
+      return NextResponse.json(
+        { error: 'episode_id, reason_codes, and severity are required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate severity is valid
+    if (!['LOW', 'MODERATE', 'HIGH', 'CRITICAL'].includes(severity)) {
+      return NextResponse.json(
+        { error: `Invalid severity: ${severity}. Must be LOW, MODERATE, HIGH, or CRITICAL` },
+        { status: 400 }
+      );
+    }
+
+    // Calculate SLA due time based on severity (severity now determines urgency directly)
     const slaDurations: Record<string, number> = {
       CRITICAL: 30, // 30 minutes
       HIGH: 120,    // 2 hours
-      MODERATE: 1440, // 24 hours
-      LOW: 2880     // 48 hours
+      MODERATE: 240, // 4 hours
+      LOW: 480     // 8 hours
     };
 
     const slaDueAt = new Date(
-      Date.now() + (slaDurations[severity] || 1440) * 60 * 1000
+      Date.now() + (slaDurations[severity] || 240) * 60 * 1000
     );
 
     const task = await EscalationRepository.create({
       episode_id,
       reason_codes,
       severity: severity as SeverityType,
-      priority: (priority || 'NORMAL') as TaskPriorityType,
       status: 'OPEN' as TaskStatusType,
       sla_due_at: slaDueAt.toISOString(),
       agent_interaction_id: null,

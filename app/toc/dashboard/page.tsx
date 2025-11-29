@@ -77,18 +77,23 @@ export default function UnifiedDashboard() {
           if (roleResponse.ok) {
             const roleData = await roleResponse.json();
             console.log('User role from API:', roleData);
-            setUserRole(roleData.role || 'ADMIN'); // Default to ADMIN if no role
+            if (!roleData.role) {
+              console.error('❌ User has no role assigned. This is a security issue.');
+              setUserRole(null);  // Fail explicitly if no role
+            } else {
+              setUserRole(roleData.role);
+            }
           } else {
             const errorText = await roleResponse.text();
             console.error('Failed to fetch role from API:', errorText);
-            // Default to ADMIN for testing
-            setUserRole(session.user.user_metadata?.role || 'ADMIN');
+            // No default - user must have a role assigned
+            setUserRole(null);
           }
         } catch (error) {
           console.error('Error fetching role:', error);
           if (mounted) {
-            // Default to ADMIN for testing
-            setUserRole(session.user.user_metadata?.role || 'ADMIN');
+            // No default - user must have a role assigned
+            setUserRole(null);
           }
         }
         
@@ -121,13 +126,18 @@ export default function UnifiedDashboard() {
             
             if (roleResponse.ok && mounted) {
               const roleData = await roleResponse.json();
-              setUserRole(roleData.role || 'ADMIN');
+              if (!roleData.role) {
+                console.error('❌ User has no role assigned. This is a security issue.');
+                setUserRole(null);
+              } else {
+                setUserRole(roleData.role);
+              }
             } else if (mounted) {
-              setUserRole(session.user.user_metadata?.role || 'ADMIN');
+              setUserRole(null);  // No default - user must have a role
             }
           } catch (error) {
             if (mounted) {
-              setUserRole(session.user.user_metadata?.role || 'ADMIN');
+              setUserRole(null);  // No default - user must have a role
             }
           }
         } else {

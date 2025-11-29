@@ -233,7 +233,7 @@ export default function ProtocolManagement() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge className="bg-blue-100 text-blue-800">
-                      {rule.rule_type || 'RED_FLAG'}
+                      {rule.action_type || 'N/A'}
                     </Badge>
                     <Button
                       size="sm"

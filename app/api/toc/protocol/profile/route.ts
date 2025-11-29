@@ -71,8 +71,8 @@ export async function GET(request: NextRequest) {
       .from('ProtocolContentPack')
       .select('rule_code, message, severity, action_type, text_patterns')
       .eq('condition_code', protocol.Episode.condition_code)
-      .eq('rule_type', 'RED_FLAG')
       .in('severity', severityFilter)
+      .not('severity', 'is', null)  // Exclude wellness rules (NULL = doing good)
       .eq('active', true)
       .order('severity', { ascending: false });
 

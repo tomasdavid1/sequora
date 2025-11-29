@@ -124,19 +124,18 @@ type SequoraEvents = {
   // ============================================================================
   // Task & Escalation Events
   // ============================================================================
-  'task/created': {
-    data: {
-      taskId: string;
-      episodeId: string;
-      patientId: string;
-      priority: TaskPriorityType;
-      severity: SeverityType;
-      reasonCodes: string[];
-      actionType: string;
-      slaMinutes: number;
-      createdAt: string;
+    'task/created': {
+      data: {
+        taskId: string;
+        episodeId: string;
+        patientId: string;
+        severity: SeverityType;
+        reasonCodes: string[];
+        actionType: string;
+        slaMinutes: number;
+        createdAt: string;
+      };
     };
-  };
 
   // ============================================================================
   // Episode Risk Management Events
@@ -176,7 +175,7 @@ type SequoraEvents = {
       taskId: string;
       episodeId: string;
       assignedToUserId?: string;
-      priority: TaskPriorityType;
+      severity: SeverityType;
       minutesRemaining: number;
       slaDeadline: string;
     };
@@ -187,7 +186,7 @@ type SequoraEvents = {
       taskId: string;
       episodeId: string;
       assignedToUserId?: string;
-      priority: TaskPriorityType;
+      severity: SeverityType;
       minutesOverdue: number;
       slaDeadline: string;
     };

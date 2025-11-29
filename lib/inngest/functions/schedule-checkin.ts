@@ -135,54 +135,86 @@ export const scheduleCheckIn = inngest.createFunction(
       return await getAttemptCount(outreachPlan.id) + 1;
     });
 
-    // Step 5: Generate personalized check-in message using AI
-    const checkInMessage = await step.run('generate-checkin-message', async () => {
-      const isFirstContact = previousInteractions.length === 0;
+    // Step 4b: Create outreach attempt record
+    const outreachAttempt = await step.run('create-outreach-attempt', async () => {
+      const supabase = getSupabaseAdmin();
       
-      // Parse medications from JSONB
-      const medications = Array.isArray(episode.medications) 
-        ? episode.medications.map((med: any) => ({
-            name: med.name || med.medication_name,
-            dosage: med.dosage || med.dose,
-            frequency: med.frequency,
-          }))
-        : [];
+      const { data: attempt, error } = await supabase
+        .from('OutreachAttempt')
+        .insert({
+          outreach_plan_id: outreachPlan.id,
+          attempt_number: attemptNumber,
+          channel: 'SMS',
+          status: 'PENDING',
+          scheduled_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
 
-      // Format previous interaction summaries
-      const summaries = previousInteractions.map((int: any) => 
-        `${new Date(int.started_at).toLocaleDateString()}: ${int.summary}`
-      );
+      if (error) {
+        console.error('❌ Failed to create outreach attempt:', error);
+        throw new Error(`Failed to create outreach attempt: ${error.message}`);
+      }
 
-      return await generateInitialCheckInMessage({
-        patientFirstName: patient.first_name,
-        conditionCode,
-        riskLevel,
-        educationLevel: patient.education_level || 'MEDIUM',
-        preferredLanguage: patient.language_code || 'EN',
-        daysSinceDischarge,
-        medications,
-        previousInteractionSummaries: summaries,
-        isFirstContact,
-        facilityName: episode.facility_name || undefined,
-        dischargeDate: episode.discharge_at || undefined,
-      });
+      console.log(`✅ Created outreach attempt ${attempt.id} for plan ${outreachPlan.id}`);
+      return attempt;
     });
 
-    // Step 6: Send check-in message (linked to outreach plan)
-    await step.run('send-checkin-message', async () => {
+    // Step 5: Generate magic link for secure web chat (industry standard)
+    const magicLink = await step.run('generate-magic-link', async () => {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      
+      const response = await fetch(`${baseUrl}/api/magic-link/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patientId,
+          episodeId,
+          outreachAttemptId: outreachAttempt.id,
+          purpose: 'check-in'
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`Failed to generate magic link: ${error.error || 'Unknown error'}`);
+      }
+
+      const data = await response.json();
+      console.log(`✅ [Schedule Check-in] Magic link generated for ${patient.first_name} ${patient.last_name}`);
+      console.log(`   URL: ${data.magicLink.url}`);
+      console.log(`   Expires: ${data.magicLink.expiresAt}`);
+      
+      return data.magicLink;
+    });
+
+    // Step 6: Send magic link via SMS (one message, secure web chat)
+    await step.run('send-magic-link-sms', async () => {
+      const smsMessage = `Hi ${patient.first_name}, it's time for your check-in!
+
+Chat securely with us:
+${magicLink.url}
+
+Link expires in ${magicLink.expirationHours} hours.
+Reply STOP to opt out.`;
+
       await inngest.send({
         name: 'notification/send',
         data: {
           recipientPatientId: patientId,
           notificationType: 'CHECK_IN_SENT',
           channel: 'SMS',
-          messageContent: checkInMessage,
+          messageContent: smsMessage,
           episodeId,
           metadata: {
-            outreachPlanId: outreachPlan.id, // Link to outreach plan
+            outreachPlanId: outreachPlan.id,
             attemptNumber,
             conditionCode,
             riskLevel,
+            magicLinkId: magicLink.id,
+            magicLinkToken: magicLink.token,
             isFirstContact: previousInteractions.length === 0,
           },
         },

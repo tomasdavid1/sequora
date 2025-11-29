@@ -15,7 +15,7 @@ export const monitorTaskSLA = inngest.createFunction(
   },
   { event: 'task/created' },
   async ({ event, step }) => {
-    const { taskId, slaMinutes, priority, episodeId } = event.data;
+    const { taskId, slaMinutes, severity, episodeId } = event.data;
 
     if (slaMinutes === 0) {
       console.log(`⏭️ Task ${taskId} has no SLA, skipping monitoring`);
@@ -35,7 +35,7 @@ export const monitorTaskSLA = inngest.createFunction(
 
       const { data, error } = await supabase
         .from('EscalationTask')
-        .select('id, status, assigned_to_user_id, priority')
+        .select('id, status, assigned_to_user_id, severity')
         .eq('id', taskId)
         .single();
 
@@ -63,7 +63,7 @@ export const monitorTaskSLA = inngest.createFunction(
           taskId,
           episodeId,
           assignedToUserId: taskStatus.assigned_to_user_id || undefined,
-          priority,
+          severity,
           minutesRemaining,
           slaDeadline,
         },
@@ -95,7 +95,7 @@ export const monitorTaskSLA = inngest.createFunction(
 
       const { data, error } = await supabase
         .from('EscalationTask')
-        .select('id, status, assigned_to_user_id, priority')
+        .select('id, status, assigned_to_user_id, severity')
         .eq('id', taskId)
         .single();
 
@@ -122,7 +122,7 @@ export const monitorTaskSLA = inngest.createFunction(
           taskId,
           episodeId,
           assignedToUserId: breachStatus.assigned_to_user_id || undefined,
-          priority,
+          severity,
           minutesOverdue: 0, // Just breached
           slaDeadline,
         },

@@ -19,7 +19,7 @@ export const assignTaskToNurse = inngest.createFunction(
   },
   { event: 'task/created' },
   async ({ event, step }) => {
-    const { taskId, priority, severity } = event.data;
+    const { taskId, severity } = event.data;
 
     // Step 1: Find available nurses
     const nurses = await step.run('find-available-nurses', async () => {
@@ -99,10 +99,9 @@ export const assignTaskToNurse = inngest.createFunction(
           recipientUserId: nurses.id,
           notificationType: 'TASK_ASSIGNED',
           channel: 'SMS',
-          messageContent: `New ${priority} priority task assigned. Patient needs ${severity} severity follow-up.`,
+          messageContent: `New ${severity} severity task assigned. Patient requires follow-up.`,
           taskId,
           metadata: {
-            priority,
             severity,
           },
         },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { ConditionCodeType, RiskLevelType } from '@/lib/enums';
 
 // Force dynamic rendering for this API route
 export const dynamic = 'force-dynamic';
@@ -56,8 +57,8 @@ export async function GET(request: NextRequest) {
         patient_name: patient 
           ? `${patient.first_name} ${patient.last_name}`
           : 'Unknown Patient',
-        condition_code: interaction.Episode?.condition_code || 'Unknown',
-        risk_level: interaction.Episode?.risk_level || 'Unknown',
+        condition_code: interaction.Episode?.condition_code as ConditionCodeType,
+        risk_level: interaction.Episode?.risk_level as RiskLevelType,
         started_at: interaction.started_at,
         status: interaction.status,
         summary: interaction.summary,

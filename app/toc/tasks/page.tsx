@@ -9,7 +9,6 @@ interface Task {
   id: string;
   episode_id: string;
   severity: string;
-  priority: string;
   status: string;
   reason_codes: string[];
   sla_due_at: string;

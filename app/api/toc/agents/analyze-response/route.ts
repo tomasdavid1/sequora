@@ -4,7 +4,6 @@ import OpenAI from 'openai';
 import { 
   SeverityType,
   VALID_SEVERITIES,
-  getPriorityFromSeverity,
   getSLAMinutesFromSeverity
 } from '@/lib/enums';
 
@@ -185,7 +184,7 @@ ${redFlagRules.map(rule => `- ${rule.message} (Severity: ${rule.severity})`).joi
 
     // Create escalation task if needed
     let escalationTask = null;
-    if (analysisResult.severity !== 'NONE') {
+    if (analysisResult.severity) {  // If severity exists, create escalation task
       const { data: task, error: taskError } = await supabase
         .from('EscalationTask')
         .insert({
@@ -193,7 +192,6 @@ ${redFlagRules.map(rule => `- ${rule.message} (Severity: ${rule.severity})`).joi
           source_attempt_id: outreachAttemptId,
           reason_codes: [analysisResult.redFlagCode],
           severity: analysisResult.severity,
-          priority: getPriorityFromSeverity(analysisResult.severity),
           status: 'OPEN',
           sla_due_at: getSLADueTime(analysisResult.severity),
           created_at: new Date().toISOString(),

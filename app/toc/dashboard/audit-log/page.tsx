@@ -161,7 +161,21 @@ export default function AuditLogPage() {
     );
   }
 
-  const userRole = user.user_metadata?.role || 'PATIENT';
+  const userRole = user.user_metadata?.role;
+  
+  if (!userRole) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Alert className="max-w-md">
+          <Lock className="h-4 w-4" />
+          <AlertDescription>
+            Your account does not have a role assigned. Please contact your administrator.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+  
   if (userRole !== 'ADMIN' && userRole !== 'STAFF') {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -169,6 +183,7 @@ export default function AuditLogPage() {
           <Lock className="h-4 w-4" />
           <AlertDescription>
             Only administrators and staff can access the audit log.
+            Your current role: <strong>{userRole}</strong>
           </AlertDescription>
         </Alert>
       </div>

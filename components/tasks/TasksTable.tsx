@@ -447,7 +447,7 @@ export function TasksTable({
               </div>
               
               <div className="text-sm space-y-2">
-                <div className="flex justify-between">
+                <div className="flex justify-between">  
                   <span className="text-gray-600">Created:</span>
                   <span className="font-medium">{new Date(selectedTask.createdAt).toLocaleString()}</span>
                 </div>

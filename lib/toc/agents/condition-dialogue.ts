@@ -138,7 +138,7 @@ export class ConditionDialogueAgent {
         response_type: question.response_type,
         ...parsedResponse,
         captured_at: new Date().toISOString(),
-        redflag_severity: 'NONE' // Will be updated by triage agent
+        redflag_severity: null // Will be updated by triage agent if red flag detected
       });
     }
 

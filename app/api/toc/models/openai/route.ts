@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Medication } from '@/types';
+import { EducationLevelType } from '@/lib/enums';
 import { generateSummary } from './builders/summary-builder';
 import { buildResponseMessages } from './builders/response-prompt-builder';
 import { buildParseMessages } from './builders/parse-prompt-builder';
@@ -183,7 +184,7 @@ async function handleParseAndRespond(input: Record<string, unknown>, options: Re
     try {
       responseMessages = buildResponseMessages({
         context: responseInput.context as string,
-        educationLevel: responseInput.educationLevel as string || 'MEDIUM',
+        educationLevel: responseInput.educationLevel as EducationLevelType,
         medications: medList,
         checklistQuestions: checklistQ,
         wellnessConfirmationCount: responseInput.wellnessConfirmationCount as number || 0,

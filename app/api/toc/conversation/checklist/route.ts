@@ -101,9 +101,21 @@ async function getConversationState(interactionId: string, supabase: any): Promi
 
   const metadata = interaction.metadata || {};
   
+  // conversation_phase and current_checklist_position should always be set in DB
+  // If they're null, this is a data integrity issue - fail explicitly
+  if (!interaction.conversation_phase) {
+    console.error('❌ [Checklist] conversation_phase is null for interaction:', interactionId);
+    throw new Error('conversation_phase must be set for all interactions');
+  }
+  
+  if (interaction.current_checklist_position === null || interaction.current_checklist_position === undefined) {
+    console.error('❌ [Checklist] current_checklist_position is null for interaction:', interactionId);
+    throw new Error('current_checklist_position must be set for all interactions');
+  }
+  
   return {
-    phase: interaction.conversation_phase || 'greeting',
-    currentPosition: interaction.current_checklist_position || 1,
+    phase: interaction.conversation_phase,
+    currentPosition: interaction.current_checklist_position,
     checklistProgress: interaction.checklist_progress || {},
     wellnessConfirmations: metadata.wellnessConfirmationCount || 0,
     redFlagsDetected: metadata.redFlagsDetected || []
@@ -135,7 +147,7 @@ async function parsePatientInput(input: string, conditionCode: string, riskLevel
   // For now, return a simplified structure
   return {
     symptoms: [],
-    severity: 'NONE',
+    severity: null,  // null = no escalation needed
     intent: 'general',
     sentiment: 'neutral',
     confidence: 0.8,

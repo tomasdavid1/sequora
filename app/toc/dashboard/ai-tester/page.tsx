@@ -409,7 +409,7 @@ export default function AITesterPage() {
         ...prev, 
         episodeId: firstEpisode.id,
         condition: firstEpisode.condition_code,
-        educationLevel: episodePatient?.education_level || 'MEDIUM'
+        educationLevel: episodePatient?.education_level as EducationLevelType
       }));
     }
   }, [patients, episodes, testConfig.patientId, testConfig.episodeId]);
@@ -442,7 +442,34 @@ export default function AITesterPage() {
   }
 
   // Check if user has permission (ADMIN or STAFF only)
-  const userRole = user.user_metadata?.role || 'PATIENT';
+  const userRole = user.user_metadata?.role;
+  
+  if (!userRole) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Lock className="w-5 h-5" />
+              No Role Assigned
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Your account does not have a role assigned. Please contact your administrator.
+              </AlertDescription>
+            </Alert>
+            <Button className="w-full mt-4" onClick={() => window.location.href = '/toc/dashboard'}>
+              Back to Dashboard
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
   if (userRole !== 'ADMIN' && userRole !== 'STAFF') {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -740,7 +767,7 @@ export default function AITesterPage() {
       patientId: selectedPatientForChat.id,
       episodeId: episode.id,
       condition: episode.condition_code,
-      educationLevel: selectedPatientForChat.education_level || 'MEDIUM'
+      educationLevel: selectedPatientForChat.education_level
     };
     setTestConfig(selectedConfig);
     
@@ -1453,7 +1480,7 @@ export default function AITesterPage() {
                     </h3>
                     <p className="text-xs text-gray-600 mb-3">Edit patterns below. Changes save when you click "Save & Test".</p>
                     <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {protocolProfile.activeProtocolRules?.filter((r: any) => r.rule_type === 'RED_FLAG').map((rule: any) => (
+                      {protocolProfile.activeProtocolRules?.map((rule: any) => (
                         <div key={rule.rule_code} className="bg-white rounded p-3 border border-gray-200 text-xs">
                           <div className="flex items-center justify-between mb-2">
                             <span className="font-semibold">{rule.rule_code}</span>

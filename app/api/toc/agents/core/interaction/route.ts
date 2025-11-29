@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { 
   ProtocolAssignment, 
-  Episode, 
   ConditionCode
 } from '@/types';
 import { SupabaseClient } from '@supabase/supabase-js';
@@ -16,17 +15,8 @@ import {
   InteractionType,
   MessageType,
   TaskStatusType,
-  TaskPriorityType,
-  RuleTypeType,
-  ActionType,
-  VALID_SEVERITIES,
-  VALID_RULE_TYPES,
-  VALID_ACTION_TYPES,
   getSeverityFilterForRiskLevel,
-  getPriorityFromSeverity,
   getSLAMinutesFromSeverity,
-  isValidSeverity,
-  isValidActionType
 } from '@/lib/enums';
 import { parseAndRespondDirect } from '@/app/api/toc/models/openai/route';
 import { emitEvent } from '@/lib/inngest/client';
@@ -111,6 +101,13 @@ interface ToolResult {
     checkinId?: string;
     newCount?: number;  // For wellness confirmation tracking (internal only)
     error?: string;
+    criticalWindowMetadata?: {  // For 72-hour critical window severity adjustment
+      base_severity: SeverityType;
+      adjusted_severity: SeverityType;
+      was_adjusted: boolean;
+      hours_since_discharge: number;
+      critical_window_applied: boolean;
+    };
   };
 }
 
@@ -581,6 +578,23 @@ export async function POST(request: NextRequest) {
     // 9. Handle tool calls from AI response
     const toolResults = await handleToolCalls(aiResponse.toolCalls, patientId, episodeId, supabase, activeInteractionId, aiResponse.parsed?.newWellnessConfirmations);
 
+    // 9.5. Extract critical window metadata from raise_flag tool result (if present)
+    const raiseFlagResult = toolResults.find(r => r.tool === 'raise_flag');
+    if (raiseFlagResult?.result?.criticalWindowMetadata && activeInteractionId) {
+      const currentMeta = (interaction?.metadata as InteractionMetadata) || {};
+      await supabase
+        .from('AgentInteraction')
+        .update({
+          metadata: {
+            ...currentMeta,
+            criticalWindow: raiseFlagResult.result.criticalWindowMetadata
+          } as any
+        })
+        .eq('id', activeInteractionId);
+      
+      console.log('📊 [CriticalWindow] Metadata stored in interaction:', raiseFlagResult.result.criticalWindowMetadata);
+    }
+
     // 10. Check if interaction should end and generate summary
     // End when: escalation happens (handoff/raise_flag) OR patient is doing well (log_checkin)
     console.log('🔍 [Interaction] Checking if should end:', {
@@ -646,7 +660,7 @@ export async function POST(request: NextRequest) {
                 interactionId: activeInteractionId,
                 episodeId,
                 patientId,
-                severity: parsedResponse.severity || 'NONE',
+                severity: parsedResponse.severity,  
                 wellnessConfirmationCount: wellnessConfirmationCount,
                 completedAt: new Date().toISOString(),
               });
@@ -691,7 +705,9 @@ export async function POST(request: NextRequest) {
 
 // Load protocol assignment for episode
 async function loadProtocolAssignment(episodeId: string, supabase: SupabaseAdmin) {
-  const { data: assignment, error } = await supabase
+  // Get most recent active assignment (in case of duplicates)
+  // Order by created_at DESC to get the newest one
+  const { data: assignments, error } = await supabase
     .from('ProtocolAssignment')
     .select(`
       *,
@@ -704,12 +720,27 @@ async function loadProtocolAssignment(episodeId: string, supabase: SupabaseAdmin
     `)
     .eq('episode_id', episodeId)
     .eq('is_active', true)
-    .maybeSingle(); // Use maybeSingle() instead of single() - returns null instead of error when 0 rows
+    .order('created_at', { ascending: false })
+    .limit(1);
 
   if (error) {
     console.error('❌ [Protocol Assignment] Database error loading assignment for episode:', episodeId, error);
     throw new Error(`Failed to load protocol assignment: ${error.message}`);
   }
+
+  // Check if we got multiple active assignments (data integrity issue)
+  const { count: activeCount } = await supabase
+    .from('ProtocolAssignment')
+    .select('id', { count: 'exact', head: true })
+    .eq('episode_id', episodeId)
+    .eq('is_active', true);
+  
+  if (activeCount && activeCount > 1) {
+    console.warn(`⚠️ [Protocol Assignment] Data integrity issue: Found ${activeCount} active assignments for episode ${episodeId}. Using most recent. This should be fixed - only 1 should be active.`);
+    // TODO: Add database unique constraint on (episode_id, is_active) where is_active = true
+  }
+
+  const assignment = assignments?.[0];
 
   if (!assignment) {
     console.error('❌ [Protocol Assignment] CRITICAL: No active assignment found for episode:', episodeId);
@@ -773,27 +804,26 @@ async function getProtocolRules(conditionCode: ConditionCode, riskLevel: RiskLev
   // Use the centralized severity filter from enums
   const severityFilter = getSeverityFilterForRiskLevel(riskLevel as RiskLevelType);
 
-  // Query red flags and clarifications (now using proper columns, not JSONB!)
-  const redFlagRuleTypes: RuleTypeType[] = ['RED_FLAG', 'CLARIFICATION'];
+  // Query rules with severity (red flags/concerns - uses severity filtering)
   const { data: ruleData, error: ruleError } = await supabase
     .from('ProtocolContentPack')
     .select('rule_code, text_patterns, action_type, severity, message, numeric_follow_up_question, question_text, follow_up_question, question_category, is_critical')
     .eq('condition_code', conditionCode)
-    .in('rule_type', redFlagRuleTypes)
     .in('severity', severityFilter)
+    .not('severity', 'is', null)  // Exclude wellness rules (NULL severity = doing good)
     .eq('active', true);
 
   if (ruleError) {
-    console.error('❌ [Protocol Rules] Database error fetching red flags and clarifications:', ruleError);
-    throw new Error(`Failed to load red flag and clarification rules: ${ruleError.message}`);
+    console.error('❌ [Protocol Rules] Database error fetching flagged rules:', ruleError);
+    throw new Error(`Failed to load protocol rules: ${ruleError.message}`);
   }
 
-  // Query closures
+  // Query closures (wellness indicators - NULL severity = patient doing good)
   const { data: closureData, error: closureError } = await supabase
     .from('ProtocolContentPack')
     .select('rule_code, text_patterns, action_type, message, question_text, follow_up_question, question_category, is_critical')
     .eq('condition_code', conditionCode)
-    .eq('rule_type', 'CLOSURE' as RuleTypeType)
+    .is('severity', null)  // Closures have NULL severity
     .eq('active', true);
 
   if (closureError) {
@@ -1402,15 +1432,99 @@ async function handleWellnessConfirmation(parameters: Record<string, unknown>, i
   }
 }
 
+/**
+ * Apply 72-hour critical window severity uplift
+ * During the first 72 hours post-discharge (74% readmission risk), we increase sensitivity
+ * by upgrading severity by one level: LOW→MODERATE, MODERATE→HIGH, HIGH→CRITICAL
+ */
+async function applyCriticalWindowSeverity(
+  baseSeverity: SeverityType,
+  episodeId: string,
+  conditionCode: ConditionCodeType,
+  riskLevel: RiskLevelType,
+  supabase: SupabaseAdmin
+): Promise<{ adjustedSeverity: SeverityType; hoursSinceDischarge: number; wasAdjusted: boolean }> {
+  // Fetch episode discharge date
+  const { data: episode, error: episodeError } = await supabase
+    .from('Episode')
+    .select('discharge_at')
+    .eq('id', episodeId)
+    .single();
+
+  if (episodeError || !episode) {
+    console.error('❌ [CriticalWindow] Failed to fetch episode discharge_at:', episodeError);
+    return { adjustedSeverity: baseSeverity, hoursSinceDischarge: 0, wasAdjusted: false };
+  }
+
+  // Fetch protocol config to check if critical window uplift is enabled
+  const { data: protocolConfig, error: configError } = await supabase
+    .from('ProtocolConfig')
+    .select('enable_critical_window_uplift, critical_window_hours')
+    .eq('condition_code', conditionCode)
+    .eq('risk_level', riskLevel)
+    .eq('active', true)
+    .single();
+
+  if (configError || !protocolConfig) {
+    console.warn('⚠️ [CriticalWindow] Protocol config not found, using defaults');
+    // Default to 72 hours if config not found
+  }
+
+  const criticalWindowHours = protocolConfig?.critical_window_hours || 72;
+  const isEnabled = protocolConfig?.enable_critical_window_uplift !== false; // Default true
+
+  // Calculate hours since discharge
+  const hoursSinceDischarge = (Date.now() - new Date(episode.discharge_at).getTime()) / (1000 * 60 * 60);
+
+  // If disabled or outside critical window, return base severity
+  if (!isEnabled || hoursSinceDischarge >= criticalWindowHours) {
+    return { adjustedSeverity: baseSeverity, hoursSinceDischarge, wasAdjusted: false };
+  }
+
+  // Apply severity uplift (upgrade by one level)
+  let adjustedSeverity: SeverityType = baseSeverity;
+  switch (baseSeverity) {
+    case 'LOW':
+      adjustedSeverity = 'MODERATE';
+      break;
+    case 'MODERATE':
+      adjustedSeverity = 'HIGH';
+      break;
+    case 'HIGH':
+      adjustedSeverity = 'CRITICAL';
+      break;
+    case 'CRITICAL':
+      adjustedSeverity = 'CRITICAL'; // Already max
+      break;
+  }
+
+  const wasAdjusted = adjustedSeverity !== baseSeverity;
+
+  if (wasAdjusted) {
+    console.log(
+      `🚨 [CriticalWindow] Severity upgraded: ${baseSeverity} → ${adjustedSeverity} ` +
+      `(${hoursSinceDischarge.toFixed(1)}h post-discharge, ${criticalWindowHours}h window)`
+    );
+  }
+
+  return { adjustedSeverity, hoursSinceDischarge, wasAdjusted };
+}
+
 async function handleRaiseFlag(parameters: Record<string, unknown>, patientId: string, episodeId: string, supabase: SupabaseAdmin, interactionId?: string) {
   const { flagType, severity, rationale } = parameters;
   const severityStr = String(severity);
   const flagTypeStr = String(flagType);
   
+  // Validate rationale is provided
+  if (!rationale || (typeof rationale === 'string' && rationale.trim() === '')) {
+    console.error('❌ [RaiseFlag] AI did not provide rationale for flag. This should never happen.');
+    throw new Error('AI must provide rationale when raising a flag');
+  }
+
   console.log(`🚩 [RaiseFlag] Tool call parameters:`, {
     flagType: flagTypeStr,
     severity: severityStr,
-    rationale: rationale || 'none',
+    rationale: rationale,
     interactionId
   });
   
@@ -1419,18 +1533,57 @@ async function handleRaiseFlag(parameters: Record<string, unknown>, patientId: s
     console.error('❌ [RaiseFlag] Missing interactionId - cannot create task without interaction context');
     throw new Error('interactionId is required to create EscalationTask (needed for cascade delete)');
   }
+
+  // Fetch episode and protocol assignment to apply critical window logic
+  const { data: episode, error: episodeError } = await supabase
+    .from('Episode')
+    .select('condition_code, risk_level')
+    .eq('id', episodeId)
+    .single();
+
+  if (episodeError || !episode) {
+    console.error('❌ [RaiseFlag] Failed to fetch episode for critical window check:', episodeError);
+    // Proceed with base severity if we can't fetch episode
+  }
+
+  // Apply 72-hour critical window severity uplift
+  const baseSeverity = severityStr.toUpperCase() as SeverityType;
+  let finalSeverity = baseSeverity;
+  let criticalWindowMetadata: any = null;
+
+  if (episode) {
+    const { adjustedSeverity, hoursSinceDischarge, wasAdjusted } = await applyCriticalWindowSeverity(
+      baseSeverity,
+      episodeId,
+      episode.condition_code as ConditionCodeType,
+      episode.risk_level as RiskLevelType,
+      supabase
+    );
+
+    finalSeverity = adjustedSeverity;
+    criticalWindowMetadata = {
+      base_severity: baseSeverity,
+      adjusted_severity: adjustedSeverity,
+      was_adjusted: wasAdjusted,
+      hours_since_discharge: Math.round(hoursSinceDischarge * 10) / 10,
+      critical_window_applied: wasAdjusted
+    };
+
+    if (wasAdjusted) {
+      console.log(`📊 [RaiseFlag] Using adjusted severity: ${baseSeverity} → ${finalSeverity}`);
+    }
+  }
   
-  // Create escalation task
+  // Create escalation task with final severity
   const { data: task, error } = await supabase
     .from('EscalationTask')
     .insert({
       episode_id: episodeId,
       agent_interaction_id: interactionId, // Required - no null allowed
       reason_codes: [flagTypeStr],
-      severity: severityStr.toUpperCase() as SeverityType,
-      priority: getPriorityFromSeverity(severityStr.toUpperCase() as SeverityType),
+      severity: finalSeverity,
       status: 'OPEN' as TaskStatusType,
-      sla_due_at: new Date(Date.now() + getSLAMinutesFromSeverity(severityStr.toUpperCase() as SeverityType) * 60 * 1000).toISOString(),
+      sla_due_at: new Date(Date.now() + getSLAMinutesFromSeverity(finalSeverity) * 60 * 1000).toISOString(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })
@@ -1442,7 +1595,16 @@ async function handleRaiseFlag(parameters: Record<string, unknown>, patientId: s
     return { success: false, error: error.message };
   }
 
-  console.log('✅ [RaiseFlag] Task created:', task.id, 'linked to interaction:', interactionId);
+  if (criticalWindowMetadata?.was_adjusted) {
+    console.log(
+      `✅ [RaiseFlag] Task created: ${task.id} | ` +
+      `Severity: ${criticalWindowMetadata.base_severity} → ${criticalWindowMetadata.adjusted_severity} ` +
+      `(${criticalWindowMetadata.hours_since_discharge}h post-discharge) | ` +
+      `Interaction: ${interactionId}`
+    );
+  } else {
+    console.log('✅ [RaiseFlag] Task created:', task.id, 'linked to interaction:', interactionId);
+  }
   
   // Emit task/created event for Inngest workflows
   try {
@@ -1450,7 +1612,6 @@ async function handleRaiseFlag(parameters: Record<string, unknown>, patientId: s
       taskId: task.id,
       episodeId,
       patientId,
-      priority: task.priority,
       severity: task.severity,
       reasonCodes: task.reason_codes || [],
       actionType: flagTypeStr,
@@ -1468,7 +1629,7 @@ async function handleRaiseFlag(parameters: Record<string, unknown>, patientId: s
     await checkAndUpgradeRiskLevel(
       episodeId, 
       patientId,
-      severityStr.toUpperCase() as SeverityType, 
+      finalSeverity, // Use final (adjusted) severity for risk upgrade
       flagTypeStr,
       String(rationale || ''),
       supabase
@@ -1478,7 +1639,11 @@ async function handleRaiseFlag(parameters: Record<string, unknown>, patientId: s
     // Don't fail the request if upgrade check fails
   }
   
-  return { success: true, taskId: task.id };
+  return { 
+    success: true, 
+    taskId: task.id,
+    criticalWindowMetadata // Return this so it can be stored in interaction metadata
+  };
 }
 
 // Check if episode risk level needs upgrading based on flag severity
@@ -1636,7 +1801,6 @@ async function handleHandoffToNurse(parameters: Record<string, unknown>, patient
       agent_interaction_id: interactionId, // Required - no null allowed
       reason_codes: [flagTypeStr, reasonStr],
       severity: 'CRITICAL' as SeverityType,
-      priority: 'URGENT' as TaskPriorityType,
       status: 'OPEN' as TaskStatusType,
       sla_due_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutes
       created_at: new Date().toISOString(),
@@ -1658,7 +1822,6 @@ async function handleHandoffToNurse(parameters: Record<string, unknown>, patient
       taskId: task.id,
       episodeId,
       patientId,
-      priority: task.priority,
       severity: task.severity,
       reasonCodes: task.reason_codes || [],
       actionType: 'HANDOFF_TO_NURSE',

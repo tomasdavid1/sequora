@@ -47,7 +47,6 @@ interface EscalationTask {
   patientName: string;
   condition: string;
   severity: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
-  priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
   reason: string;
   slaDueAt: string;
   status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
@@ -116,15 +115,6 @@ export default function NurseDashboard() {
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'URGENT': return 'bg-red-100 text-red-800';
-      case 'HIGH': return 'bg-orange-100 text-orange-800';
-      case 'NORMAL': return 'bg-blue-100 text-blue-800';
-      case 'LOW': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
 
   const handleResolveTask = async () => {
     if (!selectedTask || !resolutionOutcome) return;
@@ -190,7 +180,7 @@ export default function NurseDashboard() {
   }
 
   const activePatients = patients.filter(p => p.status === 'ACTIVE');
-  const urgentTasks = escalationTasks.filter(t => t.priority === 'URGENT' || t.priority === 'HIGH');
+  const urgentTasks = escalationTasks.filter(t => t.severity === 'CRITICAL' || t.severity === 'HIGH');
   const overdueTasks = escalationTasks.filter(t => t.timeToBreach < 0);
 
   return (
@@ -368,7 +358,6 @@ export default function NurseDashboard() {
                   <TableRow>
                     <TableHead>Patient</TableHead>
                     <TableHead>Severity</TableHead>
-                    <TableHead>Priority</TableHead>
                     <TableHead>Reason</TableHead>
                     <TableHead>SLA Due</TableHead>
                     <TableHead>Status</TableHead>
@@ -382,11 +371,6 @@ export default function NurseDashboard() {
                       <TableCell>
                         <Badge className={getSeverityColor(task.severity)}>
                           {task.severity}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getPriorityColor(task.priority)}>
-                          {task.priority}
                         </Badge>
                       </TableCell>
                       <TableCell className="max-w-xs truncate">{task.reason}</TableCell>

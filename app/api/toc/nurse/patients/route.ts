@@ -42,7 +42,6 @@ export async function GET(request: NextRequest) {
         EscalationTask (
           id,
           severity,
-          priority,
           status,
           sla_due_at,
           reason_codes

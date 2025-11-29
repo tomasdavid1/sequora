@@ -68,7 +68,7 @@ export function ProtocolConfigModal({
               </h3>
               <p className="text-xs text-gray-600 mb-3">Edit patterns below. Changes save when you click "Save".</p>
               <div className="space-y-2 max-h-96 overflow-y-auto">
-                {activeRules.filter((r: any) => r.rule_type === 'RED_FLAG').map((rule: any) => (
+                {activeRules.map((rule: any) => (
                   <div key={rule.rule_code} className="bg-white rounded p-3 border border-gray-200 text-xs">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-semibold">{rule.rule_code}</span>

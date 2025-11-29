@@ -3,7 +3,7 @@
 
 import { supabaseServer } from '@/lib/supabase-server';
 import { EscalationRepository } from '../repositories/escalation';
-import { OutreachResponse, EscalationTask, RedFlagSeverity, ConditionCode } from '@/types';
+import { RedFlagSeverity } from '@/types';
 
 interface TriageContext {
   attemptId: string;
@@ -28,7 +28,7 @@ export class TriageAgent {
       .from('ProtocolContentPack')
       .select('rule_code, message, severity, action_type, text_patterns')
       .eq('condition_code', context.conditionCode as any)
-      .eq('rule_type', 'RED_FLAG')
+      .not('severity', 'is', null)  // Exclude wellness rules (NULL = doing good)
       .eq('active', true);
 
     if (!rules || rules.length === 0) {
@@ -72,7 +72,6 @@ export class TriageAgent {
         source_attempt_id: context.attemptId,
         reason_codes: reasonCodes,
         severity: maxSeverity as any,
-        priority: this.severityToPriority(maxSeverity) as any,
         status: 'OPEN' as any,
         sla_due_at: this.calculateSLADue(maxSeverity)
       } as any);
@@ -130,34 +129,25 @@ export class TriageAgent {
 
   // Severity helpers
   private getMaxSeverity(severities: RedFlagSeverity[]): RedFlagSeverity {
-    const order: RedFlagSeverity[] = ['CRITICAL', 'HIGH', 'MODERATE', 'LOW', 'NONE', 'POSITIVE', 'STABLE'];
+    const order: RedFlagSeverity[] = ['CRITICAL', 'HIGH', 'MODERATE', 'LOW'];
     for (const sev of order) {
       if (severities.includes(sev)) return sev;
     }
-    return 'NONE';
+    // Fallback to LOW if no severity found (shouldn't happen)
+    return 'LOW';
   }
 
-  private severityToPriority(severity: RedFlagSeverity): 'URGENT' | 'HIGH' | 'NORMAL' | 'LOW' {
-    switch (severity) {
-      case 'CRITICAL': return 'URGENT';
-      case 'HIGH': return 'HIGH';
-      case 'MODERATE': return 'NORMAL';
-      default: return 'LOW';
-    }
-  }
 
   private calculateSLADue(severity: RedFlagSeverity): string {
+    // Updated to match new SLA standards (from earlier fixes)
     const slaDurations: Record<RedFlagSeverity, number> = {
       CRITICAL: 30,    // 30 minutes
       HIGH: 120,       // 2 hours
-      MODERATE: 1440,  // 24 hours
-      LOW: 2880,       // 48 hours
-      NONE: 2880,      // 48 hours
-      POSITIVE: 0,     // No SLA needed - positive outcome
-      STABLE: 0        // No SLA needed - stable outcome
+      MODERATE: 240,   // 4 hours
+      LOW: 480         // 8 hours
     };
 
-    const minutes = slaDurations[severity];
+    const minutes = slaDurations[severity] || 480; // Default to 8 hours
     const dueDate = new Date(Date.now() + minutes * 60 * 1000);
     return dueDate.toISOString();
   }

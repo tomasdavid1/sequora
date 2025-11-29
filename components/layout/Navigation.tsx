@@ -50,15 +50,19 @@ export default function Navigation() {
             
             if (roleResponse.ok) {
               const roleData = await roleResponse.json();
-              setUserRole(roleData.role || 'ADMIN');
+              if (!roleData.role) {
+                console.error('❌ User has no role assigned. This is a security issue.');
+                setUserRole(null);
+              } else {
+                setUserRole(roleData.role);
+              }
             } else {
               console.error('Failed to fetch role from API in Navigation');
-              setUserRole(session.user.user_metadata?.role || 'ADMIN');
+              setUserRole(null);  // No default - user must have a role
             }
           } catch (error) {
             console.error('Error fetching user role in Navigation:', error);
-            // Fallback to user metadata or default to ADMIN
-            setUserRole(session.user.user_metadata?.role || 'ADMIN');
+            setUserRole(null);  // No default - user must have a role
           }
         }
       } catch (error) {
@@ -101,14 +105,19 @@ export default function Navigation() {
             
             if (roleResponse.ok) {
               const roleData = await roleResponse.json();
-              setUserRole(roleData.role || 'ADMIN');
+              if (!roleData.role) {
+                console.error('❌ User has no role assigned. This is a security issue.');
+                setUserRole(null);
+              } else {
+                setUserRole(roleData.role);
+              }
             } else {
               console.error('Failed to fetch role from API in Navigation (auth change)');
-              setUserRole(session.user.user_metadata?.role || 'ADMIN');
+              setUserRole(null);  // No default - user must have a role
             }
           } catch (error) {
             console.error('Error fetching user role in Navigation (auth change):', error);
-            setUserRole(session.user.user_metadata?.role || 'ADMIN');
+            setUserRole(null);  // No default - user must have a role
           }
         } else {
           setUserRole(null);

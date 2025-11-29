@@ -894,7 +894,6 @@ export type Database = {
           episode_id: string | null
           id: string
           picked_up_at: string | null
-          priority: Database["public"]["Enums"]["task_priority"]
           reason_codes: string[] | null
           resolution_notes: string | null
           resolution_outcome_code: string | null
@@ -912,7 +911,6 @@ export type Database = {
           episode_id?: string | null
           id?: string
           picked_up_at?: string | null
-          priority: Database["public"]["Enums"]["task_priority"]
           reason_codes?: string[] | null
           resolution_notes?: string | null
           resolution_outcome_code?: string | null
@@ -930,7 +928,6 @@ export type Database = {
           episode_id?: string | null
           id?: string
           picked_up_at?: string | null
-          priority?: Database["public"]["Enums"]["task_priority"]
           reason_codes?: string[] | null
           resolution_notes?: string | null
           resolution_outcome_code?: string | null
@@ -968,6 +965,98 @@ export type Database = {
             columns: ["source_attempt_id"]
             isOneToOne: false
             referencedRelation: "OutreachAttempt"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      MagicLink: {
+        Row: {
+          agent_interaction_id: string | null
+          created_at: string
+          episode_id: string
+          expires_at: string
+          first_used_at: string | null
+          id: string
+          ip_addresses: string[] | null
+          is_active: boolean | null
+          last_used_at: string | null
+          outreach_attempt_id: string | null
+          patient_id: string
+          purpose: string
+          revoke_reason: string | null
+          revoked_at: string | null
+          token: string
+          updated_at: string | null
+          use_count: number | null
+          user_agents: string[] | null
+        }
+        Insert: {
+          agent_interaction_id?: string | null
+          created_at?: string
+          episode_id: string
+          expires_at: string
+          first_used_at?: string | null
+          id?: string
+          ip_addresses?: string[] | null
+          is_active?: boolean | null
+          last_used_at?: string | null
+          outreach_attempt_id?: string | null
+          patient_id: string
+          purpose?: string
+          revoke_reason?: string | null
+          revoked_at?: string | null
+          token: string
+          updated_at?: string | null
+          use_count?: number | null
+          user_agents?: string[] | null
+        }
+        Update: {
+          agent_interaction_id?: string | null
+          created_at?: string
+          episode_id?: string
+          expires_at?: string
+          first_used_at?: string | null
+          id?: string
+          ip_addresses?: string[] | null
+          is_active?: boolean | null
+          last_used_at?: string | null
+          outreach_attempt_id?: string | null
+          patient_id?: string
+          purpose?: string
+          revoke_reason?: string | null
+          revoked_at?: string | null
+          token?: string
+          updated_at?: string | null
+          use_count?: number | null
+          user_agents?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "MagicLink_agent_interaction_id_fkey"
+            columns: ["agent_interaction_id"]
+            isOneToOne: false
+            referencedRelation: "AgentInteraction"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "MagicLink_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "Episode"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "MagicLink_outreach_attempt_id_fkey"
+            columns: ["outreach_attempt_id"]
+            isOneToOne: false
+            referencedRelation: "OutreachAttempt"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "MagicLink_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "Patient"
             referencedColumns: ["id"]
           },
         ]
@@ -1594,6 +1683,8 @@ export type Database = {
           language_code: Database["public"]["Enums"]["language_code"] | null
           last_name: string
           mrn: string | null
+          phone_verified: boolean | null
+          phone_verified_at: string | null
           preferred_channel:
             | Database["public"]["Enums"]["contact_channel"]
             | null
@@ -1623,6 +1714,8 @@ export type Database = {
           language_code?: Database["public"]["Enums"]["language_code"] | null
           last_name: string
           mrn?: string | null
+          phone_verified?: boolean | null
+          phone_verified_at?: string | null
           preferred_channel?:
             | Database["public"]["Enums"]["contact_channel"]
             | null
@@ -1652,6 +1745,8 @@ export type Database = {
           language_code?: Database["public"]["Enums"]["language_code"] | null
           last_name?: string
           mrn?: string | null
+          phone_verified?: boolean | null
+          phone_verified_at?: string | null
           preferred_channel?:
             | Database["public"]["Enums"]["contact_channel"]
             | null
@@ -1785,8 +1880,10 @@ export type Database = {
           condition_code: Database["public"]["Enums"]["condition_code"]
           created_at: string
           critical_confidence_threshold: number
+          critical_window_hours: number | null
           detect_multiple_symptoms: boolean
           distressed_severity_upgrade: string | null
+          enable_critical_window_uplift: boolean | null
           enable_moderate_concern_escalation: boolean
           enable_multiple_symptom_escalation: boolean
           enable_sentiment_boost: boolean
@@ -1806,8 +1903,10 @@ export type Database = {
           condition_code: Database["public"]["Enums"]["condition_code"]
           created_at?: string
           critical_confidence_threshold?: number
+          critical_window_hours?: number | null
           detect_multiple_symptoms?: boolean
           distressed_severity_upgrade?: string | null
+          enable_critical_window_uplift?: boolean | null
           enable_moderate_concern_escalation?: boolean
           enable_multiple_symptom_escalation?: boolean
           enable_sentiment_boost?: boolean
@@ -1827,8 +1926,10 @@ export type Database = {
           condition_code?: Database["public"]["Enums"]["condition_code"]
           created_at?: string
           critical_confidence_threshold?: number
+          critical_window_hours?: number | null
           detect_multiple_symptoms?: boolean
           distressed_severity_upgrade?: string | null
+          enable_critical_window_uplift?: boolean | null
           enable_moderate_concern_escalation?: boolean
           enable_multiple_symptom_escalation?: boolean
           enable_sentiment_boost?: boolean
@@ -1859,7 +1960,6 @@ export type Database = {
           question_category: string | null
           question_text: string | null
           rule_code: string
-          rule_type: Database["public"]["Enums"]["rule_type"]
           severity: Database["public"]["Enums"]["red_flag_severity"] | null
           text_patterns: string[]
           updated_at: string | null
@@ -1877,7 +1977,6 @@ export type Database = {
           question_category?: string | null
           question_text?: string | null
           rule_code: string
-          rule_type: Database["public"]["Enums"]["rule_type"]
           severity?: Database["public"]["Enums"]["red_flag_severity"] | null
           text_patterns?: string[]
           updated_at?: string | null
@@ -1895,7 +1994,6 @@ export type Database = {
           question_category?: string | null
           question_text?: string | null
           rule_code?: string
-          rule_type?: Database["public"]["Enums"]["rule_type"]
           severity?: Database["public"]["Enums"]["red_flag_severity"] | null
           text_patterns?: string[]
           updated_at?: string | null
@@ -2390,14 +2488,7 @@ export type Database = {
         | "NO_CONTACT"
         | "DECLINED"
         | "EXCLUDED"
-      red_flag_severity:
-        | "NONE"
-        | "LOW"
-        | "MODERATE"
-        | "HIGH"
-        | "CRITICAL"
-        | "POSITIVE"
-        | "STABLE"
+      red_flag_severity: "LOW" | "MODERATE" | "HIGH" | "CRITICAL"
       response_type:
         | "SINGLE_CHOICE"
         | "MULTI_CHOICE"
@@ -2406,7 +2497,6 @@ export type Database = {
         | "YES_NO"
       risk_level: "LOW" | "MEDIUM" | "HIGH"
       risk_model_type: "HOSPITAL" | "LACE" | "LACE_PLUS" | "CUSTOM"
-      rule_type: "RED_FLAG" | "CLOSURE" | "QUESTION" | "CLARIFICATION"
       task_priority: "LOW" | "NORMAL" | "HIGH" | "URGENT"
       task_status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CANCELLED" | "EXPIRED"
       tcm_complexity: "MODERATE_99495" | "HIGH_99496" | "UNKNOWN"
@@ -2688,15 +2778,7 @@ export const Constants = {
         "DECLINED",
         "EXCLUDED",
       ],
-      red_flag_severity: [
-        "NONE",
-        "LOW",
-        "MODERATE",
-        "HIGH",
-        "CRITICAL",
-        "POSITIVE",
-        "STABLE",
-      ],
+      red_flag_severity: ["LOW", "MODERATE", "HIGH", "CRITICAL"],
       response_type: [
         "SINGLE_CHOICE",
         "MULTI_CHOICE",
@@ -2706,7 +2788,6 @@ export const Constants = {
       ],
       risk_level: ["LOW", "MEDIUM", "HIGH"],
       risk_model_type: ["HOSPITAL", "LACE", "LACE_PLUS", "CUSTOM"],
-      rule_type: ["RED_FLAG", "CLOSURE", "QUESTION", "CLARIFICATION"],
       task_priority: ["LOW", "NORMAL", "HIGH", "URGENT"],
       task_status: ["OPEN", "IN_PROGRESS", "RESOLVED", "CANCELLED", "EXPIRED"],
       tcm_complexity: ["MODERATE_99495", "HIGH_99496", "UNKNOWN"],

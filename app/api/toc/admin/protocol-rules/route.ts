@@ -53,9 +53,8 @@ export async function POST(request: NextRequest) {
       message,
       condition_code,
       severity,
-      rule_type: body.rule_type || 'RED_FLAG',
       text_patterns: body.text_patterns || [],
-      action_type: body.action_type || 'ASK_MORE',
+      action_type: body.action_type,
       active: body.active !== undefined ? body.active : true,
       // Optional fields
       ...(body.question_category && { question_category: body.question_category }),

@@ -10,9 +10,35 @@ export async function POST(
     const body = await request.json();
     const { outcome, notes, userId } = body;
 
+    // Validate required fields
+    if (!outcome) {
+      return NextResponse.json(
+        { error: 'Resolution outcome is required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate outcome is a valid value
+    const validOutcomes = [
+      'EDUCATION_ONLY',
+      'MED_ADJUST',
+      'TELEVISIT_SCHEDULED',
+      'ED_SENT',
+      'NO_CONTACT',
+      'FALSE_POSITIVE',
+      'CONTACTED'
+    ];
+
+    if (!validOutcomes.includes(outcome)) {
+      return NextResponse.json(
+        { error: `Invalid outcome: ${outcome}. Must be one of: ${validOutcomes.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
     const supabase = getSupabaseAdmin();
 
-    console.log(`✅ [Tasks] Resolving task ${taskId}`);
+    console.log(`✅ [Tasks] Resolving task ${taskId} with outcome: ${outcome}`);
 
     // Update task as resolved
     const { data: task, error } = await supabase
@@ -20,8 +46,8 @@ export async function POST(
       .update({
         status: 'RESOLVED',
         resolved_at: new Date().toISOString(),
-        resolution_outcome_code: outcome || 'RESOLVED',
-        resolution_notes: notes || 'Resolved by staff',
+        resolution_outcome_code: outcome,
+        resolution_notes: notes || null,  // Allow null notes
         assigned_to_user_id: userId || null,
         updated_at: new Date().toISOString()
       })

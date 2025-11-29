@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { ProtocolConfig, ProtocolContentPack } from '@/types';
 import { useProtocolConfig } from '@/hooks/useProtocolConfig';
-import { VALID_ACTION_TYPES, ActionType, SeverityType, VALID_SEVERITIES, VALID_RULE_TYPES, RuleTypeType } from '@/lib/enums';
+import { VALID_ACTION_TYPES, ActionType, SeverityType, VALID_SEVERITIES } from '@/lib/enums';
 
 // Helper component for labels with info tooltips
 const LabelWithInfo = ({ htmlFor, label, info }: { htmlFor: string; label: string; info: string }) => (
@@ -57,7 +57,6 @@ export default function ProtocolConfigDetailPage() {
   const [newRule, setNewRule] = useState<Partial<ProtocolContentPack> & { text_patterns: string[] | string }>({
     rule_code: '',
     condition_code: '',
-    rule_type: '',
     text_patterns: [],
     action_type: undefined, // MUST be explicitly selected by user
     severity: '',
@@ -162,7 +161,6 @@ export default function ProtocolConfigDetailPage() {
       setNewRule({
         rule_code: '',
         condition_code: config.condition_code,
-        rule_type: 'RED_FLAG',
         text_patterns: [],
         action_type: undefined, // MUST be explicitly selected by user
         severity: 'LOW',
@@ -608,7 +606,7 @@ export default function ProtocolConfigDetailPage() {
                           </Badge>
                           {isEditing ? (
                             <Select
-                              value={currentRule.severity || 'LOW'}
+                              value={currentRule.severity as SeverityType}
                               onValueChange={(value) => setEditedRule({
                                 ...editedRule,
                                 severity: value as SeverityType
@@ -806,30 +804,6 @@ export default function ProtocolConfigDetailPage() {
               />
             </div>
 
-            {/* Rule Type */}
-            <div>
-              <LabelWithInfo 
-                htmlFor="rule_type" 
-                label="Rule Type *" 
-                info="RED_FLAG: Detects concerning symptoms. CLARIFICATION: Asks follow-up questions for more details. CLOSURE: Identifies when patient confirms they're doing well and conversation can end."
-              />
-              <Select
-                value={newRule.rule_type || 'RED_FLAG'}
-                onValueChange={(value) => setNewRule({ ...newRule, rule_type: value as RuleTypeType })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {VALID_RULE_TYPES.map((ruleType) => (
-                    <SelectItem key={ruleType} value={ruleType}>
-                    {ruleType}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Text Patterns */}
             <div>
               <LabelWithInfo 
@@ -877,10 +851,28 @@ export default function ProtocolConfigDetailPage() {
               <LabelWithInfo 
                 htmlFor="severity" 
                 label="Severity *" 
-                info="AI BEHAVIOR: Controls escalation urgency AND which patients see this rule. CRITICAL = 30min nurse response, URGENT priority. HIGH = 2hr response, HIGH priority. MODERATE = 4hr response, NORMAL priority. LOW = 8hr response, LOW priority. RISK FILTERING: HIGH risk patients see ALL severity rules (they're fragile, everything matters). MEDIUM risk patients see CRITICAL+HIGH+MODERATE only (skip minor stuff). LOW risk patients see CRITICAL+HIGH only (only serious red flags). This matching ensures sick patients get intensive monitoring while stable patients aren't over-monitored."
+                info="Controls escalation urgency AND which patients see this rule.
+
+📊 ESCALATION LEVELS (when patient has concerning symptoms):
+• CRITICAL = 30min nurse response, URGENT priority (life-threatening)
+• HIGH = 2hr response, HIGH priority (serious deterioration)
+• MODERATE = 4hr response, NORMAL priority (concerning but stable)
+• LOW = 8hr response, LOW priority (minor issues, FYI)
+
+✅ WELLNESS INDICATORS (patient doing well):
+• Leave severity BLANK/NULL = No escalation needed
+• Use for closure rules (e.g. 'feeling good', 'no problems', 'doing well')
+• These help the AI know when it's safe to end the conversation
+
+🔍 RISK-BASED FILTERING (Who sees what):
+• HIGH risk patients → See ALL severity rules (fragile, everything matters)
+• MEDIUM risk patients → See CRITICAL + HIGH + MODERATE only (skip minor stuff)
+• LOW risk patients → See CRITICAL + HIGH only (only serious red flags)
+
+This ensures sick patients get intensive monitoring while stable patients aren't over-monitored."
               />
               <Select
-                value={newRule.severity || 'LOW'}
+                value={newRule.severity as SeverityType}
                 onValueChange={(value: SeverityType) => setNewRule({ ...newRule, severity: value })}
               >
                 <SelectTrigger>
@@ -1005,7 +997,6 @@ export default function ProtocolConfigDetailPage() {
               setNewRule({
                 rule_code: '',
                 condition_code: config.condition_code,
-                rule_type: 'RED_FLAG',
                 text_patterns: [],
                 action_type: undefined, // MUST be explicitly selected by user
                 severity: 'LOW',

@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching user role:', dbError);
       // Fallback to user_metadata if User table query fails
       return NextResponse.json({
-        role: user.user_metadata?.role || 'PATIENT',
+        role: user.user_metadata?.role,
         email: user.email,
         name: user.user_metadata?.name || user.email,
         source: 'user_metadata'

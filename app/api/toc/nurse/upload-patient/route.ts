@@ -41,6 +41,31 @@ export async function POST(request: NextRequest) {
         email: patientData.email,
         condition: patientData.condition
       });
+
+      // Validate required fields
+      if (!patientData.firstName || !patientData.lastName || !patientData.dob || !patientData.email) {
+        return NextResponse.json(
+          { error: 'firstName, lastName, dob, and email are required fields' },
+          { status: 400 }
+        );
+      }
+
+      // Validate education_level is provided and valid
+      if (!patientData.educationLevel) {
+        return NextResponse.json(
+          { error: 'educationLevel is required. Must be one of: LOW, MEDIUM, HIGH' },
+          { status: 400 }
+        );
+      }
+
+      const validEducationLevels = ['LOW', 'MEDIUM', 'HIGH'];
+      if (!validEducationLevels.includes(patientData.educationLevel)) {
+        return NextResponse.json(
+          { error: `Invalid educationLevel: ${patientData.educationLevel}. Must be one of: LOW, MEDIUM, HIGH` },
+          { status: 400 }
+        );
+      }
+
       // Note: We'll create the patient record first, and they can sign up themselves
       // The auth user creation will be handled when they first log in
 
@@ -59,7 +84,7 @@ export async function POST(request: NextRequest) {
           city: patientData.city || null,
           state: patientData.state || null,
           zip: patientData.zip || null,
-          education_level: patientData.educationLevel as EducationLevelType, // Patient attribute
+          education_level: patientData.educationLevel as EducationLevelType,
           language_code: patientData.languageCode || 'EN', // Default to English
           preferred_channel: 'SMS' as ContactChannelType, // Default to SMS
           created_at: new Date().toISOString(),

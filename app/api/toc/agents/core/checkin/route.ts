@@ -8,7 +8,6 @@ import {
   SeverityType,
   ConditionCodeType,
   VALID_SEVERITIES,
-  getPriorityFromSeverity,
   getSLAMinutesFromSeverity
 } from '@/lib/enums';
 
@@ -59,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     // 3. Create escalation task if needed
     let escalationTaskId;
-    if (analysis.severity !== 'NONE') {
+    if (analysis.severity) {  // If severity exists, create escalation task
       escalationTaskId = await createEscalationTask(patientId, analysis, sessionId);
     }
 
@@ -151,7 +150,7 @@ async function analyzeResponsesForRedFlags(
     .from('ProtocolContentPack')
     .select('rule_code, severity, action_type, message')
     .eq('condition_code', condition as ConditionCode)
-    .eq('rule_type', 'RED_FLAG')
+    .not('severity', 'is', null)  // Exclude wellness rules (NULL = doing good)
     .eq('active', true);
 
   if (rulesError) {
@@ -295,7 +294,6 @@ async function createEscalationTask(
       source_attempt_id: sessionId,
       reason_codes: [String(analysis.redFlagCode)],
       severity: analysis.severity as SeverityType,
-      priority: getPriorityFromSeverity(analysis.severity as SeverityType),
       status: 'OPEN',
       sla_due_at: getSLADueTime(analysis.severity as SeverityType),
       created_at: new Date().toISOString(),
@@ -332,7 +330,7 @@ async function generatePatientResponse(
     return `Thank you for your responses. A nurse will call you within ${timeframe} to discuss your care.${urgencyNote}`;
   }
   
-  // For LOW or NONE severity - generic wellness message
+  // For LOW severity or no severity (wellness) - generic wellness message
   return "Thank you for your responses. You're doing well! Continue following your care plan and taking your medications as prescribed. Contact us if you have any concerns or if your symptoms change.";
 }
 
@@ -348,12 +346,12 @@ async function determineNextActions(
   }
   
   // Fetch the matched protocol rule to get database-driven action hint
-  if (analysis.redFlagCode && analysis.redFlagCode !== 'NONE') {
+  if (analysis.redFlagCode) {
     const supabase = getSupabaseAdmin();
     const { data: rule } = await supabase
       .from('ProtocolContentPack')
       .select('action_type, message')
-      .eq('condition_code', condition as any)
+      .eq('condition_code', condition as ConditionCodeType)
       .eq('rule_code', String(analysis.redFlagCode))
       .single();
     

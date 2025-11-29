@@ -266,7 +266,7 @@ export default function TaskDetailPage() {
                   <div key={response.id} className="border-b pb-3">
                     <div className="flex justify-between items-start mb-1">
                       <span className="font-medium">{response.question_code}</span>
-                      {response.redflag_severity !== 'NONE' && (
+                      {response.redflag_severity && (
                         <Badge variant="destructive">{response.redflag_severity}</Badge>
                       )}
                     </div>

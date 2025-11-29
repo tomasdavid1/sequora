@@ -18,8 +18,7 @@ export async function PUT(
     // Map all valid ProtocolContentPack fields from the request body
     const allowedFields = [
       'rule_code',
-      'condition_code', 
-      'rule_type',
+      'condition_code',
       'text_patterns',
       'action_type',
       'severity',

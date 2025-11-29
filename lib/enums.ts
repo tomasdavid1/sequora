@@ -27,13 +27,10 @@ import { Database } from '@/database.types';
 export type SeverityType = Database['public']['Enums']['red_flag_severity'];
 
 export const VALID_SEVERITIES: readonly SeverityType[] = [
-  'NONE',
   'LOW',
   'MODERATE',
   'HIGH',
-  'CRITICAL',
-  'POSITIVE',
-  'STABLE'
+  'CRITICAL'
 ] as const;
 
 export function isValidSeverity(value: unknown): value is SeverityType {
@@ -190,9 +187,6 @@ export function getPriorityFromSeverity(severity: SeverityType): TaskPriorityTyp
     case 'MODERATE':
       return 'NORMAL';
     case 'LOW':
-    case 'NONE':
-    case 'POSITIVE':
-    case 'STABLE':
       return 'LOW';
     default:
       // TypeScript exhaustiveness check
@@ -214,11 +208,6 @@ export function getSLAMinutesFromSeverity(severity: SeverityType): number {
       return 240; // 4 hours
     case 'LOW':
       return 480; // 8 hours
-    case 'NONE':
-      return 0; // No SLA needed
-    case 'POSITIVE':
-    case 'STABLE':
-      return 0; // No SLA needed - these are positive outcomes
     default:
       const _exhaustive: never = severity;
       throw new Error(`Unhandled severity: ${_exhaustive}`);
@@ -338,24 +327,6 @@ export const VALID_OUTREACH_STATUSES: readonly OutreachStatusType[] = [
 export function isValidOutreachStatus(value: unknown): value is OutreachStatusType {
   return typeof value === 'string' && 
     VALID_OUTREACH_STATUSES.includes(value as OutreachStatusType);
-}
-
-// ============================================================================
-// Rule Type
-// ============================================================================
-
-export type RuleTypeType = Database['public']['Enums']['rule_type'];
-
-export const VALID_RULE_TYPES: readonly RuleTypeType[] = [
-  'RED_FLAG',
-  'CLOSURE',
-  'QUESTION',
-  'CLARIFICATION'
-] as const;
-
-export function isValidRuleType(value: unknown): value is RuleTypeType {
-  return typeof value === 'string' && 
-    VALID_RULE_TYPES.includes(value as RuleTypeType);
 }
 
 // ============================================================================
